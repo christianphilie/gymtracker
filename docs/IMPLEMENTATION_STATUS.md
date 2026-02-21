@@ -33,7 +33,7 @@
 - previous-session extras shown as informational hints only.
 19. Exercise/session note and icon polish in editor + session views.
 20. Dexie schema v2 migration for session exercise model (`sessionExerciseKey`, template mapping, metadata snapshot).
-21. PWA icon pack refreshed for homescreen usage (`pwa-192`, `pwa-512`, `apple-touch-icon`) with dark gradient branding.
+21. PWA icon pack refreshed for homescreen usage (`pwa-192`, `pwa-512`, `apple-touch-icon`) with white background branding.
 22. Deployment baseline added via `vercel.json` rewrite config for SPA routing.
 23. Dashboard now separates active sessions from regular workouts with dedicated status and resume CTA.
 24. Workout editor now supports full workout deletion with cascading cleanup of sessions/session sets.
@@ -44,7 +44,7 @@
 - import page includes prompt guidance and explicit JSON upload label.
 27. Previous-session hints now consider only completed (checked) sets.
 28. Mobile zoom behavior constrained for app-like UX (manual zoom disabled + input focus zoom prevention).
-29. Homescreen icon refreshed to match title-bar dumbbell mark on dark gradient background.
+29. Homescreen icon refreshed to match title-bar dumbbell mark on white background.
 30. Header quick-action icons are now globally visible except during active session progress view; workout edit action bar is no longer sticky.
 31. Workout deletion now uses in-app dialog styling instead of browser-native confirm UI.
 
