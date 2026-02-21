@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg", "app-icon.svg", "apple-touch-icon.png"],
+      includeAssets: ["favicon.svg"],
       manifest: {
         name: "Gymtracker",
         short_name: "Gymtracker",
@@ -19,20 +19,9 @@ export default defineConfig({
         start_url: "/",
         icons: [
           {
-            src: "pwa-192.png",
-            sizes: "192x192",
-            type: "image/png"
-          },
-          {
-            src: "pwa-512.png",
-            sizes: "512x512",
-            type: "image/png"
-          },
-          {
-            src: "pwa-512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "maskable"
+            src: "favicon.svg",
+            sizes: "any",
+            type: "image/svg+xml"
           }
         ]
       },
