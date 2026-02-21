@@ -46,6 +46,7 @@
 28. Mobile zoom behavior constrained for app-like UX (manual zoom disabled + input focus zoom prevention).
 29. Homescreen icon refreshed to match title-bar dumbbell mark on dark gradient background.
 30. Header quick-action icons are now globally visible except during active session progress view; workout edit action bar is no longer sticky.
+31. Workout deletion now uses in-app dialog styling instead of browser-native confirm UI.
 
 ## Open TODOs (Priority)
 1. P0: Add automated tests (unit + integration) for import repair and session flows.

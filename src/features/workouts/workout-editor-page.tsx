@@ -4,6 +4,14 @@ import { NotebookPen } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,6 +48,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const [draft, setDraft] = useState<WorkoutDraft>(createEmptyDraft());
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     if (mode !== "edit" || !workoutId) {
@@ -115,15 +124,11 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
       return;
     }
 
-    const shouldDelete = window.confirm(t("deleteWorkoutConfirm"));
-    if (!shouldDelete) {
-      return;
-    }
-
     try {
       setIsDeleting(true);
       await deleteWorkout(Number(workoutId));
       toast.success(t("workoutDeleted"));
+      setIsDeleteDialogOpen(false);
       navigate("/");
     } finally {
       setIsDeleting(false);
@@ -295,12 +300,33 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
             variant="outline"
             className="w-full border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
             disabled={isSaving || isDeleting}
-            onClick={handleDeleteWorkout}
+            onClick={() => setIsDeleteDialogOpen(true)}
           >
             {t("deleteWorkout")}
           </Button>
         )}
       </div>
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("deleteWorkout")}</DialogTitle>
+            <DialogDescription>{t("deleteWorkoutConfirm")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
+              {t("cancel")}
+            </Button>
+            <Button
+              className="border-red-700 bg-red-700 text-white hover:bg-red-800"
+              onClick={handleDeleteWorkout}
+              disabled={isDeleting}
+            >
+              {t("deleteWorkout")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
