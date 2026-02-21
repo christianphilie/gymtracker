@@ -25,10 +25,23 @@
 ## Data Model (Dexie)
 1. `settings`: language, weightUnit.
 2. `workouts`: workout container.
-3. `exercises`: belongs to workout.
+3. `exercises`: workout template exercises (`isTemplate` marker).
 4. `exerciseTemplateSets`: planned sets.
 5. `sessions`: active/completed sessions.
-6. `sessionExerciseSets`: target + actual set values.
+6. `sessionExerciseSets`: session-local exercise rows with:
+- `sessionExerciseKey` (stable key per exercise inside a session),
+- optional `templateExerciseId` for mapped template exercises,
+- exercise metadata snapshot (`exerciseName`, `exerciseNotes`, `exerciseOrder`),
+- `isTemplateExercise` flag,
+- target/actual values + completion state.
+
+## Session Lifecycle Rules
+1. Only one active session per workout at a time.
+2. Starting a workout resumes the active session if present.
+3. Active session values are persisted immediately (autosave behavior).
+4. Discarding a session removes all session rows and history impact.
+5. Completing a session can optionally rewrite workout template exercises/sets from session results.
+6. Extras created during a session are shown in previous-session hints, but do not auto-extend a fresh template-based session unless user selects template overwrite at completion.
 
 ## JSON Import Contract (V1)
 ```json
@@ -67,3 +80,4 @@
 1. No backend means no cross-device sync.
 2. PWA offline is intentionally basic for V1.
 3. Import merge policy may create duplicates by design.
+4. Session/template model adds migration complexity (Dexie schema v2).

@@ -9,6 +9,8 @@ export const messages = {
     edit: "Bearbeiten",
     newWorkout: "Neues Workout",
     exercises: "Übungen",
+    exerciseSingular: "Übung",
+    exerciseName: "Übungsname",
     sets: "Sätze",
     save: "Speichern",
     cancel: "Abbrechen",
@@ -49,7 +51,17 @@ export const messages = {
     previewImport: "Import-Vorschau",
     doneSets: "Abgehakt",
     fileLoaded: "Datei geladen",
-    noFileLoaded: "Keine Datei geladen"
+    noFileLoaded: "Keine Datei geladen",
+    activeSession: "Aktive Session",
+    resumeSession: "Fortsetzen",
+    lastSessionExtras: "Zusätzliche Übungen letzte Session",
+    extraSets: "zusätzliche Sätze",
+    discardSession: "Session verwerfen",
+    discardSessionConfirm: "Session wirklich verwerfen? Alle aktuellen Daten dieser Session gehen verloren.",
+    sessionDiscarded: "Session verworfen",
+    completeSessionTemplatePrompt: "Soll diese Session als neue Vorlage für das Workout übernommen werden?",
+    completeWithoutTemplate: "Nur abschließen",
+    completeWithTemplate: "Abschließen + Vorlage"
   },
   en: {
     appName: "Gymtracker",
@@ -59,6 +71,8 @@ export const messages = {
     edit: "Edit",
     newWorkout: "New workout",
     exercises: "Exercises",
+    exerciseSingular: "Exercise",
+    exerciseName: "Exercise name",
     sets: "Sets",
     save: "Save",
     cancel: "Cancel",
@@ -99,7 +113,17 @@ export const messages = {
     previewImport: "Import preview",
     doneSets: "Completed",
     fileLoaded: "File loaded",
-    noFileLoaded: "No file loaded"
+    noFileLoaded: "No file loaded",
+    activeSession: "Active session",
+    resumeSession: "Resume",
+    lastSessionExtras: "Extra exercises in last session",
+    extraSets: "extra sets",
+    discardSession: "Discard session",
+    discardSessionConfirm: "Discard this session? All current values in this session will be lost.",
+    sessionDiscarded: "Session discarded",
+    completeSessionTemplatePrompt: "Use this completed session as the new workout template?",
+    completeWithoutTemplate: "Complete only",
+    completeWithTemplate: "Complete + template"
   }
 } satisfies Record<AppLanguage, Record<string, string>>;
 

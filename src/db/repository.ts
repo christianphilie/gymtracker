@@ -2,7 +2,7 @@ import { db } from "@/db/db";
 import type {
   Exercise,
   ExerciseTemplateSet,
-  LastExerciseSetSnapshot,
+  PreviousSessionSummary,
   SessionExerciseSet,
   Settings,
   WeightUnit,
@@ -26,6 +26,37 @@ const SETTINGS_ID = 1;
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+async function getLatestCompletedSession(workoutId: number, beforeSessionId?: number) {
+  const completedSessions = await db.sessions
+    .where("workoutId")
+    .equals(workoutId)
+    .and((session) => session.status === "completed")
+    .toArray();
+
+  const filtered = completedSessions.filter((session) => {
+    if (!beforeSessionId) {
+      return true;
+    }
+    return (session.id ?? 0) < beforeSessionId;
+  });
+
+  filtered.sort((a, b) => {
+    const aTime = new Date(a.finishedAt ?? a.startedAt).getTime();
+    const bTime = new Date(b.finishedAt ?? b.startedAt).getTime();
+    return bTime - aTime;
+  });
+
+  return filtered[0] ?? null;
+}
+
+async function getActiveSessionForWorkout(workoutId: number) {
+  return db.sessions
+    .where("workoutId")
+    .equals(workoutId)
+    .and((session) => session.status === "active")
+    .first();
 }
 
 export async function ensureDefaultSettings() {
@@ -72,7 +103,12 @@ export async function getWorkoutById(workoutId: number): Promise<WorkoutWithRela
     return null;
   }
 
-  const exercises = await db.exercises.where("workoutId").equals(workoutId).sortBy("order");
+  const exercises = await db.exercises
+    .where("workoutId")
+    .equals(workoutId)
+    .and((exercise) => exercise.isTemplate !== false)
+    .sortBy("order");
+
   const exerciseIds = exercises.map((exercise) => exercise.id).filter((value): value is number => !!value);
   const sets = exerciseIds.length
     ? await db.exerciseTemplateSets.where("exerciseId").anyOf(exerciseIds).sortBy("order")
@@ -114,6 +150,7 @@ async function createWorkoutRecord(draft: WorkoutDraft) {
       name: exerciseDraft.name.trim(),
       notes: exerciseDraft.notes?.trim(),
       order: exerciseIndex,
+      isTemplate: true,
       createdAt: now,
       updatedAt: now
     };
@@ -163,15 +200,20 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
         updatedAt: nowIso()
       });
 
-      const currentExercises = await db.exercises.where("workoutId").equals(workoutId).toArray();
-      const currentExerciseIds = currentExercises
+      const currentTemplateExercises = await db.exercises
+        .where("workoutId")
+        .equals(workoutId)
+        .and((exercise) => exercise.isTemplate !== false)
+        .toArray();
+
+      const currentTemplateExerciseIds = currentTemplateExercises
         .map((exercise) => exercise.id)
         .filter((value): value is number => !!value);
 
-      if (currentExerciseIds.length) {
-        await db.exerciseTemplateSets.where("exerciseId").anyOf(currentExerciseIds).delete();
+      if (currentTemplateExerciseIds.length) {
+        await db.exerciseTemplateSets.where("exerciseId").anyOf(currentTemplateExerciseIds).delete();
+        await db.exercises.where("id").anyOf(currentTemplateExerciseIds).delete();
       }
-      await db.exercises.where("workoutId").equals(workoutId).delete();
 
       for (let exerciseIndex = 0; exerciseIndex < draft.exercises.length; exerciseIndex += 1) {
         const exerciseDraft = draft.exercises[exerciseIndex];
@@ -180,6 +222,7 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
           name: exerciseDraft.name.trim(),
           notes: exerciseDraft.notes?.trim(),
           order: exerciseIndex,
+          isTemplate: true,
           createdAt: current.createdAt,
           updatedAt: nowIso()
         });
@@ -199,6 +242,11 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
 }
 
 export async function startSession(workoutId: number) {
+  const existingActiveSession = await getActiveSessionForWorkout(workoutId);
+  if (existingActiveSession?.id) {
+    return existingActiveSession.id;
+  }
+
   const fullWorkout = await getWorkoutById(workoutId);
   if (!fullWorkout) {
     throw new Error("Workout not found");
@@ -218,18 +266,25 @@ export async function startSession(workoutId: number) {
       });
 
       for (const exerciseBlock of fullWorkout.exercises) {
-        const exerciseId = exerciseBlock.exercise.id;
-        if (!exerciseId) {
+        const templateExerciseId = exerciseBlock.exercise.id;
+        if (!templateExerciseId) {
           continue;
         }
 
         for (const set of exerciseBlock.sets) {
           await db.sessionExerciseSets.add({
             sessionId: createdSessionId,
-            exerciseId,
+            templateExerciseId,
+            sessionExerciseKey: `template-${templateExerciseId}`,
+            exerciseName: exerciseBlock.exercise.name,
+            exerciseNotes: exerciseBlock.exercise.notes,
+            exerciseOrder: exerciseBlock.exercise.order,
+            isTemplateExercise: true,
             templateSetOrder: set.order,
             targetReps: set.targetReps,
             targetWeight: set.targetWeight,
+            actualReps: set.targetReps,
+            actualWeight: set.targetWeight,
             completed: false
           });
         }
@@ -253,13 +308,7 @@ export async function getSessionById(sessionId: number) {
     return null;
   }
 
-  const exerciseIds = workout.exercises
-    .map((block) => block.exercise.id)
-    .filter((value): value is number => !!value);
-
-  const sets = exerciseIds.length
-    ? await db.sessionExerciseSets.where("sessionId").equals(sessionId).toArray()
-    : [];
+  const sets = await db.sessionExerciseSets.where("sessionId").equals(sessionId).toArray();
 
   return {
     session,
@@ -290,10 +339,163 @@ export async function updateSessionSet(
   });
 }
 
-export async function completeSession(sessionId: number) {
+export async function addSessionSet(sessionId: number, sessionExerciseKey: string) {
+  const session = await db.sessions.get(sessionId);
+  if (!session || session.status !== "active") {
+    throw new Error("Active session not found");
+  }
+
+  const exerciseSets = await db.sessionExerciseSets
+    .where("sessionId")
+    .equals(sessionId)
+    .and((set) => set.sessionExerciseKey === sessionExerciseKey)
+    .toArray();
+
+  if (exerciseSets.length === 0) {
+    throw new Error("Exercise not found in active session");
+  }
+
+  const sortedSets = exerciseSets.sort((a, b) => a.templateSetOrder - b.templateSetOrder);
+  const firstSet = sortedSets[0];
+  const lastSet = sortedSets[sortedSets.length - 1];
+  const templateSetOrder = lastSet.templateSetOrder + 1;
+  const targetReps = lastSet.actualReps ?? lastSet.targetReps;
+  const targetWeight = lastSet.actualWeight ?? lastSet.targetWeight;
+
+  return db.sessionExerciseSets.add({
+    sessionId,
+    templateExerciseId: firstSet.templateExerciseId,
+    sessionExerciseKey,
+    exerciseName: firstSet.exerciseName,
+    exerciseNotes: firstSet.exerciseNotes,
+    exerciseOrder: firstSet.exerciseOrder,
+    isTemplateExercise: firstSet.isTemplateExercise,
+    templateSetOrder,
+    targetReps,
+    targetWeight,
+    actualReps: targetReps,
+    actualWeight: targetWeight,
+    completed: false
+  });
+}
+
+export async function addSessionExercise(sessionId: number, name: string) {
+  const trimmedName = name.trim();
+  if (!trimmedName) {
+    throw new Error("Exercise name is required");
+  }
+
+  const session = await db.sessions.get(sessionId);
+  if (!session || session.status !== "active") {
+    throw new Error("Active session not found");
+  }
+
+  const currentSets = await db.sessionExerciseSets.where("sessionId").equals(sessionId).toArray();
+  const existingNames = new Set(
+    currentSets.map((set) => set.exerciseName.trim().toLowerCase())
+  );
+
+  const normalizedBase = trimmedName.toLowerCase();
+  let finalName = trimmedName;
+  let suffix = 2;
+  while (existingNames.has(finalName.toLowerCase())) {
+    finalName = `${trimmedName} ${suffix}`;
+    suffix += 1;
+  }
+
+  const maxOrder = currentSets.reduce((maxValue, set) => Math.max(maxValue, set.exerciseOrder), -1);
+  const sessionExerciseKey = `custom-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  await db.sessionExerciseSets.add({
+    sessionId,
+    sessionExerciseKey,
+    exerciseName: finalName,
+    exerciseNotes: "",
+    exerciseOrder: maxOrder + 1,
+    isTemplateExercise: false,
+    templateSetOrder: 0,
+    targetReps: 10,
+    targetWeight: 0,
+    actualReps: 10,
+    actualWeight: 0,
+    completed: false
+  });
+
+  return { sessionExerciseKey, normalizedBase };
+}
+
+async function applySessionAsTemplate(sessionId: number) {
   const session = await db.sessions.get(sessionId);
   if (!session) {
     throw new Error("Session not found");
+  }
+
+  const sets = await db.sessionExerciseSets.where("sessionId").equals(sessionId).toArray();
+  const grouped = new Map<string, SessionExerciseSet[]>();
+
+  for (const set of sets) {
+    const current = grouped.get(set.sessionExerciseKey) ?? [];
+    current.push(set);
+    grouped.set(set.sessionExerciseKey, current);
+  }
+
+  const sessionExercises = [...grouped.values()]
+    .map((exerciseSets) => exerciseSets.sort((a, b) => a.templateSetOrder - b.templateSetOrder))
+    .sort((a, b) => a[0].exerciseOrder - b[0].exerciseOrder);
+
+  await db.transaction("rw", db.exercises, db.exerciseTemplateSets, async () => {
+    const currentTemplateExercises = await db.exercises
+      .where("workoutId")
+      .equals(session.workoutId)
+      .and((exercise) => exercise.isTemplate !== false)
+      .toArray();
+
+    const currentTemplateExerciseIds = currentTemplateExercises
+      .map((exercise) => exercise.id)
+      .filter((value): value is number => !!value);
+
+    if (currentTemplateExerciseIds.length > 0) {
+      await db.exerciseTemplateSets.where("exerciseId").anyOf(currentTemplateExerciseIds).delete();
+      await db.exercises.where("id").anyOf(currentTemplateExerciseIds).delete();
+    }
+
+    const now = nowIso();
+
+    for (let exerciseIndex = 0; exerciseIndex < sessionExercises.length; exerciseIndex += 1) {
+      const exerciseSets = sessionExercises[exerciseIndex];
+      const firstSet = exerciseSets[0];
+
+      const exerciseId = await db.exercises.add({
+        workoutId: session.workoutId,
+        name: firstSet.exerciseName,
+        notes: firstSet.exerciseNotes,
+        order: exerciseIndex,
+        isTemplate: true,
+        createdAt: now,
+        updatedAt: now
+      });
+
+      for (let setIndex = 0; setIndex < exerciseSets.length; setIndex += 1) {
+        const set = exerciseSets[setIndex];
+        await db.exerciseTemplateSets.add({
+          exerciseId,
+          order: setIndex,
+          targetReps: set.actualReps ?? set.targetReps,
+          targetWeight: set.actualWeight ?? set.targetWeight
+        });
+      }
+    }
+  });
+}
+
+export async function completeSession(sessionId: number, useAsTemplate = false) {
+  const session = await db.sessions.get(sessionId);
+  if (!session) {
+    throw new Error("Session not found");
+  }
+
+  if (useAsTemplate) {
+    await applySessionAsTemplate(sessionId);
   }
 
   await db.sessions.update(sessionId, {
@@ -302,55 +504,63 @@ export async function completeSession(sessionId: number) {
   });
 }
 
-export async function getLastCompletedSetsByExercise(
-  workoutId: number,
-  beforeSessionId?: number
-): Promise<Record<number, LastExerciseSetSnapshot>> {
-  const workout = await getWorkoutById(workoutId);
-  if (!workout) {
-    return {};
+export async function discardSession(sessionId: number) {
+  const session = await db.sessions.get(sessionId);
+  if (!session || session.status !== "active") {
+    throw new Error("Active session not found");
   }
 
-  const completedSessions = await db.sessions
-    .where("workoutId")
-    .equals(workoutId)
-    .and((session) => session.status === "completed")
-    .reverse()
-    .sortBy("finishedAt");
+  await db.transaction("rw", db.sessions, db.sessionExerciseSets, async () => {
+    await db.sessionExerciseSets.where("sessionId").equals(sessionId).delete();
+    await db.sessions.delete(sessionId);
+  });
+}
 
-  const sessionCandidates = completedSessions
-    .filter((session) => !beforeSessionId || (session.id ?? 0) < beforeSessionId)
-    .sort((a, b) => (new Date(b.finishedAt ?? 0).getTime() - new Date(a.finishedAt ?? 0).getTime()));
+export async function getPreviousCompletedSession(workoutId: number, beforeSessionId: number) {
+  return getLatestCompletedSession(workoutId, beforeSessionId);
+}
 
-  const result: Record<number, LastExerciseSetSnapshot> = {};
+export async function getPreviousSessionSummary(
+  workoutId: number,
+  beforeSessionId: number
+): Promise<PreviousSessionSummary | null> {
+  const previousSession = await getLatestCompletedSession(workoutId, beforeSessionId);
+  if (!previousSession?.id) {
+    return null;
+  }
 
-  for (const session of sessionCandidates) {
-    const sessionId = session.id;
-    if (!sessionId) {
+  const sets = await db.sessionExerciseSets.where("sessionId").equals(previousSession.id).toArray();
+  const grouped = new Map<string, SessionExerciseSet[]>();
+
+  for (const set of sets) {
+    const current = grouped.get(set.sessionExerciseKey) ?? [];
+    current.push(set);
+    grouped.set(set.sessionExerciseKey, current);
+  }
+
+  const templateExerciseSets: Record<number, SessionExerciseSet[]> = {};
+  const extraExercises: Array<{ name: string; setCount: number }> = [];
+
+  for (const groupSets of grouped.values()) {
+    const sorted = groupSets.sort((a, b) => a.templateSetOrder - b.templateSetOrder);
+    const firstSet = sorted[0];
+
+    if (firstSet.isTemplateExercise && firstSet.templateExerciseId !== undefined) {
+      templateExerciseSets[firstSet.templateExerciseId] = sorted;
       continue;
     }
 
-    const sets = await db.sessionExerciseSets.where("sessionId").equals(sessionId).toArray();
-    const grouped = new Map<number, SessionExerciseSet[]>();
-
-    for (const set of sets) {
-      const current = grouped.get(set.exerciseId) ?? [];
-      current.push(set);
-      grouped.set(set.exerciseId, current);
-    }
-
-    for (const [exerciseId, exerciseSets] of grouped.entries()) {
-      if (!result[exerciseId]) {
-        result[exerciseId] = {
-          exerciseId,
-          completedAt: session.finishedAt ?? session.startedAt,
-          sets: exerciseSets.sort((a, b) => a.templateSetOrder - b.templateSetOrder)
-        };
-      }
-    }
+    extraExercises.push({
+      name: firstSet.exerciseName,
+      setCount: sorted.length
+    });
   }
 
-  return result;
+  return {
+    completedAt: previousSession.finishedAt ?? previousSession.startedAt,
+    templateExerciseSets,
+    extraExercises
+  };
 }
 
 export async function importWorkouts(drafts: WorkoutDraft[]) {

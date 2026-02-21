@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { NotebookPen } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -122,10 +123,10 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         <Card key={`exercise-${exerciseIndex}`}>
           <CardHeader className="space-y-3">
             <CardTitle>
-              {t("exercises")} #{exerciseIndex + 1}
+              {t("exerciseSingular")} #{exerciseIndex + 1}
             </CardTitle>
             <div className="space-y-2">
-              <Label>{t("workoutName")}</Label>
+              <Label>{t("exerciseName")}</Label>
               <Input
                 value={exercise.name}
                 onChange={(event) => {
@@ -140,7 +141,10 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label>{t("notes")}</Label>
+              <Label className="inline-flex items-center gap-1">
+                <NotebookPen className="h-3.5 w-3.5" />
+                {t("notes")}
+              </Label>
               <Textarea
                 value={exercise.notes ?? ""}
                 onChange={(event) => {

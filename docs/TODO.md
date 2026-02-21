@@ -4,6 +4,7 @@
 1. Security triage for `npm audit` findings.
 2. Test coverage for import and session logic.
 3. Basic ErrorBoundary + user-friendly fallback UI.
+4. Add targeted tests for active-session resume/discard/template-overwrite flows.
 
 ## Later
 1. Workout archive/delete.
@@ -18,3 +19,4 @@
 4. Session tracking with target/actual values.
 5. Import with schema validation and repair preview.
 6. DE/EN + kg/lb settings.
+7. Session autosave/resume/discard lifecycle with optional template overwrite on completion.

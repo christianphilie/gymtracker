@@ -12,6 +12,7 @@ People who already have a training plan (e.g., from coach/PDF) and want fast log
 3. Start a workout session and track actual values per set.
 4. See last session values per exercise while training.
 5. Import workout plans via AI-generated JSON.
+6. Resume active sessions safely after app/page exit.
 
 ## Out of Scope (V1)
 1. Login and backend sync.
@@ -30,10 +31,16 @@ People who already have a training plan (e.g., from coach/PDF) and want fast log
 - Pre-fill target values.
 - Enter actual reps/weight.
 - Mark set done.
+- Auto-save all active session inputs immediately.
+- Resume an already active session instead of creating duplicates.
+- Allow discarding an active session (must not count as history).
 - Complete session (read-only afterwards).
+- On completion, optionally apply session values as a new workout template.
+- Additional sets/exercises in session are allowed but must not auto-expand the next session template.
 
 3. History display:
 - Show latest completed snapshot per exercise in active session.
+- Show additional exercises/sets from previous session as info hints only.
 
 4. Import:
 - JSON import via paste and file upload.
@@ -56,3 +63,4 @@ People who already have a training plan (e.g., from coach/PDF) and want fast log
 2. Import flow can transform and validate LLM JSON payloads.
 3. Last-session context appears in active session UI.
 4. UI remains consistent across all screens.
+5. Session progress and active-session state are clearly visible from navigation/dashboard.

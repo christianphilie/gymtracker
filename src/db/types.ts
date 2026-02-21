@@ -23,6 +23,7 @@ export interface Exercise {
   name: string;
   notes?: string;
   order: number;
+  isTemplate?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,7 +50,12 @@ export interface Session {
 export interface SessionExerciseSet {
   id?: number;
   sessionId: number;
-  exerciseId: number;
+  templateExerciseId?: number;
+  sessionExerciseKey: string;
+  exerciseName: string;
+  exerciseNotes?: string;
+  exerciseOrder: number;
+  isTemplateExercise: boolean;
   templateSetOrder: number;
   targetReps: number;
   targetWeight: number;
@@ -68,7 +74,16 @@ export interface WorkoutWithRelations {
 }
 
 export interface LastExerciseSetSnapshot {
-  exerciseId: number;
+  templateExerciseId: number;
   completedAt: string;
   sets: SessionExerciseSet[];
+}
+
+export interface PreviousSessionSummary {
+  completedAt: string;
+  templateExerciseSets: Record<number, SessionExerciseSet[]>;
+  extraExercises: Array<{
+    name: string;
+    setCount: number;
+  }>;
 }

@@ -23,6 +23,9 @@
 2. Persist in IndexedDB only.
 3. Completed sessions are read-only.
 4. Import is preview-first; no silent auto-import.
+5. Active sessions must be resumable and autosaved.
+6. Discarded sessions must be fully removed and excluded from history.
+7. New sessions should follow template structure; previous-session extras are informational unless user explicitly overwrites template.
 
 ## Extension Guidelines
 1. Prefer repository-level changes over direct table access in feature pages.
