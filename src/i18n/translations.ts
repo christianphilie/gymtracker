@@ -5,6 +5,7 @@ export const messages = {
     appName: "Gymtracker",
     dashboard: "Dashboard",
     workouts: "Workouts",
+    sessions: "Sessions",
     startSession: "Session starten",
     edit: "Bearbeiten",
     newWorkout: "Neues Workout",
@@ -76,12 +77,27 @@ export const messages = {
     clearAllData: "Alle Daten löschen",
     clearAllDataConfirm:
       "Wirklich alle Daten löschen? Dieser Vorgang entfernt alle Workouts, Sessions und Einstellungen unwiderruflich.",
-    allDataDeleted: "Alle Daten wurden gelöscht"
+    allDataDeleted: "Alle Daten wurden gelöscht",
+    dataBackup: "Datensicherung",
+    dataBackupHint:
+      "Exportiere alle App-Daten als Backup-Datei oder importiere eine bestehende Backup-Datei, um Daten auf ein anderes Gerät zu übertragen.",
+    exportAllData: "Alle Daten exportieren",
+    importAllData: "Alle Daten importieren",
+    importAllDataConfirm:
+      "Backup jetzt importieren? Dadurch werden alle aktuell gespeicherten Daten in dieser App ersetzt.",
+    backupExportSuccess: "Backup exportiert",
+    backupImportSuccess: "Backup importiert",
+    backupExportFailed: "Backup-Export fehlgeschlagen",
+    backupImportFailed: "Backup-Import fehlgeschlagen",
+    invalidBackupFile: "Ungültige Backup-Datei",
+    backupFileReady: "Backup-Datei ist bereit für den Import",
+    versionLabel: "Version"
   },
   en: {
     appName: "Gymtracker",
     dashboard: "Dashboard",
     workouts: "Workouts",
+    sessions: "Sessions",
     startSession: "Start session",
     edit: "Edit",
     newWorkout: "New workout",
@@ -153,7 +169,21 @@ export const messages = {
     clearAllData: "Delete all data",
     clearAllDataConfirm:
       "Delete all data? This permanently removes all workouts, sessions, and settings.",
-    allDataDeleted: "All data deleted"
+    allDataDeleted: "All data deleted",
+    dataBackup: "Data backup",
+    dataBackupHint:
+      "Export all app data as a backup file or import an existing backup file to transfer data to another device.",
+    exportAllData: "Export all data",
+    importAllData: "Import all data",
+    importAllDataConfirm:
+      "Import this backup now? This will replace all currently stored data in this app.",
+    backupExportSuccess: "Backup exported",
+    backupImportSuccess: "Backup imported",
+    backupExportFailed: "Backup export failed",
+    backupImportFailed: "Backup import failed",
+    invalidBackupFile: "Invalid backup file",
+    backupFileReady: "Backup file is ready to import",
+    versionLabel: "Version"
   }
 } satisfies Record<AppLanguage, Record<string, string>>;
 

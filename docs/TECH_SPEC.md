@@ -8,6 +8,7 @@
 5. React Router v6.
 6. zod validation for import schema.
 7. vite-plugin-pwa for installability/offline shell.
+8. zod validation for full-app backup import payload.
 
 ## App Architecture
 1. `src/app/`:
@@ -72,6 +73,17 @@
 }
 ```
 
+## Full Backup Contract (V1)
+1. Backup payload contains:
+- `backupVersion` (currently `1.0`),
+- `appVersion` (from `package.json`),
+- `dbSchemaVersion` (current Dexie schema),
+- `exportedAt`,
+- `data` object with full snapshots of all IndexedDB tables.
+2. Import is strict-validated before write.
+3. Restore is replace-mode only (existing local data is fully overwritten after explicit confirmation).
+4. Backup transfer is the V1 mechanism for cross-device migration without accounts/backend.
+
 ## Conservative Auto-Repair Rules
 1. Allowed:
 - String -> number conversions.
@@ -84,7 +96,7 @@
 - Silent imports without preview confirmation.
 
 ## Known Tradeoffs
-1. No backend means no cross-device sync.
+1. No backend means no real-time cross-device sync (backup transfer is manual).
 2. PWA offline is intentionally basic for V1.
 3. Import merge policy may create duplicates by design.
 4. Session/template model adds migration complexity (Dexie schema v2).

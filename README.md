@@ -9,9 +9,11 @@ Minimal workout tracking PWA (React + TypeScript + Tailwind + shadcn-style compo
 - Last-session snapshot per exercise
 - JSON import with conservative auto-repair preview
 - Prompt-copy helper for LLM-based plan conversion
+- Full app backup export/import (device transfer)
 - Local persistence (IndexedDB) without login/backend
 - PWA-ready static app
 - German/English UI toggle and global weight unit (kg/lb)
+- In-app version display (Settings)
 
 ## Run
 
@@ -49,6 +51,7 @@ npm run preview
 ## Project Docs
 
 - `docs/PRODUCT_REQUIREMENTS.md`
+- `docs/RELEASE_NOTES.md`
 - `docs/TECH_SPEC.md`
 - `docs/IMPLEMENTATION_PLAN.md`
 - `docs/IMPLEMENTATION_STATUS.md`

@@ -1,12 +1,34 @@
+import { useState } from "react";
+import { Download, Upload } from "lucide-react";
 import { useSettings } from "@/app/settings-context";
+import { APP_VERSION } from "@/app/version";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { clearAllData } from "@/db/repository";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  clearAllData,
+  exportAllDataSnapshot,
+  importAllDataSnapshot
+} from "@/db/repository";
 import type { AppLanguage, WeightUnit } from "@/db/types";
+import { createBackupPayload, parseBackupPayload, type AppBackupFile } from "@/features/settings/backup-utils";
 import { toast } from "sonner";
 
 export function SettingsPage() {
   const { t, language, setLanguage, weightUnit, setWeightUnit } = useSettings();
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [pendingImport, setPendingImport] = useState<AppBackupFile | null>(null);
+  const [pendingImportFileName, setPendingImportFileName] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const languageOptions: Array<{ value: AppLanguage; label: string }> = [
     { value: "de", label: "Deutsch" },
@@ -19,13 +41,87 @@ export function SettingsPage() {
   ];
 
   const handleClearAllData = async () => {
-    const shouldClear = window.confirm(t("clearAllDataConfirm"));
-    if (!shouldClear) {
+    await clearAllData();
+    setClearDialogOpen(false);
+    toast.success(t("allDataDeleted"));
+  };
+
+  const handleExportAllData = async () => {
+    try {
+      const snapshot = await exportAllDataSnapshot();
+      const payload = createBackupPayload(snapshot, APP_VERSION);
+      const serialized = JSON.stringify(payload, null, 2);
+      const blob = new Blob([serialized], { type: "application/json" });
+      const fileName = `gymtracker-backup-v${APP_VERSION}-${new Date().toISOString().slice(0, 10)}.json`;
+      const downloadUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = downloadUrl;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(downloadUrl);
+      toast.success(t("backupExportSuccess"));
+    } catch {
+      toast.error(t("backupExportFailed"));
+    }
+  };
+
+  const handleBackupFileUpload: React.ChangeEventHandler<HTMLInputElement> = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
       return;
     }
 
-    await clearAllData();
-    toast.success(t("allDataDeleted"));
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === "string" ? reader.result : "";
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        setPendingImport(null);
+        setPendingImportFileName(file.name);
+        toast.error(t("invalidBackupFile"));
+        return;
+      }
+
+      const result = parseBackupPayload(parsed);
+      if (!result.success) {
+        setPendingImport(null);
+        setPendingImportFileName(file.name);
+        toast.error(t("invalidBackupFile"));
+        return;
+      }
+
+      setPendingImport(result.data);
+      setPendingImportFileName(file.name);
+      toast.success(t("backupFileReady"));
+    };
+    reader.onerror = () => {
+      setPendingImport(null);
+      setPendingImportFileName(file.name);
+      toast.error(t("invalidBackupFile"));
+    };
+    reader.readAsText(file);
+    event.currentTarget.value = "";
+  };
+
+  const handleImportAllData = async () => {
+    if (!pendingImport) {
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      await importAllDataSnapshot(pendingImport.data);
+      setImportDialogOpen(false);
+      toast.success(t("backupImportSuccess"));
+    } catch {
+      toast.error(t("backupImportFailed"));
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
@@ -66,18 +162,95 @@ export function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("settings")}</CardTitle>
+          <CardTitle>{t("dataBackup")}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">{t("dataBackupHint")}</p>
+          <Button variant="outline" className="w-full justify-start gap-2" onClick={() => void handleExportAllData()}>
+            <Download className="h-4 w-4" />
+            {t("exportAllData")}
+          </Button>
+
+          <div className="space-y-2">
+            <Input type="file" accept="application/json,.json,text/plain" onChange={handleBackupFileUpload} />
+            <p className="text-xs text-muted-foreground">{pendingImportFileName ?? t("noFileLoaded")}</p>
+
+            {pendingImport && (
+              <div className="space-y-1 rounded-md border p-2 text-xs text-muted-foreground">
+                <p>{t("backupFileReady")}</p>
+                <p>{pendingImport.data.workouts.length} {t("workouts")}</p>
+                <p>{pendingImport.data.sessions.length} {t("sessions")}</p>
+                <p>{new Date(pendingImport.exportedAt).toLocaleString(language)}</p>
+              </div>
+            )}
+          </div>
+
           <Button
             variant="outline"
-            className="w-full border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
-            onClick={() => void handleClearAllData()}
+            className="w-full justify-start gap-2"
+            disabled={!pendingImport}
+            onClick={() => setImportDialogOpen(true)}
           >
-            {t("clearAllData")}
+            <Upload className="h-4 w-4" />
+            {t("importAllData")}
           </Button>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("settings")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Button
+            variant="outline"
+            className="w-full border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
+            onClick={() => setClearDialogOpen(true)}
+          >
+            {t("clearAllData")}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            {t("versionLabel")} {APP_VERSION}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("clearAllData")}</DialogTitle>
+            <DialogDescription>{t("clearAllDataConfirm")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClearDialogOpen(false)}>
+              {t("cancel")}
+            </Button>
+            <Button
+              className="border-red-300 bg-red-600 text-white hover:bg-red-700"
+              onClick={() => void handleClearAllData()}
+            >
+              {t("clearAllData")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("importAllData")}</DialogTitle>
+            <DialogDescription>{t("importAllDataConfirm")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
+              {t("cancel")}
+            </Button>
+            <Button disabled={isImporting || !pendingImport} onClick={() => void handleImportAllData()}>
+              {t("importAllData")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

@@ -6,6 +6,12 @@
 3. `npm run build`
 4. For Vercel deploy, keep `vercel.json` rewrite so BrowserRouter routes resolve to `index.html`.
 
+## Versioning Policy (Must Keep)
+1. No commit without a version bump.
+2. The source of truth is `package.json` (`version`).
+3. Every version bump must be documented in `docs/RELEASE_NOTES.md`.
+4. UI must display the current app version in settings.
+
 ## Primary Entrypoints
 1. Router: `src/app/router.tsx`
 2. Global settings/i18n: `src/app/settings-context.tsx`
@@ -27,6 +33,7 @@
 5. Active sessions must be resumable and autosaved.
 6. Discarded sessions must be fully removed and excluded from history.
 7. New sessions should follow template structure; previous-session extras are informational unless user explicitly overwrites template.
+8. Backup import/export must cover all IndexedDB tables, not only workout templates.
 
 ## Extension Guidelines
 1. Prefer repository-level changes over direct table access in feature pages.

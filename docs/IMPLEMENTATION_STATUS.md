@@ -47,6 +47,12 @@
 29. Homescreen icon refreshed to match title-bar dumbbell mark on white background.
 30. Header quick-action icons are now globally visible except during active session progress view; workout edit action bar is no longer sticky.
 31. Workout deletion now uses in-app dialog styling instead of browser-native confirm UI.
+32. App version is now surfaced in settings and sourced from `package.json`.
+33. Full data portability flow added:
+- export all IndexedDB data as JSON backup,
+- import backup with schema validation,
+- explicit overwrite confirmation before restore.
+34. Release notes and versioning policy added for agent continuity.
 
 ## Open TODOs (Priority)
 1. P0: Add automated tests (unit + integration) for import repair and session flows.
@@ -56,6 +62,7 @@
 5. P1: Add optional delete/archive for workouts.
 6. P2: Add migration test fixtures and rollback notes for Dexie schema v2.
 7. P2: Add optional demo seed toggle for local development.
+8. P2: Add automated backup restore tests (schema validation + DB integrity checks).
 
 ## Open Bugs / Risks
 1. `npm audit --omit=dev` is clean (0 production vulnerabilities); current 16 highs are in dev/build tooling chain.

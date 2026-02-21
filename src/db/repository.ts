@@ -3,6 +3,7 @@ import type {
   Exercise,
   ExerciseTemplateSet,
   PreviousSessionSummary,
+  Session,
   SessionExerciseSet,
   Settings,
   WeightUnit,
@@ -20,6 +21,15 @@ interface WorkoutDraft {
       targetWeight: number;
     }>;
   }>;
+}
+
+export interface AppDataSnapshot {
+  settings: Settings[];
+  workouts: Array<Workout & { id: number }>;
+  exercises: Array<Exercise & { id: number }>;
+  exerciseTemplateSets: Array<ExerciseTemplateSet & { id: number }>;
+  sessions: Array<Session & { id: number }>;
+  sessionExerciseSets: Array<SessionExerciseSet & { id: number }>;
 }
 
 const SETTINGS_ID = 1;
@@ -287,6 +297,89 @@ export async function clearAllData() {
       await db.settings.clear();
     }
   );
+}
+
+export async function exportAllDataSnapshot(): Promise<AppDataSnapshot> {
+  const [settings, workouts, exercises, exerciseTemplateSets, sessions, sessionExerciseSets] =
+    await Promise.all([
+      db.settings.toArray(),
+      db.workouts.toArray(),
+      db.exercises.toArray(),
+      db.exerciseTemplateSets.toArray(),
+      db.sessions.toArray(),
+      db.sessionExerciseSets.toArray()
+    ]);
+
+  const persistedWorkouts = workouts.filter(
+    (workout): workout is Workout & { id: number } => workout.id !== undefined
+  );
+  const persistedExercises = exercises.filter(
+    (exercise): exercise is Exercise & { id: number } => exercise.id !== undefined
+  );
+  const persistedTemplateSets = exerciseTemplateSets.filter(
+    (set): set is ExerciseTemplateSet & { id: number } => set.id !== undefined
+  );
+  const persistedSessions = sessions.filter(
+    (session): session is Session & { id: number } => session.id !== undefined
+  );
+  const persistedSessionSets = sessionExerciseSets.filter(
+    (set): set is SessionExerciseSet & { id: number } => set.id !== undefined
+  );
+
+  if (
+    persistedWorkouts.length !== workouts.length ||
+    persistedExercises.length !== exercises.length ||
+    persistedTemplateSets.length !== exerciseTemplateSets.length ||
+    persistedSessions.length !== sessions.length ||
+    persistedSessionSets.length !== sessionExerciseSets.length
+  ) {
+    throw new Error("Backup export failed: some records are missing primary keys.");
+  }
+
+  return {
+    settings,
+    workouts: persistedWorkouts,
+    exercises: persistedExercises,
+    exerciseTemplateSets: persistedTemplateSets,
+    sessions: persistedSessions,
+    sessionExerciseSets: persistedSessionSets
+  };
+}
+
+export async function importAllDataSnapshot(snapshot: AppDataSnapshot) {
+  await db.transaction(
+    "rw",
+    [db.settings, db.workouts, db.exercises, db.exerciseTemplateSets, db.sessions, db.sessionExerciseSets],
+    async () => {
+      await db.sessionExerciseSets.clear();
+      await db.sessions.clear();
+      await db.exerciseTemplateSets.clear();
+      await db.exercises.clear();
+      await db.workouts.clear();
+      await db.settings.clear();
+
+      if (snapshot.settings.length) {
+        await db.settings.bulkPut(snapshot.settings);
+      }
+      if (snapshot.workouts.length) {
+        await db.workouts.bulkPut(snapshot.workouts);
+      }
+      if (snapshot.exercises.length) {
+        await db.exercises.bulkPut(snapshot.exercises);
+      }
+      if (snapshot.exerciseTemplateSets.length) {
+        await db.exerciseTemplateSets.bulkPut(snapshot.exerciseTemplateSets);
+      }
+      if (snapshot.sessions.length) {
+        await db.sessions.bulkPut(snapshot.sessions);
+      }
+      if (snapshot.sessionExerciseSets.length) {
+        await db.sessionExerciseSets.bulkPut(snapshot.sessionExerciseSets);
+      }
+    }
+  );
+
+  await ensureDefaultSettings();
 }
 
 export async function startSession(workoutId: number) {

@@ -31,12 +31,12 @@ Status: In Progress
 - Automated tests
 - Security triage for dev tooling vulnerabilities
 - UX copy cleanup and states
+- Data portability hardening (backup export/import validation)
 
 ## Phase 6: Optional V1.1
 Status: Planned
 - Workout archive/delete
 - Expanded history view
-- Export/restore backup
 
 ## Definition of Done (V1)
 1. Build passes (`npm run build`).

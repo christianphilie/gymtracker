@@ -13,13 +13,14 @@ People who already have a training plan (e.g., from coach/PDF) and want fast log
 4. See last session values per exercise while training.
 5. Import workout plans via AI-generated JSON.
 6. Resume active sessions safely after app/page exit.
+7. Export all local data and import it on another device.
 
 ## Out of Scope (V1)
 1. Login and backend sync.
 2. Multi-device cloud sync.
 3. Advanced analytics.
 4. Editing completed sessions.
-5. Backup/export restore.
+5. Real-time cloud sync across devices.
 
 ## Functional Requirements
 1. Workout CRUD:
@@ -51,6 +52,8 @@ People who already have a training plan (e.g., from coach/PDF) and want fast log
 5. Settings:
 - Language: DE/EN.
 - Weight unit: kg/lb.
+- Show current app version.
+- Export/import full app backup (all local entities) with explicit overwrite confirmation.
 
 ## Non-Functional Requirements
 1. Mobile-first UX, iPhone-friendly.
