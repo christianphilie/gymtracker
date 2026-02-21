@@ -1,3 +1,8 @@
+import {
+  APP_VERSION,
+  LAST_SEEN_APP_VERSION_KEY,
+  MAX_UPDATE_SAFETY_SNAPSHOTS
+} from "@/app/version";
 import { db } from "@/db/db";
 import type {
   Exercise,
@@ -6,6 +11,7 @@ import type {
   Session,
   SessionExerciseSet,
   Settings,
+  UpdateSafetySnapshot,
   WeightUnit,
   Workout,
   WorkoutWithRelations
@@ -33,6 +39,95 @@ export interface AppDataSnapshot {
 }
 
 const SETTINGS_ID = 1;
+
+
+function isAppDataSnapshot(value: unknown): value is AppDataSnapshot {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    Array.isArray(candidate.settings) &&
+    Array.isArray(candidate.workouts) &&
+    Array.isArray(candidate.exercises) &&
+    Array.isArray(candidate.exerciseTemplateSets) &&
+    Array.isArray(candidate.sessions) &&
+    Array.isArray(candidate.sessionExerciseSets)
+  );
+}
+
+function hasSnapshotData(snapshot: AppDataSnapshot) {
+  return (
+    snapshot.settings.length > 0 ||
+    snapshot.workouts.length > 0 ||
+    snapshot.exercises.length > 0 ||
+    snapshot.exerciseTemplateSets.length > 0 ||
+    snapshot.sessions.length > 0 ||
+    snapshot.sessionExerciseSets.length > 0
+  );
+}
+
+export async function createUpdateSafetySnapshotIfNeeded() {
+  const previousVersion = localStorage.getItem(LAST_SEEN_APP_VERSION_KEY);
+  if (!previousVersion || previousVersion === APP_VERSION) {
+    localStorage.setItem(LAST_SEEN_APP_VERSION_KEY, APP_VERSION);
+    return null;
+  }
+
+  const snapshot = await exportAllDataSnapshot();
+  if (!hasSnapshotData(snapshot)) {
+    localStorage.setItem(LAST_SEEN_APP_VERSION_KEY, APP_VERSION);
+    return null;
+  }
+
+  const record: UpdateSafetySnapshot = {
+    appVersion: APP_VERSION,
+    previousAppVersion: previousVersion,
+    createdAt: nowIso(),
+    snapshotJson: JSON.stringify(snapshot)
+  };
+
+  const id = await db.updateSafetySnapshots.add(record);
+  const oldRecords = await db.updateSafetySnapshots.orderBy("createdAt").toArray();
+  const overflow = oldRecords.slice(0, Math.max(0, oldRecords.length - MAX_UPDATE_SAFETY_SNAPSHOTS));
+
+  if (overflow.length) {
+    const overflowIds = overflow.map((entry) => entry.id).filter((value): value is number => value !== undefined);
+    if (overflowIds.length) {
+      await db.updateSafetySnapshots.bulkDelete(overflowIds);
+    }
+  }
+
+  localStorage.setItem(LAST_SEEN_APP_VERSION_KEY, APP_VERSION);
+
+  return { ...record, id };
+}
+
+export async function getLatestUpdateSafetySnapshot() {
+  return db.updateSafetySnapshots.orderBy("createdAt").last();
+}
+
+export async function restoreUpdateSafetySnapshot(snapshotId: number) {
+  const snapshot = await db.updateSafetySnapshots.get(snapshotId);
+  if (!snapshot) {
+    throw new Error("Safety snapshot not found");
+  }
+
+  let parsedRaw: unknown;
+  try {
+    parsedRaw = JSON.parse(snapshot.snapshotJson);
+  } catch {
+    throw new Error("Safety snapshot payload is corrupted");
+  }
+
+  if (!isAppDataSnapshot(parsedRaw)) {
+    throw new Error("Safety snapshot payload has invalid structure");
+  }
+
+  await importAllDataSnapshot(parsedRaw);
+  return snapshot;
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -287,7 +382,7 @@ export async function deleteWorkout(workoutId: number) {
 export async function clearAllData() {
   await db.transaction(
     "rw",
-    [db.settings, db.workouts, db.exercises, db.exerciseTemplateSets, db.sessions, db.sessionExerciseSets],
+    [db.settings, db.workouts, db.exercises, db.exerciseTemplateSets, db.sessions, db.sessionExerciseSets, db.updateSafetySnapshots],
     async () => {
       await db.sessionExerciseSets.clear();
       await db.sessions.clear();
@@ -295,6 +390,7 @@ export async function clearAllData() {
       await db.exercises.clear();
       await db.workouts.clear();
       await db.settings.clear();
+      await db.updateSafetySnapshots.clear();
     }
   );
 }

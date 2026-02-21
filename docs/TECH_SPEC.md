@@ -35,6 +35,7 @@
 - exercise metadata snapshot (`exerciseName`, `exerciseNotes`, `exerciseOrder`),
 - `isTemplateExercise` flag,
 - target/actual values + completion state.
+7. `updateSafetySnapshots`: automatic rollback checkpoints created once per detected app version change.
 
 ## Session Lifecycle Rules
 1. Only one active session per workout at a time.
@@ -44,8 +45,9 @@
 5. Completing a session can optionally rewrite workout template exercises/sets from session results.
 6. Extras created during a session are shown in previous-session hints, but do not auto-extend a fresh template-based session unless user selects template overwrite at completion.
 7. Deleting a workout cascades through template exercises/sets and all related sessions/session sets.
-8. Global reset (`clearAllData`) clears all persisted entities including settings.
+8. Global reset (`clearAllData`) clears all persisted entities including settings and update safety snapshots.
 9. Previous-session comparison hints must be derived from completed sets only.
+10. On app version change, the app stores one full safety snapshot before users continue normal usage.
 
 ## Mobile Viewport Behavior
 1. Viewport is locked to app-like scale (manual pinch zoom disabled by design requirement).
@@ -99,4 +101,4 @@
 1. No backend means no real-time cross-device sync (backup transfer is manual).
 2. PWA offline is intentionally basic for V1.
 3. Import merge policy may create duplicates by design.
-4. Session/template model adds migration complexity (Dexie schema v2).
+4. Session/template model plus operational safety checkpoints add migration complexity (Dexie schema v3).

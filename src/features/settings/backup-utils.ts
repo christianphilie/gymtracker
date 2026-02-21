@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { APP_DATA_EXPORT_VERSION } from "@/app/version";
+import { APP_DATA_EXPORT_VERSION, DB_SCHEMA_VERSION } from "@/app/version";
 import type { AppDataSnapshot } from "@/db/repository";
 
 const settingsSchema = z.object({
@@ -87,7 +87,7 @@ export function createBackupPayload(snapshot: AppDataSnapshot, appVersion: strin
   return {
     backupVersion: APP_DATA_EXPORT_VERSION,
     appVersion,
-    dbSchemaVersion: 2,
+    dbSchemaVersion: DB_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
     data: snapshot
   };

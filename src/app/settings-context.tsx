@@ -1,9 +1,14 @@
 import { createContext, useContext, useEffect, useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/db/db";
-import { ensureDefaultSettings, updateSettings } from "@/db/repository";
+import {
+  createUpdateSafetySnapshotIfNeeded,
+  ensureDefaultSettings,
+  updateSettings
+} from "@/db/repository";
 import type { AppLanguage, WeightUnit } from "@/db/types";
 import { messages, type TranslationKey } from "@/i18n/translations";
+import { toast } from "sonner";
 
 interface SettingsContextValue {
   language: AppLanguage;
@@ -17,7 +22,16 @@ const SettingsContext = createContext<SettingsContextValue | undefined>(undefine
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    void ensureDefaultSettings();
+    const initialize = async () => {
+      try {
+        await ensureDefaultSettings();
+        await createUpdateSafetySnapshotIfNeeded();
+      } catch {
+        toast.error(messages.de.updateSafetyCreateFailed);
+      }
+    };
+
+    void initialize();
   }, []);
 
   const settings = useLiveQuery(async () => db.settings.get(1), []);

@@ -5,6 +5,7 @@ import type {
   Session,
   SessionExerciseSet,
   Settings,
+  UpdateSafetySnapshot,
   Workout
 } from "@/db/types";
 
@@ -15,6 +16,7 @@ class GymTrackerDB extends Dexie {
   exerciseTemplateSets!: Table<ExerciseTemplateSet, number>;
   sessions!: Table<Session, number>;
   sessionExerciseSets!: Table<SessionExerciseSet, number>;
+  updateSafetySnapshots!: Table<UpdateSafetySnapshot, number>;
 
   constructor() {
     super("gymtracker");
@@ -78,6 +80,17 @@ class GymTrackerDB extends Dexie {
           delete set.exerciseId;
         });
       });
+
+    this.version(3).stores({
+      settings: "id, language, weightUnit",
+      workouts: "++id, name, createdAt, updatedAt",
+      exercises: "++id, workoutId, name, order, isTemplate",
+      exerciseTemplateSets: "++id, exerciseId, order",
+      sessions: "++id, workoutId, status, startedAt, finishedAt",
+      sessionExerciseSets:
+        "++id, sessionId, templateExerciseId, sessionExerciseKey, isTemplateExercise, completed",
+      updateSafetySnapshots: "++id, createdAt, appVersion, previousAppVersion"
+    });
   }
 }
 
