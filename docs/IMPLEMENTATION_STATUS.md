@@ -42,6 +42,10 @@
 - collapsible \"add exercise\" block,
 - completion dialog footer wraps reliably on mobile,
 - import page includes prompt guidance and explicit JSON upload label.
+27. Previous-session hints now consider only completed (checked) sets.
+28. Mobile zoom behavior constrained for app-like UX (manual zoom disabled + input focus zoom prevention).
+29. Homescreen icon refreshed to match title-bar dumbbell mark on dark gradient background.
+30. Header quick-action icons are now globally visible except during active session progress view; workout edit action bar is no longer sticky.
 
 ## Open TODOs (Priority)
 1. P0: Add automated tests (unit + integration) for import repair and session flows.

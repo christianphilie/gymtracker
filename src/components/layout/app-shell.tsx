@@ -8,7 +8,6 @@ import { db } from "@/db/db";
 function HeaderActions() {
   const location = useLocation();
   const { t } = useSettings();
-  const isDashboard = location.pathname === "/";
   const sessionMatch = location.pathname.match(/^\/sessions\/(\d+)$/);
   const activeSessionId = sessionMatch ? Number(sessionMatch[1]) : null;
 
@@ -29,30 +28,9 @@ function HeaderActions() {
     return { total, completed };
   }, [activeSessionId]);
 
-  if (isDashboard) {
-    return (
-      <div className="flex items-center justify-end gap-2">
-        <Button asChild variant="outline" size="icon" aria-label={t("newWorkout")}>
-          <Link to="/workouts/new">
-            <Plus className="h-4 w-4" />
-          </Link>
-        </Button>
-        <Button asChild variant="outline" size="icon" aria-label={t("import")}>
-          <Link to="/import">
-            <Import className="h-4 w-4" />
-          </Link>
-        </Button>
-        <Button asChild variant="outline" size="icon" aria-label={t("settings")}>
-          <Link to="/settings">
-            <Settings className="h-4 w-4" />
-          </Link>
-        </Button>
-      </div>
-    );
-  }
-
-  if (sessionProgress && sessionProgress.total > 0) {
-    const donePercent = Math.round((sessionProgress.completed / sessionProgress.total) * 100);
+  if (sessionProgress) {
+    const donePercent =
+      sessionProgress.total > 0 ? Math.round((sessionProgress.completed / sessionProgress.total) * 100) : 0;
 
     return (
       <div className="w-[118px] space-y-1">
@@ -66,7 +44,25 @@ function HeaderActions() {
     );
   }
 
-  return <div />;
+  return (
+    <div className="flex items-center justify-end gap-2">
+      <Button asChild variant="outline" size="icon" aria-label={t("newWorkout")}>
+        <Link to="/workouts/new">
+          <Plus className="h-4 w-4" />
+        </Link>
+      </Button>
+      <Button asChild variant="outline" size="icon" aria-label={t("import")}>
+        <Link to="/import">
+          <Import className="h-4 w-4" />
+        </Link>
+      </Button>
+      <Button asChild variant="outline" size="icon" aria-label={t("settings")}>
+        <Link to="/settings">
+          <Settings className="h-4 w-4" />
+        </Link>
+      </Button>
+    </div>
+  );
 }
 
 export function AppShell() {

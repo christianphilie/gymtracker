@@ -142,10 +142,15 @@ export function SessionPage() {
           exercise.templateExerciseId !== undefined
             ? payload.previousSummary?.templateExerciseSets[exercise.templateExerciseId]
             : undefined;
+        const lastTemplateSetByOrder = new Map(
+          (lastTemplateSets ?? []).map((lastSet) => [lastSet.templateSetOrder, lastSet])
+        );
 
         const templateSetCount =
           exercise.templateExerciseId !== undefined ? (templateSetCounts.get(exercise.templateExerciseId) ?? 0) : 0;
-        const extraLastSessionSets = Math.max(0, (lastTemplateSets?.length ?? 0) - templateSetCount);
+        const extraLastSessionSets = (lastTemplateSets ?? []).filter(
+          (lastSet) => lastSet.templateSetOrder >= templateSetCount
+        ).length;
 
         return (
           <Card key={exercise.sessionExerciseKey}>
@@ -169,7 +174,7 @@ export function SessionPage() {
 
             <CardContent className="space-y-2">
               {exercise.sets.map((set, setIndex) => {
-                const lastSet = lastTemplateSets?.[setIndex];
+                const lastSet = lastTemplateSetByOrder.get(set.templateSetOrder);
                 const actualRepsValue = set.actualReps ?? set.targetReps;
                 const actualWeightValue = set.actualWeight ?? set.targetWeight;
 

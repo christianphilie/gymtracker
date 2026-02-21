@@ -286,7 +286,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         {t("addExercise")}
       </Button>
 
-      <div className="sticky bottom-16 space-y-2 rounded-lg border bg-background p-3 sm:bottom-4">
+      <div className="space-y-2 rounded-lg border bg-background p-3">
         <Button className="w-full" disabled={!isValid || isSaving || isDeleting} onClick={handleSave}>
           {t("save")}
         </Button>

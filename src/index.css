@@ -37,3 +37,10 @@ body {
 .mono-text {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
+
+/* Prevent iOS focus-zoom in form fields and keep app-like scale. */
+input,
+textarea,
+select {
+  font-size: 16px;
+}

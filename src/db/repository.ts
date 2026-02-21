@@ -590,17 +590,24 @@ export async function getPreviousSessionSummary(
   const extraExercises: Array<{ name: string; setCount: number }> = [];
 
   for (const groupSets of grouped.values()) {
-    const sorted = groupSets.sort((a, b) => a.templateSetOrder - b.templateSetOrder);
-    const firstSet = sorted[0];
+    const sortedCompleted = groupSets
+      .filter((set) => set.completed)
+      .sort((a, b) => a.templateSetOrder - b.templateSetOrder);
+
+    if (sortedCompleted.length === 0) {
+      continue;
+    }
+
+    const firstSet = sortedCompleted[0];
 
     if (firstSet.isTemplateExercise && firstSet.templateExerciseId !== undefined) {
-      templateExerciseSets[firstSet.templateExerciseId] = sorted;
+      templateExerciseSets[firstSet.templateExerciseId] = sortedCompleted;
       continue;
     }
 
     extraExercises.push({
       name: firstSet.exerciseName,
-      setCount: sorted.length
+      setCount: sortedCompleted.length
     });
   }
 

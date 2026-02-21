@@ -44,6 +44,11 @@
 6. Extras created during a session are shown in previous-session hints, but do not auto-extend a fresh template-based session unless user selects template overwrite at completion.
 7. Deleting a workout cascades through template exercises/sets and all related sessions/session sets.
 8. Global reset (`clearAllData`) clears all persisted entities including settings.
+9. Previous-session comparison hints must be derived from completed sets only.
+
+## Mobile Viewport Behavior
+1. Viewport is locked to app-like scale (manual pinch zoom disabled by design requirement).
+2. Form controls use non-zooming input font size to avoid iOS auto-focus zoom.
 
 ## JSON Import Contract (V1)
 ```json
