@@ -35,6 +35,7 @@ export function SessionPage() {
   const { t, weightUnit } = useSettings();
   const numericSessionId = Number(sessionId);
   const [newExerciseName, setNewExerciseName] = useState("");
+  const [isAddExerciseExpanded, setIsAddExerciseExpanded] = useState(false);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
 
   const payload = useLiveQuery(async () => {
@@ -115,6 +116,16 @@ export function SessionPage() {
       <Card>
         <CardHeader className="space-y-2">
           <CardTitle>{payload.workout.workout.name}</CardTitle>
+          {!isCompleted && (
+            <div>
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                {t("activeSession")}
+              </span>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {t("sessionStartedAt")}: {formatDateTime(payload.session.startedAt)}
+          </p>
           <p className="text-xs text-muted-foreground">
             {t("lastSession")}: {payload.previousSummary ? formatDateTime(payload.previousSummary.completedAt) : "-"}
           </p>
@@ -255,33 +266,46 @@ export function SessionPage() {
       {!isCompleted && (
         <Card>
           <CardContent className="space-y-3 pt-4">
-            <Label htmlFor="new-session-exercise">{t("addExercise")}</Label>
-            <div className="flex gap-2">
-              <Input
-                id="new-session-exercise"
-                value={newExerciseName}
-                onChange={(event) => setNewExerciseName(event.target.value)}
-                placeholder={t("exerciseName")}
-              />
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  if (!newExerciseName.trim()) {
-                    return;
-                  }
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => setIsAddExerciseExpanded((prev) => !prev)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              {isAddExerciseExpanded ? t("hideAddExercise") : t("showAddExercise")}
+            </Button>
 
-                  try {
-                    await addSessionExercise(numericSessionId, newExerciseName);
-                    setNewExerciseName("");
-                  } catch {
-                    toast.error("Could not add exercise");
-                  }
-                }}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                {t("addExercise")}
-              </Button>
-            </div>
+            {isAddExerciseExpanded && (
+              <div className="space-y-2">
+                <Label htmlFor="new-session-exercise">{t("exerciseName")}</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="new-session-exercise"
+                    value={newExerciseName}
+                    onChange={(event) => setNewExerciseName(event.target.value)}
+                    placeholder={t("exerciseName")}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      if (!newExerciseName.trim()) {
+                        return;
+                      }
+
+                      try {
+                        await addSessionExercise(numericSessionId, newExerciseName);
+                        setNewExerciseName("");
+                        setIsAddExerciseExpanded(false);
+                      } catch {
+                        toast.error("Could not add exercise");
+                      }
+                    }}
+                  >
+                    {t("addExercise")}
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -333,6 +357,7 @@ export function SessionPage() {
               {t("completeWithoutTemplate")}
             </Button>
             <Button
+              className="sm:min-w-[230px]"
               onClick={async () => {
                 await completeSession(numericSessionId, true);
                 toast.success(t("sessionCompleted"));

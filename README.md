@@ -27,6 +27,25 @@ npm run build
 npm run preview
 ```
 
+## Publish (for friends)
+
+### Vercel (recommended)
+1. Push this repo to GitHub.
+2. Go to [Vercel](https://vercel.com) and import the GitHub repository.
+3. Keep default Vite settings:
+- Build command: `npm run build`
+- Output directory: `dist`
+4. Deploy.
+5. Share the generated HTTPS URL.
+
+`vercel.json` is included so client-side routes (React Router) work correctly on direct opens.
+
+### Add to Home Screen (iPhone)
+1. Open the deployed URL in Safari.
+2. Tap `Share`.
+3. Tap `Add to Home Screen`.
+4. Confirm.
+
 ## Project Docs
 
 - `docs/PRODUCT_REQUIREMENTS.md`

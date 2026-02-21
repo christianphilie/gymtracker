@@ -4,6 +4,7 @@
 1. `npm install`
 2. `npm run dev`
 3. `npm run build`
+4. For Vercel deploy, keep `vercel.json` rewrite so BrowserRouter routes resolve to `index.html`.
 
 ## Primary Entrypoints
 1. Router: `src/app/router.tsx`

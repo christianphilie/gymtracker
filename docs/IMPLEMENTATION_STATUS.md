@@ -33,6 +33,15 @@
 - previous-session extras shown as informational hints only.
 19. Exercise/session note and icon polish in editor + session views.
 20. Dexie schema v2 migration for session exercise model (`sessionExerciseKey`, template mapping, metadata snapshot).
+21. PWA icon pack refreshed for homescreen usage (`pwa-192`, `pwa-512`, `apple-touch-icon`) with dark gradient branding.
+22. Deployment baseline added via `vercel.json` rewrite config for SPA routing.
+23. Dashboard now separates active sessions from regular workouts with dedicated status and resume CTA.
+24. Workout editor now supports full workout deletion with cascading cleanup of sessions/session sets.
+25. Settings now include full data reset action (`clearAllData`) behind explicit confirmation.
+26. Session/import UX polish:
+- collapsible \"add exercise\" block,
+- completion dialog footer wraps reliably on mobile,
+- import page includes prompt guidance and explicit JSON upload label.
 
 ## Open TODOs (Priority)
 1. P0: Add automated tests (unit + integration) for import repair and session flows.

@@ -5,6 +5,7 @@
 2. Test coverage for import and session logic.
 3. Basic ErrorBoundary + user-friendly fallback UI.
 4. Add targeted tests for active-session resume/discard/template-overwrite flows.
+5. Add tests for destructive flows (`deleteWorkout`, `clearAllData`) and confirm-dialog behavior.
 
 ## Later
 1. Workout archive/delete.

@@ -241,6 +241,54 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
   );
 }
 
+export async function deleteWorkout(workoutId: number) {
+  const workout = await db.workouts.get(workoutId);
+  if (!workout) {
+    throw new Error("Workout not found");
+  }
+
+  await db.transaction(
+    "rw",
+    [db.workouts, db.exercises, db.exerciseTemplateSets, db.sessions, db.sessionExerciseSets],
+    async () => {
+      const workoutExercises = await db.exercises.where("workoutId").equals(workoutId).toArray();
+      const workoutExerciseIds = workoutExercises
+        .map((exercise) => exercise.id)
+        .filter((value): value is number => !!value);
+
+      if (workoutExerciseIds.length > 0) {
+        await db.exerciseTemplateSets.where("exerciseId").anyOf(workoutExerciseIds).delete();
+      }
+      await db.exercises.where("workoutId").equals(workoutId).delete();
+
+      const sessions = await db.sessions.where("workoutId").equals(workoutId).toArray();
+      const sessionIds = sessions.map((session) => session.id).filter((value): value is number => !!value);
+
+      if (sessionIds.length > 0) {
+        await db.sessionExerciseSets.where("sessionId").anyOf(sessionIds).delete();
+      }
+      await db.sessions.where("workoutId").equals(workoutId).delete();
+
+      await db.workouts.delete(workoutId);
+    }
+  );
+}
+
+export async function clearAllData() {
+  await db.transaction(
+    "rw",
+    [db.settings, db.workouts, db.exercises, db.exerciseTemplateSets, db.sessions, db.sessionExerciseSets],
+    async () => {
+      await db.sessionExerciseSets.clear();
+      await db.sessions.clear();
+      await db.exerciseTemplateSets.clear();
+      await db.exercises.clear();
+      await db.workouts.clear();
+      await db.settings.clear();
+    }
+  );
+}
+
 export async function startSession(workoutId: number) {
   const existingActiveSession = await getActiveSessionForWorkout(workoutId);
   if (existingActiveSession?.id) {

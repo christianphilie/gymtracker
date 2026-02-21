@@ -89,6 +89,7 @@ export function ImportPage() {
           <CardTitle>{t("import")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">{t("promptHelp")}</p>
           <Button
             variant="outline"
             onClick={async () => {
@@ -102,7 +103,7 @@ export function ImportPage() {
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList>
               <TabsTrigger value="paste">{t("pasteJson")}</TabsTrigger>
-              <TabsTrigger value="file">{t("uploadFile")}</TabsTrigger>
+              <TabsTrigger value="file">{t("uploadJsonFile")}</TabsTrigger>
             </TabsList>
             <TabsContent value="paste">
               <Textarea

@@ -7,7 +7,13 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { createWorkout, getWorkoutById, updateWorkout, type WorkoutDraft } from "@/db/repository";
+import {
+  createWorkout,
+  deleteWorkout,
+  getWorkoutById,
+  updateWorkout,
+  type WorkoutDraft
+} from "@/db/repository";
 import { useSettings } from "@/app/settings-context";
 
 interface WorkoutEditorPageProps {
@@ -33,6 +39,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const { t } = useSettings();
   const [draft, setDraft] = useState<WorkoutDraft>(createEmptyDraft());
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (mode !== "edit" || !workoutId) {
@@ -100,6 +107,26 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
       }
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteWorkout = async () => {
+    if (mode !== "edit" || !workoutId) {
+      return;
+    }
+
+    const shouldDelete = window.confirm(t("deleteWorkoutConfirm"));
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      await deleteWorkout(Number(workoutId));
+      toast.success(t("workoutDeleted"));
+      navigate("/");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -259,10 +286,20 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         {t("addExercise")}
       </Button>
 
-      <div className="sticky bottom-16 rounded-lg border bg-background p-3 sm:bottom-4">
-        <Button className="w-full" disabled={!isValid || isSaving} onClick={handleSave}>
+      <div className="sticky bottom-16 space-y-2 rounded-lg border bg-background p-3 sm:bottom-4">
+        <Button className="w-full" disabled={!isValid || isSaving || isDeleting} onClick={handleSave}>
           {t("save")}
         </Button>
+        {mode === "edit" && (
+          <Button
+            variant="outline"
+            className="w-full border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
+            disabled={isSaving || isDeleting}
+            onClick={handleDeleteWorkout}
+          >
+            {t("deleteWorkout")}
+          </Button>
+        )}
       </div>
     </section>
   );

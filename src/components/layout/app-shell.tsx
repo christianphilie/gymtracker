@@ -74,7 +74,7 @@ export function AppShell() {
 
   return (
     <div className="mx-auto min-h-screen max-w-3xl bg-background">
-      <header className="sticky top-0 z-20 border-b border-t-0 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+      <header className="sticky top-0 z-20 border-x-0 border-b border-t-0 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="container flex h-14 items-center justify-between">
           <Link to="/" className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight">
             <Dumbbell className="h-4 w-4" />

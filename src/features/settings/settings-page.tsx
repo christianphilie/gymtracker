@@ -1,7 +1,9 @@
 import { useSettings } from "@/app/settings-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { clearAllData } from "@/db/repository";
 import type { AppLanguage, WeightUnit } from "@/db/types";
+import { toast } from "sonner";
 
 export function SettingsPage() {
   const { t, language, setLanguage, weightUnit, setWeightUnit } = useSettings();
@@ -15,6 +17,16 @@ export function SettingsPage() {
     { value: "kg", label: "kg" },
     { value: "lb", label: "lb" }
   ];
+
+  const handleClearAllData = async () => {
+    const shouldClear = window.confirm(t("clearAllDataConfirm"));
+    if (!shouldClear) {
+      return;
+    }
+
+    await clearAllData();
+    toast.success(t("allDataDeleted"));
+  };
 
   return (
     <section className="space-y-4">
@@ -49,6 +61,21 @@ export function SettingsPage() {
               {option.label}
             </Button>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("settings")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Button
+            variant="outline"
+            className="w-full border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
+            onClick={() => void handleClearAllData()}
+          >
+            {t("clearAllData")}
+          </Button>
         </CardContent>
       </Card>
     </section>

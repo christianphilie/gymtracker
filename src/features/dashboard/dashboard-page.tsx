@@ -10,6 +10,16 @@ import { startSession } from "@/db/repository";
 import { useSettings } from "@/app/settings-context";
 import { formatDateTime } from "@/lib/utils";
 
+interface WorkoutListItem {
+  id?: number;
+  name: string;
+  exerciseCount: number;
+  lastSessionAt?: string;
+  activeSessionId?: number;
+  activeSessionStartedAt?: string;
+  sortTimestamp: number;
+}
+
 export function DashboardPage() {
   const { t } = useSettings();
   const navigate = useNavigate();
@@ -35,10 +45,18 @@ export function DashboardPage() {
     }
 
     const lastSessionByWorkout = new Map<number, string>();
-    const activeSessionByWorkout = new Map<number, number>();
+    const activeSessionByWorkout = new Map<number, { id: number; startedAt: string }>();
+
     for (const session of sessions) {
       if (session.status === "active" && session.id) {
-        activeSessionByWorkout.set(session.workoutId, session.id);
+        const existingActive = activeSessionByWorkout.get(session.workoutId);
+        const timestamp = new Date(session.startedAt).getTime();
+        if (!existingActive || timestamp < new Date(existingActive.startedAt).getTime()) {
+          activeSessionByWorkout.set(session.workoutId, {
+            id: session.id,
+            startedAt: session.startedAt
+          });
+        }
       }
 
       if (session.status === "completed") {
@@ -51,25 +69,40 @@ export function DashboardPage() {
       }
     }
 
-    return list
-      .map((workout) => {
-        const lastSessionAt = workout.id ? lastSessionByWorkout.get(workout.id) : undefined;
-        const activeSessionId = workout.id ? activeSessionByWorkout.get(workout.id) : undefined;
-        return {
-          ...workout,
-          exerciseCount: exerciseCountByWorkout.get(workout.id ?? -1) ?? 0,
-          lastSessionAt,
-          activeSessionId,
-          sortTimestamp: lastSessionAt ? new Date(lastSessionAt).getTime() : -Infinity
-        };
-      })
+    return list.map<WorkoutListItem>((workout) => {
+      const lastSessionAt = workout.id ? lastSessionByWorkout.get(workout.id) : undefined;
+      const activeSession = workout.id ? activeSessionByWorkout.get(workout.id) : undefined;
+
+      return {
+        ...workout,
+        exerciseCount: exerciseCountByWorkout.get(workout.id ?? -1) ?? 0,
+        lastSessionAt,
+        activeSessionId: activeSession?.id,
+        activeSessionStartedAt: activeSession?.startedAt,
+        sortTimestamp: lastSessionAt ? new Date(lastSessionAt).getTime() : -Infinity
+      };
+    });
+  }, []);
+
+  const { activeWorkouts, inactiveWorkouts } = useMemo(() => {
+    const active = (workouts ?? [])
+      .filter((workout) => !!workout.activeSessionId)
+      .sort((a, b) => new Date(a.activeSessionStartedAt ?? 0).getTime() - new Date(b.activeSessionStartedAt ?? 0).getTime());
+
+    const inactive = (workouts ?? [])
+      .filter((workout) => !workout.activeSessionId)
       .sort((a, b) => {
         if (a.sortTimestamp !== b.sortTimestamp) {
           return a.sortTimestamp - b.sortTimestamp;
         }
         return a.name.localeCompare(b.name);
       });
-  }, []);
+
+    return {
+      activeWorkouts: active,
+      inactiveWorkouts: inactive
+    };
+  }, [workouts]);
 
   const hasWorkouts = useMemo(() => (workouts?.length ?? 0) > 0, [workouts]);
 
@@ -80,6 +113,60 @@ export function DashboardPage() {
     } catch {
       toast.error("Session start failed");
     }
+  };
+
+  const renderWorkoutCard = (workout: WorkoutListItem) => {
+    const isActive = !!workout.activeSessionId;
+
+    return (
+      <Card key={workout.id}>
+        <CardHeader className="flex-row items-start justify-between space-y-0">
+          <div className="space-y-1">
+            <CardTitle>{workout.name}</CardTitle>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {workout.exerciseCount} {t("exercises")}
+            </div>
+          </div>
+
+          {isActive ? (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+              {t("activeSession")}
+            </span>
+          ) : (
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label={t("edit")}
+              onClick={() => navigate(`/workouts/${workout.id}/edit`)}
+            >
+              <PenSquare className="h-4 w-4" />
+            </Button>
+          )}
+        </CardHeader>
+
+        <CardContent className="pt-0 text-xs text-muted-foreground">
+          {isActive ? (
+            <>
+              {t("sessionStartedAt")}: {workout.activeSessionStartedAt ? formatDateTime(workout.activeSessionStartedAt) : "-"}
+            </>
+          ) : (
+            <>
+              {t("lastSession")}: {workout.lastSessionAt ? formatDateTime(workout.lastSessionAt) : "-"}
+            </>
+          )}
+        </CardContent>
+
+        <CardFooter className="justify-end">
+          <Button
+            className={isActive ? "bg-emerald-600 text-white hover:bg-emerald-700" : undefined}
+            onClick={() => handleStartSession(workout.id!)}
+          >
+            <Play className="mr-2 h-4 w-4" />
+            {isActive ? t("resumeSession") : t("startSession")}
+          </Button>
+        </CardFooter>
+      </Card>
+    );
   };
 
   return (
@@ -102,40 +189,23 @@ export function DashboardPage() {
         </Card>
       )}
 
-      {workouts?.map((workout) => (
-        <Card key={workout.id}>
-          <CardHeader className="flex-row items-start justify-between space-y-0">
-            <div className="space-y-1">
-              <CardTitle>{workout.name}</CardTitle>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {workout.activeSessionId && (
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
-                    {t("activeSession")}
-                  </span>
-                )}
-                {workout.exerciseCount} {t("exercises")}
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label={t("edit")}
-              onClick={() => navigate(`/workouts/${workout.id}/edit`)}
-            >
-              <PenSquare className="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent className="pt-0 text-xs text-muted-foreground">
-            {t("lastSession")}: {workout.lastSessionAt ? formatDateTime(workout.lastSessionAt) : "-"}
-          </CardContent>
-          <CardFooter className="justify-end">
-            <Button onClick={() => handleStartSession(workout.id!)}>
-              <Play className="mr-2 h-4 w-4" />
-              {workout.activeSessionId ? t("resumeSession") : t("startSession")}
-            </Button>
-          </CardFooter>
-        </Card>
-      ))}
+      {activeWorkouts.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-muted-foreground">{t("activeSessions")}</p>
+          {activeWorkouts.map(renderWorkoutCard)}
+        </div>
+      )}
+
+      {activeWorkouts.length > 0 && inactiveWorkouts.length > 0 && <div className="h-px bg-border" />}
+
+      {inactiveWorkouts.length > 0 && (
+        <div className="space-y-3">
+          {activeWorkouts.length > 0 && (
+            <p className="text-xs font-medium text-muted-foreground">{t("otherWorkouts")}</p>
+          )}
+          {inactiveWorkouts.map(renderWorkoutCard)}
+        </div>
+      )}
     </section>
   );
 }

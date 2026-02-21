@@ -32,6 +32,7 @@ export const messages = {
     copyPrompt: "Prompt kopieren",
     pasteJson: "JSON einfügen",
     uploadFile: "Datei hochladen",
+    uploadJsonFile: "JSON-Datei hochladen",
     validate: "Validieren",
     importPlan: "Plan importieren",
     repairPreview: "Reparatur-Vorschau",
@@ -61,7 +62,21 @@ export const messages = {
     sessionDiscarded: "Session verworfen",
     completeSessionTemplatePrompt: "Soll diese Session als neue Vorlage für das Workout übernommen werden?",
     completeWithoutTemplate: "Nur abschließen",
-    completeWithTemplate: "Abschließen + Vorlage"
+    completeWithTemplate: "Abschließen und Vorlage anpassen",
+    deleteWorkout: "Workout löschen",
+    deleteWorkoutConfirm: "Workout wirklich vollständig löschen? Alle Sessions und Session-Daten dazu werden ebenfalls gelöscht.",
+    workoutDeleted: "Workout gelöscht",
+    sessionStartedAt: "Beginn der Session",
+    activeSessions: "Aktive Sessions",
+    otherWorkouts: "Weitere Workouts",
+    promptHelp:
+      "Kopiere diesen Prompt, gib ihn zusammen mit deinem Trainingsplan in ein LLM und importiere anschließend das erzeugte JSON hier.",
+    showAddExercise: "Übung hinzufügen",
+    hideAddExercise: "Eingabe ausblenden",
+    clearAllData: "Alle Daten löschen",
+    clearAllDataConfirm:
+      "Wirklich alle Daten löschen? Dieser Vorgang entfernt alle Workouts, Sessions und Einstellungen unwiderruflich.",
+    allDataDeleted: "Alle Daten wurden gelöscht"
   },
   en: {
     appName: "Gymtracker",
@@ -94,6 +109,7 @@ export const messages = {
     copyPrompt: "Copy prompt",
     pasteJson: "Paste JSON",
     uploadFile: "Upload file",
+    uploadJsonFile: "Upload JSON file",
     validate: "Validate",
     importPlan: "Import plan",
     repairPreview: "Repair preview",
@@ -123,7 +139,21 @@ export const messages = {
     sessionDiscarded: "Session discarded",
     completeSessionTemplatePrompt: "Use this completed session as the new workout template?",
     completeWithoutTemplate: "Complete only",
-    completeWithTemplate: "Complete + template"
+    completeWithTemplate: "Complete and adjust template",
+    deleteWorkout: "Delete workout",
+    deleteWorkoutConfirm: "Delete this workout permanently? All related sessions and session data will also be deleted.",
+    workoutDeleted: "Workout deleted",
+    sessionStartedAt: "Session started",
+    activeSessions: "Active sessions",
+    otherWorkouts: "Other workouts",
+    promptHelp:
+      "Copy this prompt, use it with your training plan in an LLM, then import the generated JSON here.",
+    showAddExercise: "Add exercise",
+    hideAddExercise: "Hide input",
+    clearAllData: "Delete all data",
+    clearAllDataConfirm:
+      "Delete all data? This permanently removes all workouts, sessions, and settings.",
+    allDataDeleted: "All data deleted"
   }
 } satisfies Record<AppLanguage, Record<string, string>>;
 
