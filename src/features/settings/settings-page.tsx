@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
 import { Download, Upload } from "lucide-react";
 import { useSettings } from "@/app/settings-context";
 import { APP_VERSION } from "@/app/version";
@@ -16,7 +17,9 @@ import { Input } from "@/components/ui/input";
 import {
   clearAllData,
   exportAllDataSnapshot,
-  importAllDataSnapshot
+  getLatestUpdateSafetySnapshot,
+  importAllDataSnapshot,
+  restoreUpdateSafetySnapshot
 } from "@/db/repository";
 import type { AppLanguage, WeightUnit } from "@/db/types";
 import { createBackupPayload, parseBackupPayload, type AppBackupFile } from "@/features/settings/backup-utils";
@@ -29,6 +32,10 @@ export function SettingsPage() {
   const [pendingImport, setPendingImport] = useState<AppBackupFile | null>(null);
   const [pendingImportFileName, setPendingImportFileName] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [isRestoringSnapshot, setIsRestoringSnapshot] = useState(false);
+
+  const latestUpdateSnapshot = useLiveQuery(async () => getLatestUpdateSafetySnapshot(), []);
 
   const languageOptions: Array<{ value: AppLanguage; label: string }> = [
     { value: "de", label: "Deutsch" },
@@ -124,6 +131,23 @@ export function SettingsPage() {
     }
   };
 
+  const handleRestoreUpdateSnapshot = async () => {
+    if (!latestUpdateSnapshot?.id) {
+      return;
+    }
+
+    setIsRestoringSnapshot(true);
+    try {
+      await restoreUpdateSafetySnapshot(latestUpdateSnapshot.id);
+      setRestoreDialogOpen(false);
+      toast.success(t("updateSafetyRestoreSuccess"));
+    } catch {
+      toast.error(t("updateSafetyRestoreFailed"));
+    } finally {
+      setIsRestoringSnapshot(false);
+    }
+  };
+
   return (
     <section className="space-y-4">
       <Card>
@@ -194,6 +218,24 @@ export function SettingsPage() {
             <Upload className="h-4 w-4" />
             {t("importAllData")}
           </Button>
+
+          {latestUpdateSnapshot && (
+            <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <p className="font-medium">{t("updateSafetySnapshotAvailable")}</p>
+              <p>
+                {latestUpdateSnapshot.previousAppVersion ?? "-"} → {latestUpdateSnapshot.appVersion}
+              </p>
+              <p>{new Date(latestUpdateSnapshot.createdAt).toLocaleString(language)}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-amber-300 bg-white hover:bg-amber-100"
+                onClick={() => setRestoreDialogOpen(true)}
+              >
+                {t("restoreUpdateSafetySnapshot")}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -230,6 +272,27 @@ export function SettingsPage() {
               onClick={() => void handleClearAllData()}
             >
               {t("clearAllData")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
+      <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("restoreUpdateSafetySnapshot")}</DialogTitle>
+            <DialogDescription>{t("restoreUpdateSafetySnapshotConfirm")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRestoreDialogOpen(false)}>
+              {t("cancel")}
+            </Button>
+            <Button
+              disabled={isRestoringSnapshot || !latestUpdateSnapshot?.id}
+              onClick={() => void handleRestoreUpdateSnapshot()}
+            >
+              {t("restoreUpdateSafetySnapshot")}
             </Button>
           </DialogFooter>
         </DialogContent>

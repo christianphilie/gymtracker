@@ -79,6 +79,14 @@ export interface LastExerciseSetSnapshot {
   sets: SessionExerciseSet[];
 }
 
+export interface UpdateSafetySnapshot {
+  id?: number;
+  appVersion: string;
+  previousAppVersion?: string;
+  createdAt: string;
+  snapshotJson: string;
+}
+
 export interface PreviousSessionSummary {
   completedAt: string;
   templateExerciseSets: Record<number, SessionExerciseSet[]>;

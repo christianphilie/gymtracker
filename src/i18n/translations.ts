@@ -91,6 +91,14 @@ export const messages = {
     backupImportFailed: "Backup-Import fehlgeschlagen",
     invalidBackupFile: "Ungültige Backup-Datei",
     backupFileReady: "Backup-Datei ist bereit für den Import",
+    updateSafetySnapshotCreated: "Sicherheits-Snapshot für dieses Update wurde automatisch erstellt",
+    updateSafetyCreateFailed: "Update-Sicherung konnte nicht automatisch erstellt werden",
+    updateSafetySnapshotAvailable: "Automatische Update-Sicherung verfügbar",
+    restoreUpdateSafetySnapshot: "Update-Sicherung wiederherstellen",
+    restoreUpdateSafetySnapshotConfirm:
+      "Diese Sicherung wurde beim letzten App-Update erstellt und ersetzt alle aktuellen Daten. Fortfahren?",
+    updateSafetyRestoreSuccess: "Update-Sicherung wurde wiederhergestellt",
+    updateSafetyRestoreFailed: "Update-Sicherung konnte nicht wiederhergestellt werden",
     versionLabel: "Version"
   },
   en: {
@@ -183,6 +191,14 @@ export const messages = {
     backupImportFailed: "Backup import failed",
     invalidBackupFile: "Invalid backup file",
     backupFileReady: "Backup file is ready to import",
+    updateSafetySnapshotCreated: "Automatic safety snapshot for this update has been created",
+    updateSafetyCreateFailed: "Failed to create automatic update safety snapshot",
+    updateSafetySnapshotAvailable: "Automatic update safety snapshot available",
+    restoreUpdateSafetySnapshot: "Restore update safety snapshot",
+    restoreUpdateSafetySnapshotConfirm:
+      "This safety snapshot was created during the last app update and will replace all current data. Continue?",
+    updateSafetyRestoreSuccess: "Update safety snapshot restored",
+    updateSafetyRestoreFailed: "Failed to restore update safety snapshot",
     versionLabel: "Version"
   }
 } satisfies Record<AppLanguage, Record<string, string>>;
