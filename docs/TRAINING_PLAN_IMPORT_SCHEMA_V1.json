@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "training-plan-import-v1",
+  "title": "TrainingPlanImportV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "workouts"],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "locale": {
+      "type": "string",
+      "enum": ["de", "en"]
+    },
+    "workouts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "exercises"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "exercises": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "sets"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "notes": { "type": "string" },
+                "sets": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["targetReps", "targetWeight"],
+                    "properties": {
+                      "targetReps": { "type": "integer", "minimum": 1 },
+                      "targetWeight": { "type": "number", "minimum": 0 }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
