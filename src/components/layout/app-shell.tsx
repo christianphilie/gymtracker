@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Dumbbell, Flag, Import, Pause, Plus, Settings } from "lucide-react";
+import { Dumbbell, Flag, Import, Plus, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSettings } from "@/app/settings-context";
 import { db } from "@/db/db";
@@ -48,42 +48,31 @@ function HeaderActions({ sessionState, restTimerSeconds, timerPaused, onToggleTi
     const donePercent = sessionState.total > 0 ? Math.round((sessionState.completed / sessionState.total) * 100) : 0;
     const timerProgress = Math.min(sessionState.elapsedSeconds, restTimerSeconds) / restTimerSeconds;
     const timerExceeded = sessionState.elapsedSeconds >= restTimerSeconds;
-    const timerRingColor = timerExceeded ? "#ef4444" : "#f59e0b";
-    const timerRadius = 12;
-    const timerCircumference = 2 * Math.PI * timerRadius;
-    const timerStrokeOffset = timerCircumference * (1 - Math.min(timerProgress, 1));
+    const timerBarColor = timerExceeded ? "#f59e0b" : "#16a34a";
 
     return (
       <div className="flex items-center gap-2">
         {sessionState.sinceIso && (
           <button
             type="button"
-            className="relative inline-flex h-8 w-8 items-center justify-center rounded-full"
+            className="m-0 w-[102px] space-y-1 border-0 bg-transparent p-0 text-left align-top [appearance:none]"
             onClick={onToggleTimer}
             aria-label={timerPaused ? t("resumeSession") : t("pauseTimer")}
           >
-            <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 32 32" aria-hidden="true">
-              <circle cx="16" cy="16" r={timerRadius} fill="none" stroke="hsl(var(--secondary))" strokeWidth="4" />
-              <circle
-                cx="16"
-                cy="16"
-                r={timerRadius}
-                fill="none"
-                stroke={timerRingColor}
-                strokeWidth="4"
-                strokeLinecap="round"
-                strokeDasharray={timerCircumference}
-                strokeDashoffset={timerStrokeOffset}
+            <p className="inline-flex h-[16px] w-full items-center justify-start text-left text-xs font-medium leading-none">
+              {timerPaused ? t("paused") : formatDurationClock(sessionState.elapsedSeconds)}
+            </p>
+            <div className="h-1.5 overflow-hidden rounded-full border bg-secondary">
+              <div
+                className="h-full transition-all"
+                style={{ width: `${Math.round(timerProgress * 100)}%`, backgroundColor: timerBarColor }}
               />
-            </svg>
-            <span className="z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-card text-[8px] font-medium">
-              {timerPaused ? <Pause className="h-3 w-3" /> : formatDurationClock(sessionState.elapsedSeconds)}
-            </span>
+            </div>
           </button>
         )}
 
         <div className="w-[102px] space-y-1">
-          <p className="text-right text-xs font-medium">
+          <p className="inline-flex h-[16px] w-full items-center justify-end text-right text-xs font-medium leading-none">
             {t("setSingular")} {sessionState.completed}/{sessionState.total}
           </p>
           <div className="h-1.5 overflow-hidden rounded-full border bg-secondary">

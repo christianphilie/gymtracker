@@ -1,5 +1,15 @@
 # Release Notes
 
+## 0.4.2 - 2026-02-22
+
+### Changed
+1. Header timer now uses a compact progress-bar style matching the set-progress component.
+2. Timer color mapping updated:
+- green while in target range,
+- orange after exceeding the configured rest duration.
+3. Timer and set-progress rows now share aligned typography/spacing for visual consistency.
+4. Timer pause state now uses localized text labels (`Pausiert` / `Paused`) instead of an icon.
+
 ## 0.4.1 - 2026-02-22
 
 ### Added

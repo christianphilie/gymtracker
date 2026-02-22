@@ -93,6 +93,7 @@
 52. Rest timer moved into the title bar, supports tap pause/resume, and restarts on new check-off events.
 53. Active-session header now shows inline "since ..." status and right-aligned previous-session timestamp.
 54. Footer is now localized (DE/EN) and keeps static GitHub attribution + local-data notice.
+55. Header timer switched from circular indicator to aligned progress-bar variant matching set-progress sizing and typography.
 
 ## Open TODOs (Priority)
 1. P0: Add automated tests (unit + integration) for import repair and session flows.
