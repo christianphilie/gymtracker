@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Download, Upload } from "lucide-react";
+import { Database, Download, Globe, Settings, SunMoon, Timer, Upload, Weight, X } from "lucide-react";
 import { useSettings } from "@/app/settings-context";
 import { APP_VERSION } from "@/app/version";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,8 @@ import type { AppLanguage, ColorScheme, WeightUnit } from "@/db/types";
 import { createBackupPayload, parseBackupPayload, type AppBackupFile } from "@/features/settings/backup-utils";
 import { toast } from "sonner";
 
+const DISMISSED_SNAPSHOT_KEY = "gymtracker:dismissed-snapshot-id";
+
 export function SettingsPage() {
   const { t, language, setLanguage, weightUnit, setWeightUnit, restTimerSeconds, setRestTimerSeconds, colorScheme, setColorScheme } = useSettings();
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
@@ -36,8 +39,21 @@ export function SettingsPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
   const [isRestoringSnapshot, setIsRestoringSnapshot] = useState(false);
+  const [dismissedSnapshotId, setDismissedSnapshotId] = useState<number | null>(() => {
+    const stored = localStorage.getItem(DISMISSED_SNAPSHOT_KEY);
+    return stored ? Number(stored) : null;
+  });
 
   const latestUpdateSnapshot = useLiveQuery(async () => getLatestUpdateSafetySnapshot(), []);
+
+  const showSnapshotNotice = !!latestUpdateSnapshot && latestUpdateSnapshot.id !== dismissedSnapshotId;
+
+  const handleDismissSnapshot = () => {
+    if (latestUpdateSnapshot?.id) {
+      localStorage.setItem(DISMISSED_SNAPSHOT_KEY, String(latestUpdateSnapshot.id));
+      setDismissedSnapshotId(latestUpdateSnapshot.id);
+    }
+  };
 
   const languageOptions: Array<{ value: AppLanguage; label: string }> = [
     { value: "de", label: "Deutsch" },
@@ -85,9 +101,7 @@ export function SettingsPage() {
 
   const handleBackupFileUpload: React.ChangeEventHandler<HTMLInputElement> = (event) => {
     const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -124,9 +138,7 @@ export function SettingsPage() {
   };
 
   const handleImportAllData = async () => {
-    if (!pendingImport) {
-      return;
-    }
+    if (!pendingImport) return;
 
     setIsImporting(true);
     try {
@@ -141,9 +153,7 @@ export function SettingsPage() {
   };
 
   const handleRestoreUpdateSnapshot = async () => {
-    if (!latestUpdateSnapshot?.id) {
-      return;
-    }
+    if (!latestUpdateSnapshot?.id) return;
 
     setIsRestoringSnapshot(true);
     try {
@@ -159,43 +169,81 @@ export function SettingsPage() {
 
   return (
     <section className="space-y-4">
+      <h1 className="inline-flex items-center gap-2 text-base font-semibold">
+        <Settings className="h-4 w-4" />
+        {t("settings")}
+      </h1>
+
+      {/* Satzpausen-Timer – first */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("language")}</CardTitle>
+          <CardTitle className="inline-flex items-center gap-2">
+            <Timer className="h-4 w-4" />
+            {t("restTimerDuration")}
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <Tabs value={language} onValueChange={(value) => void setLanguage(value as AppLanguage)}>
-            <TabsList className="grid w-full grid-cols-2">
-              {languageOptions.map((option) => (
-                <TabsTrigger key={option.value} value={option.value}>
-                  {option.label}
-                </TabsTrigger>
-              ))}
+        <CardContent className="space-y-3">
+          <Tabs value={String(restTimerSeconds)} onValueChange={(value) => void setRestTimerSeconds(Number(value))}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="120">2 min</TabsTrigger>
+              <TabsTrigger value="180">3 min</TabsTrigger>
+              <TabsTrigger value="300">5 min</TabsTrigger>
             </TabsList>
           </Tabs>
+          <p className="text-xs text-muted-foreground">{t("restTimerDescription")}</p>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("unit")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={weightUnit} onValueChange={(value) => void setWeightUnit(value as WeightUnit)}>
-            <TabsList className="grid w-full grid-cols-2">
-              {weightOptions.map((option) => (
-                <TabsTrigger key={option.value} value={option.value}>
-                  {option.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </CardContent>
-      </Card>
+      {/* Sprache + Einheit side by side at md */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="inline-flex items-center gap-2">
+              <Globe className="h-4 w-4" />
+              {t("language")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={language} onValueChange={(value) => void setLanguage(value as AppLanguage)}>
+              <TabsList className="grid w-full grid-cols-2">
+                {languageOptions.map((option) => (
+                  <TabsTrigger key={option.value} value={option.value}>
+                    {option.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </CardContent>
+        </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="inline-flex items-center gap-2">
+              <Weight className="h-4 w-4" />
+              {t("unit")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={weightUnit} onValueChange={(value) => void setWeightUnit(value as WeightUnit)}>
+              <TabsList className="grid w-full grid-cols-2">
+                {weightOptions.map((option) => (
+                  <TabsTrigger key={option.value} value={option.value}>
+                    {option.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Erscheinungsbild */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("colorScheme")}</CardTitle>
+          <CardTitle className="inline-flex items-center gap-2">
+            <SunMoon className="h-4 w-4" />
+            {t("colorScheme")}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs value={colorScheme} onValueChange={(value) => void setColorScheme(value as ColorScheme)}>
@@ -210,25 +258,38 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("restTimerDuration")}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Tabs
-            value={String(restTimerSeconds)}
-            onValueChange={(value) => void setRestTimerSeconds(Number(value))}
-          >
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="120">2 min</TabsTrigger>
-              <TabsTrigger value="180">3 min</TabsTrigger>
-              <TabsTrigger value="300">5 min</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <p className="text-xs text-muted-foreground">{t("restTimerDescription")}</p>
-        </CardContent>
-      </Card>
+      {/* Datenverwaltung section heading */}
+      <h2 className="inline-flex items-center gap-2 text-base font-semibold">
+        <Database className="h-4 w-4" />
+        {t("dataManagement")}
+      </h2>
 
+      {/* Update safety notice – dismissable */}
+      {showSnapshotNotice && latestUpdateSnapshot && (
+        <div className="relative space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          <button
+            type="button"
+            className="absolute right-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded text-amber-700 hover:bg-amber-100 hover:text-amber-900"
+            aria-label={t("dismiss")}
+            onClick={handleDismissSnapshot}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+          <p className="pr-6 font-medium">{t("updateSafetySnapshotAvailable")}</p>
+          <p>{latestUpdateSnapshot.previousAppVersion ?? "-"} → {latestUpdateSnapshot.appVersion}</p>
+          <p>{new Date(latestUpdateSnapshot.createdAt).toLocaleString(language)}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-amber-300 bg-white hover:bg-amber-100"
+            onClick={() => setRestoreDialogOpen(true)}
+          >
+            {t("restoreUpdateSafetySnapshot")}
+          </Button>
+        </div>
+      )}
+
+      {/* Export / Import */}
       <Card>
         <CardHeader>
           <CardTitle>{t("dataExportImport")}</CardTitle>
@@ -244,7 +305,6 @@ export function SettingsPage() {
           <div className="space-y-2">
             <Input type="file" accept="application/json,.json,text/plain" onChange={handleBackupFileUpload} />
             <p className="text-xs text-muted-foreground">{pendingImportFileName ?? t("noFileLoaded")}</p>
-
             {pendingImport && (
               <div className="space-y-1 rounded-md border p-2 text-xs text-muted-foreground">
                 <p>{t("backupFileReady")}</p>
@@ -254,7 +314,6 @@ export function SettingsPage() {
               </div>
             )}
           </div>
-
           <Button
             variant="outline"
             className="w-full justify-start gap-2"
@@ -264,27 +323,10 @@ export function SettingsPage() {
             <Upload className="h-4 w-4" />
             {t("importAllData")}
           </Button>
-
-          {latestUpdateSnapshot && (
-            <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              <p className="font-medium">{t("updateSafetySnapshotAvailable")}</p>
-              <p>
-                {latestUpdateSnapshot.previousAppVersion ?? "-"} → {latestUpdateSnapshot.appVersion}
-              </p>
-              <p>{new Date(latestUpdateSnapshot.createdAt).toLocaleString(language)}</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-amber-300 bg-white hover:bg-amber-100"
-                onClick={() => setRestoreDialogOpen(true)}
-              >
-                {t("restoreUpdateSafetySnapshot")}
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
 
+      {/* Reset */}
       <Card>
         <CardHeader>
           <CardTitle>{t("reset")}</CardTitle>
@@ -301,7 +343,11 @@ export function SettingsPage() {
       </Card>
 
       <p className="text-center text-xs text-muted-foreground">
-        {t("versionLabel")} {APP_VERSION}
+        {t("versionLabel")} {APP_VERSION}{" "}
+        ·{" "}
+        <Link to="/legal" className="underline-offset-4 hover:underline">
+          {t("legal")}
+        </Link>
       </p>
 
       <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
@@ -311,19 +357,13 @@ export function SettingsPage() {
             <DialogDescription>{t("clearAllDataConfirm")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setClearDialogOpen(false)}>
-              {t("cancel")}
-            </Button>
-            <Button
-              className="border-red-300 bg-red-600 text-white hover:bg-red-700"
-              onClick={() => void handleClearAllData()}
-            >
+            <Button variant="outline" onClick={() => setClearDialogOpen(false)}>{t("cancel")}</Button>
+            <Button className="border-red-300 bg-red-600 text-white hover:bg-red-700" onClick={() => void handleClearAllData()}>
               {t("clearAllData")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
 
       <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
         <DialogContent>
@@ -332,9 +372,7 @@ export function SettingsPage() {
             <DialogDescription>{t("restoreUpdateSafetySnapshotConfirm")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRestoreDialogOpen(false)}>
-              {t("cancel")}
-            </Button>
+            <Button variant="outline" onClick={() => setRestoreDialogOpen(false)}>{t("cancel")}</Button>
             <Button
               disabled={isRestoringSnapshot || !latestUpdateSnapshot?.id}
               onClick={() => void handleRestoreUpdateSnapshot()}
@@ -352,9 +390,7 @@ export function SettingsPage() {
             <DialogDescription>{t("importAllDataConfirm")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
-              {t("cancel")}
-            </Button>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>{t("cancel")}</Button>
             <Button disabled={isImporting || !pendingImport} onClick={() => void handleImportAllData()}>
               {t("importAllData")}
             </Button>

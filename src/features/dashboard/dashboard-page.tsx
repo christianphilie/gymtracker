@@ -1,10 +1,18 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Dumbbell, History, PenSquare, Plus, Trash2 } from "lucide-react";
+import { History, Import, List, PenSquare, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 import { db } from "@/db/db";
 import { discardSession, startSession } from "@/db/repository";
 import { useSettings } from "@/app/settings-context";
@@ -41,6 +49,7 @@ export function DashboardPage() {
   const { t } = useSettings();
   const navigate = useNavigate();
   const weekStart = useMemo(() => getWeekStart(new Date()), []);
+  const [discardConfirmSessionId, setDiscardConfirmSessionId] = useState<number | null>(null);
 
   const workouts = useLiveQuery(async () => {
     const list = await db.workouts.toArray();
@@ -80,7 +89,6 @@ export function DashboardPage() {
       if (session.status === "completed") {
         const timestamp = session.finishedAt ?? session.startedAt;
         const existing = lastSessionByWorkout.get(session.workoutId);
-
         if (!existing || new Date(timestamp).getTime() > new Date(existing).getTime()) {
           lastSessionByWorkout.set(session.workoutId, timestamp);
         }
@@ -121,10 +129,7 @@ export function DashboardPage() {
         return a.name.localeCompare(b.name);
       });
 
-    return {
-      activeWorkouts: active,
-      inactiveWorkouts: inactive
-    };
+    return { activeWorkouts: active, inactiveWorkouts: inactive };
   }, [workouts]);
 
   const hasWorkouts = useMemo(() => (workouts?.length ?? 0) > 0, [workouts]);
@@ -135,6 +140,18 @@ export function DashboardPage() {
       navigate(`/sessions/${sessionId}`);
     } catch {
       toast.error("Session start failed");
+    }
+  };
+
+  const handleDiscardConfirmed = async () => {
+    if (!discardConfirmSessionId) return;
+    try {
+      await discardSession(discardConfirmSessionId);
+      toast.success(t("sessionDiscarded"));
+    } catch {
+      toast.error("Action failed");
+    } finally {
+      setDiscardConfirmSessionId(null);
     }
   };
 
@@ -161,15 +178,9 @@ export function DashboardPage() {
                   type="button"
                   className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground/70 hover:text-foreground"
                   aria-label={t("discardSession")}
-                  onClick={async () => {
-                    if (!workout.activeSessionId) {
-                      return;
-                    }
-                    try {
-                      await discardSession(workout.activeSessionId);
-                      toast.success(t("sessionDiscarded"));
-                    } catch {
-                      toast.error("Action failed");
+                  onClick={() => {
+                    if (workout.activeSessionId) {
+                      setDiscardConfirmSessionId(workout.activeSessionId);
                     }
                   }}
                 >
@@ -228,7 +239,7 @@ export function DashboardPage() {
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="inline-flex items-center gap-2 text-base font-semibold">
-          <Dumbbell className="h-4 w-4" />
+          <List className="h-4 w-4" />
           {t("workouts")}
         </h1>
         <p className="text-xs text-muted-foreground">
@@ -237,17 +248,17 @@ export function DashboardPage() {
       </div>
 
       {!hasWorkouts && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("noWorkouts")}</CardTitle>
-          </CardHeader>
-          <CardFooter className="gap-2">
-            <Button onClick={() => navigate("/workouts/new")}>{t("createWorkout")}</Button>
-            <Button variant="outline" onClick={() => navigate("/import")}>
-              {t("openImport")}
-            </Button>
-          </CardFooter>
-        </Card>
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">{t("noWorkouts")}</p>
+          <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate("/workouts/new")}>
+            <Plus className="h-4 w-4" />
+            {t("addWorkout")}
+          </Button>
+          <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate("/import")}>
+            <Import className="h-4 w-4" />
+            {t("workoutsImport")}
+          </Button>
+        </div>
       )}
 
       {activeWorkouts.length > 0 && (
@@ -269,15 +280,37 @@ export function DashboardPage() {
       )}
 
       {hasWorkouts && (
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-2"
-          onClick={() => navigate("/workouts/new")}
-        >
-          <Plus className="h-4 w-4" />
-          {t("addWorkout")}
-        </Button>
+        <div className="space-y-2">
+          <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate("/workouts/new")}>
+            <Plus className="h-4 w-4" />
+            {t("addWorkout")}
+          </Button>
+          <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate("/import")}>
+            <Import className="h-4 w-4" />
+            {t("workoutsImport")}
+          </Button>
+        </div>
       )}
+
+      <Dialog open={discardConfirmSessionId !== null} onOpenChange={(open) => !open && setDiscardConfirmSessionId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("discardSession")}</DialogTitle>
+            <DialogDescription>{t("discardSessionConfirm")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDiscardConfirmSessionId(null)}>
+              {t("cancel")}
+            </Button>
+            <Button
+              className="border-red-700 bg-red-700 text-white hover:bg-red-800"
+              onClick={() => void handleDiscardConfirmed()}
+            >
+              {t("discardSession")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

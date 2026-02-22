@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, ChevronDown, Dumbbell, Flag, NotebookPen, Plus, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, Flag, NotebookPen, Play, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { DecimalInput } from "@/components/forms/decimal-input";
@@ -48,7 +48,7 @@ function ExerciseSearchLink({ exerciseName }: { exerciseName: string }) {
 function formatInlineValue(value: number) {
   return `${value}`;
 }
- 
+
 export function SessionPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
@@ -151,7 +151,7 @@ export function SessionPage() {
     <section className="space-y-4 pb-6">
       <div className="flex items-center justify-between">
         <h1 className="inline-flex items-center gap-2 text-base font-semibold">
-          <Dumbbell className="h-4 w-4" />
+          <Play className="h-4 w-4" />
           {payload.workout.workout.name}
         </h1>
         {!isCompleted && (

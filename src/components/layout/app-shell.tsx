@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Dumbbell, Flag, Home, Import, Pause, Play, Settings } from "lucide-react";
+import { Dumbbell, Flag, Home, Pause, Play, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSettings } from "@/app/settings-context";
 import { db } from "@/db/db";
@@ -92,11 +92,6 @@ function HeaderActions({ sessionState, restTimerSeconds, timerPaused, onToggleTi
       <Button asChild variant="outline" size="icon" aria-label={t("home")}>
         <Link to="/">
           <Home className="h-4 w-4" />
-        </Link>
-      </Button>
-      <Button asChild variant="outline" size="icon" aria-label={t("import")}>
-        <Link to="/import">
-          <Import className="h-4 w-4" />
         </Link>
       </Button>
       <Button asChild variant="outline" size="icon" aria-label={t("settings")}>
@@ -206,7 +201,7 @@ export function AppShell() {
     <div className="mx-auto min-h-screen max-w-3xl bg-background">
       <header className="sticky top-0 z-20 border-x-0 border-b border-t-0 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="container flex h-14 items-center justify-between">
-          <Link to="/" className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
+          <Link to="/" className="inline-flex items-center gap-2 text-base font-semibold pl-4 pr-5 py-2 bg-gray-200 rounded-full border hover:border-gray-300">
             <Dumbbell className="h-4 w-4" />
             {t("appName")}
           </Link>
@@ -237,6 +232,11 @@ export function AppShell() {
             </a>
           </p>
           <p>{t("footerDataLocal")}</p>
+          <p>
+            <Link to="/legal" className="underline-offset-4 hover:underline">
+              {t("legal")}
+            </Link>
+          </p>
         </div>
       </footer>
     </div>

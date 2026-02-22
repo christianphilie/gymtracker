@@ -40,6 +40,7 @@ export interface AppDataSnapshot {
 }
 
 const SETTINGS_ID = 1;
+const DEFAULT_WORKOUT_SEEDED_KEY = "gymtracker:default-workout-seeded";
 
 function convertWeightValue(value: number, from: WeightUnit, to: WeightUnit) {
   if (from === to) {
@@ -461,6 +462,13 @@ export async function deleteWorkout(workoutId: number) {
 }
 
 export async function ensureDefaultWorkout() {
+  // Only seed once per install. Cleared by clearAllData() so it re-seeds after a data reset.
+  // Set the flag immediately (synchronously) to prevent concurrent calls (e.g. React StrictMode).
+  if (localStorage.getItem(DEFAULT_WORKOUT_SEEDED_KEY) === "true") {
+    return;
+  }
+  localStorage.setItem(DEFAULT_WORKOUT_SEEDED_KEY, "true");
+
   const count = await db.workouts.count();
   if (count > 0) {
     return;
@@ -535,6 +543,8 @@ export async function clearAllData() {
       await db.updateSafetySnapshots.clear();
     }
   );
+  // Reset the seeded flag so ensureDefaultWorkout() recreates the starter workout.
+  localStorage.removeItem(DEFAULT_WORKOUT_SEEDED_KEY);
 }
 
 export async function exportAllDataSnapshot(): Promise<AppDataSnapshot> {

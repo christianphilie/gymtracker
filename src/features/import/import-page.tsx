@@ -5,8 +5,7 @@ import { Import, Sparkles } from "lucide-react";
 import { useSettings } from "@/app/settings-context";
 import { APP_VERSION } from "@/app/version";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { importWorkouts } from "@/db/repository";
@@ -16,7 +15,6 @@ export function ImportPage() {
   const { t, language } = useSettings();
   const navigate = useNavigate();
   const [rawInput, setRawInput] = useState("");
-  const [fileName, setFileName] = useState<string | null>(null);
   const [repairResult, setRepairResult] = useState<RepairResult | null>(null);
   const [activeTab, setActiveTab] = useState("ai");
   const [isImporting, setIsImporting] = useState(false);
@@ -63,9 +61,7 @@ export function ImportPage() {
     try {
       const response = await fetch("/api/ai-import", {
         method: "POST",
-        headers: {
-          "content-type": "application/json"
-        },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           locale: language,
           planText: aiPlanText.trim(),
@@ -94,27 +90,6 @@ export function ImportPage() {
     }
   };
 
-  const handleFileUpload: React.ChangeEventHandler<HTMLInputElement> = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    setFileName(file.name);
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = typeof reader.result === "string" ? reader.result : "";
-      setRawInput(text);
-      setActiveTab("manual");
-      toast.success(t("fileLoaded"));
-    };
-    reader.onerror = () => {
-      toast.error(t("invalidImport"));
-    };
-    reader.readAsText(file);
-  };
-
   const handleImport = async () => {
     if (!repairResult || repairResult.errors.length > 0 || repairResult.drafts.length === 0) {
       return;
@@ -132,22 +107,22 @@ export function ImportPage() {
 
   return (
     <section className="space-y-4">
+      <h1 className="inline-flex items-center gap-2 text-base font-semibold">
+        <Import className="h-4 w-4" />
+        {t("workoutsImport")}
+      </h1>
+
       <Card>
-        <CardHeader>
-          <CardTitle className="inline-flex items-center gap-2">
-            <Import className="h-4 w-4" />
-            {t("workoutsImport")}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-3 pt-4">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList>
-              <TabsTrigger value="ai">
-                <Sparkles className="mr-1 h-3.5 w-3.5" />
-                {t("aiImport")}
+            <TabsList className="w-full">
+              <TabsTrigger value="ai" className="flex-1">
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                {t("importFromText")}
               </TabsTrigger>
-              <TabsTrigger value="manual">{t("manualImport")}</TabsTrigger>
-              <TabsTrigger value="file">{t("fileImport")}</TabsTrigger>
+              <TabsTrigger value="manual" className="flex-1">
+                {t("importFromFile")}
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="ai" className="space-y-3">
@@ -170,7 +145,7 @@ export function ImportPage() {
             </TabsContent>
 
             <TabsContent value="manual" className="space-y-3">
-              <p className="text-sm text-muted-foreground">{t("promptHelp")}</p>
+              <p className="text-sm text-muted-foreground">{t("importFromFileDescription")}</p>
               <Button
                 variant="outline"
                 onClick={async () => {
@@ -190,26 +165,15 @@ export function ImportPage() {
                 {t("buildPreview")}
               </Button>
             </TabsContent>
-
-            <TabsContent value="file" className="space-y-3">
-              <Input type="file" accept="application/json,.json,text/plain" onChange={handleFileUpload} />
-              <p className="text-xs text-muted-foreground">{fileName ?? t("noFileLoaded")}</p>
-              {rawInput && (
-                <Button disabled={!canValidate} onClick={handleValidate}>
-                  {t("buildPreview")}
-                </Button>
-              )}
-            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
 
       {repairResult && (
         <Card>
-          <CardHeader>
-            <CardTitle>{t("importOverview")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 pt-4">
+            <p className="text-sm font-medium">{t("importOverview")}</p>
+
             {repairResult.errors.length > 0 && (
               <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">
                 {repairResult.errors.map((error) => (

@@ -141,8 +141,8 @@ export const messages = {
     exerciseHelp: "Übungshilfe öffnen",
     aiImport: "KI-Import",
     aiGenerate: "Mit KI importieren",
-    aiImportPlaceholder: "Füge hier deinen Trainingsplan ein – als Text, Stichpunkte oder PDF-Inhalt. Die KI erkennt Übungen und Sätze automatisch.",
-    aiImportDescription: "Füge deinen Trainingsplan ein. Die KI wandelt ihn automatisch in deine Workouts um.",
+    aiImportPlaceholder: "Füge hier deinen Trainingsplan ein – als Text, Stichpunkte oder Tabelle. Die KI erkennt Übungen, Sätze und Gewichte automatisch.",
+    aiImportDescription: "Füge deinen Trainingsplan als Text ein. Die KI wandelt ihn automatisch in deine Workouts um.",
     aiImportPrivacy: "Dein Trainingsplan wird zur Verarbeitung kurz an eine KI-API gesendet und dort nicht dauerhaft gespeichert.",
     aiImportReady: "Import-Vorschau bereit",
     aiImportFailed: "KI-Import fehlgeschlagen",
@@ -152,7 +152,13 @@ export const messages = {
     colorSchemeLight: "Hell",
     colorSchemeDark: "Dunkel",
     colorSchemeSystem: "System",
-    home: "Startseite"
+    home: "Startseite",
+    importFromText: "Aus Text erstellen",
+    importFromFile: "Aus Datei erstellen",
+    importFromFileDescription: "Nutze deine eigene KI (z.\u2009B. ChatGPT) mit dem untenstehenden Prompt und deinem Trainingsplan. Kopiere das erzeugte JSON und füge es in das Textfeld ein.",
+    dataManagement: "Datenverwaltung",
+    legal: "Rechtliches",
+    dismiss: "Ausblenden"
   },
   en: {
     appName: "Gymtracker",
@@ -294,8 +300,8 @@ export const messages = {
     exerciseHelp: "Open exercise help",
     aiImport: "AI Import",
     aiGenerate: "Import with AI",
-    aiImportPlaceholder: "Paste your workout plan here – as text, bullet points, or PDF content. The AI will automatically detect exercises and sets.",
-    aiImportDescription: "Paste your training plan. The AI will automatically convert it into your workouts.",
+    aiImportPlaceholder: "Paste your workout plan here – as text, bullet points, or a table. The AI will automatically detect exercises, sets and weights.",
+    aiImportDescription: "Paste your training plan as text. The AI will automatically convert it into your workouts.",
     aiImportPrivacy: "Your plan is briefly sent to an AI API for processing and is not stored there permanently.",
     aiImportReady: "Import preview ready",
     aiImportFailed: "AI import failed",
@@ -305,7 +311,13 @@ export const messages = {
     colorSchemeLight: "Light",
     colorSchemeDark: "Dark",
     colorSchemeSystem: "System",
-    home: "Home"
+    home: "Home",
+    importFromText: "Create from text",
+    importFromFile: "Create from file",
+    importFromFileDescription: "Use your own AI (e.g. ChatGPT) with the prompt below and your training plan. Copy the generated JSON and paste it into the text field.",
+    dataManagement: "Data management",
+    legal: "Legal",
+    dismiss: "Dismiss"
   }
 } satisfies Record<AppLanguage, Record<string, string>>;
 
