@@ -149,36 +149,25 @@ export function SessionPage() {
 
   return (
     <section className="space-y-4 pb-6">
-      <Card>
-        <CardHeader className="space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="space-y-1">
-              <CardTitle>{payload.workout.workout.name}</CardTitle>
-              {!isCompleted && (
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
-                    {t("activeSession")}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {t("since")} {formatDateTime(payload.session.startedAt)}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="text-right text-xs text-muted-foreground">
-              <p>{t("lastSession")}</p>
-              <p>{payload.previousSummary ? formatDateTime(payload.previousSummary.completedAt) : "-"}</p>
-            </div>
+      <div className="flex items-center justify-between">
+        <h1 className="text-base font-semibold">{payload.workout.workout.name}</h1>
+        {!isCompleted && (
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+              {t("activeSession")}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {t("since")} {formatDateTime(payload.session.startedAt)}
+            </span>
           </div>
-          {payload.previousSummary && payload.previousSummary.extraExercises.length > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {t("lastSessionExtras")}:{" "}
-              {payload.previousSummary.extraExercises.map((item) => `${item.name} (${item.setCount})`).join(", ")}
-            </p>
-          )}
-        </CardHeader>
-      </Card>
+        )}
+        {payload.previousSummary && payload.previousSummary.extraExercises.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {t("lastSessionExtras")}:{" "}
+            {payload.previousSummary.extraExercises.map((item) => `${item.name} (${item.setCount})`).join(", ")}
+          </p>
+        )}
+      </div>
 
       {sessionExercises.map((exercise) => {
         const isCollapsed = collapsedExercises[exercise.sessionExerciseKey] ?? false;
