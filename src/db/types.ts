@@ -5,6 +5,7 @@ export interface Settings {
   id: number;
   language: AppLanguage;
   weightUnit: WeightUnit;
+  restTimerSeconds?: number;
   createdAt: string;
   updatedAt: string;
 }

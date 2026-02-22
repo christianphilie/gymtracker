@@ -6,7 +6,7 @@ export function Toaster() {
       position="top-center"
       toastOptions={{
         classNames: {
-          toast: "border border-border bg-background text-foreground",
+          toast: "border border-border bg-card text-foreground",
           title: "text-sm font-medium",
           description: "text-sm text-muted-foreground"
         }

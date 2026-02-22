@@ -14,6 +14,7 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   clearAllData,
   exportAllDataSnapshot,
@@ -26,7 +27,7 @@ import { createBackupPayload, parseBackupPayload, type AppBackupFile } from "@/f
 import { toast } from "sonner";
 
 export function SettingsPage() {
-  const { t, language, setLanguage, weightUnit, setWeightUnit } = useSettings();
+  const { t, language, setLanguage, weightUnit, setWeightUnit, restTimerSeconds, setRestTimerSeconds } = useSettings();
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<AppBackupFile | null>(null);
@@ -154,16 +155,16 @@ export function SettingsPage() {
         <CardHeader>
           <CardTitle>{t("language")}</CardTitle>
         </CardHeader>
-        <CardContent className="flex gap-2">
-          {languageOptions.map((option) => (
-            <Button
-              key={option.value}
-              variant={language === option.value ? "default" : "outline"}
-              onClick={() => void setLanguage(option.value)}
-            >
-              {option.label}
-            </Button>
-          ))}
+        <CardContent>
+          <Tabs value={language} onValueChange={(value) => void setLanguage(value as AppLanguage)}>
+            <TabsList className="grid w-full grid-cols-2">
+              {languageOptions.map((option) => (
+                <TabsTrigger key={option.value} value={option.value}>
+                  {option.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </CardContent>
       </Card>
 
@@ -171,30 +172,49 @@ export function SettingsPage() {
         <CardHeader>
           <CardTitle>{t("unit")}</CardTitle>
         </CardHeader>
-        <CardContent className="flex gap-2">
-          {weightOptions.map((option) => (
-            <Button
-              key={option.value}
-              variant={weightUnit === option.value ? "default" : "outline"}
-              onClick={() => void setWeightUnit(option.value)}
-            >
-              {option.label}
-            </Button>
-          ))}
+        <CardContent>
+          <Tabs value={weightUnit} onValueChange={(value) => void setWeightUnit(value as WeightUnit)}>
+            <TabsList className="grid w-full grid-cols-2">
+              {weightOptions.map((option) => (
+                <TabsTrigger key={option.value} value={option.value}>
+                  {option.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("dataBackup")}</CardTitle>
+          <CardTitle>{t("restTimerDuration")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs
+            value={String(restTimerSeconds)}
+            onValueChange={(value) => void setRestTimerSeconds(Number(value))}
+          >
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="120">2 min</TabsTrigger>
+              <TabsTrigger value="180">3 min</TabsTrigger>
+              <TabsTrigger value="300">5 min</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("dataExportImport")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">{t("dataBackupHint")}</p>
+          <p className="text-sm text-muted-foreground">{t("dataExportHint")}</p>
           <Button variant="outline" className="w-full justify-start gap-2" onClick={() => void handleExportAllData()}>
             <Download className="h-4 w-4" />
             {t("exportAllData")}
           </Button>
-
+          <p className="border-t pt-3 text-xs text-muted-foreground">{t("dataExportImportDivider")}</p>
+          <p className="text-sm text-muted-foreground">{t("dataImportHint")}</p>
           <div className="space-y-2">
             <Input type="file" accept="application/json,.json,text/plain" onChange={handleBackupFileUpload} />
             <p className="text-xs text-muted-foreground">{pendingImportFileName ?? t("noFileLoaded")}</p>
@@ -241,7 +261,7 @@ export function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("settings")}</CardTitle>
+          <CardTitle>{t("reset")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <Button
@@ -251,11 +271,12 @@ export function SettingsPage() {
           >
             {t("clearAllData")}
           </Button>
-          <p className="text-xs text-muted-foreground">
-            {t("versionLabel")} {APP_VERSION}
-          </p>
         </CardContent>
       </Card>
+
+      <p className="text-center text-xs text-muted-foreground">
+        {t("versionLabel")} {APP_VERSION}
+      </p>
 
       <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
         <DialogContent>

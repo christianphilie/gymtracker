@@ -40,6 +40,14 @@ export interface AppDataSnapshot {
 
 const SETTINGS_ID = 1;
 
+function convertWeightValue(value: number, from: WeightUnit, to: WeightUnit) {
+  if (from === to) {
+    return value;
+  }
+
+  const converted = from === "kg" ? value * 2.2046226218 : value / 2.2046226218;
+  return Math.round(converted * 10) / 10;
+}
 
 function isAppDataSnapshot(value: unknown): value is AppDataSnapshot {
   if (!value || typeof value !== "object") {
@@ -167,6 +175,15 @@ async function getActiveSessionForWorkout(workoutId: number) {
 export async function ensureDefaultSettings() {
   const existing = await db.settings.get(SETTINGS_ID);
   if (existing) {
+    if (existing.restTimerSeconds === undefined) {
+      const patched: Settings = {
+        ...existing,
+        restTimerSeconds: 120,
+        updatedAt: nowIso()
+      };
+      await db.settings.put(patched);
+      return patched;
+    }
     return existing;
   }
 
@@ -175,6 +192,7 @@ export async function ensureDefaultSettings() {
     id: SETTINGS_ID,
     language: "de",
     weightUnit: "kg",
+    restTimerSeconds: 120,
     createdAt: now,
     updatedAt: now
   };
@@ -183,7 +201,9 @@ export async function ensureDefaultSettings() {
   return defaults;
 }
 
-export async function updateSettings(patch: Partial<Pick<Settings, "language" | "weightUnit">>) {
+export async function updateSettings(
+  patch: Partial<Pick<Settings, "language" | "weightUnit" | "restTimerSeconds">>
+) {
   const current = await ensureDefaultSettings();
   const next: Settings = {
     ...current,
@@ -192,6 +212,58 @@ export async function updateSettings(patch: Partial<Pick<Settings, "language" | 
   };
   await db.settings.put(next);
   return next;
+}
+
+export async function updateRestTimerSeconds(seconds: number) {
+  const clamped = seconds <= 120 ? 120 : seconds <= 180 ? 180 : 300;
+  return updateSettings({ restTimerSeconds: clamped });
+}
+
+export async function updateWeightUnitAndConvert(nextUnit: WeightUnit) {
+  const currentSettings = await ensureDefaultSettings();
+  if (currentSettings.weightUnit === nextUnit) {
+    return currentSettings;
+  }
+
+  await db.transaction(
+    "rw",
+    [db.settings, db.exerciseTemplateSets, db.sessionExerciseSets],
+    async () => {
+      const templateSets = await db.exerciseTemplateSets.toArray();
+      for (const set of templateSets) {
+        if (set.id === undefined) {
+          continue;
+        }
+
+        await db.exerciseTemplateSets.update(set.id, {
+          targetWeight: convertWeightValue(set.targetWeight, currentSettings.weightUnit, nextUnit)
+        });
+      }
+
+      const sessionSets = await db.sessionExerciseSets.toArray();
+      for (const set of sessionSets) {
+        if (set.id === undefined) {
+          continue;
+        }
+
+        await db.sessionExerciseSets.update(set.id, {
+          targetWeight: convertWeightValue(set.targetWeight, currentSettings.weightUnit, nextUnit),
+          actualWeight:
+            set.actualWeight === undefined
+              ? undefined
+              : convertWeightValue(set.actualWeight, currentSettings.weightUnit, nextUnit)
+        });
+      }
+
+      await db.settings.put({
+        ...currentSettings,
+        weightUnit: nextUnit,
+        updatedAt: nowIso()
+      });
+    }
+  );
+
+  return db.settings.get(SETTINGS_ID);
 }
 
 export async function getSettings() {
@@ -661,6 +733,33 @@ export async function addSessionExercise(sessionId: number, name: string) {
   return { sessionExerciseKey, normalizedBase };
 }
 
+export async function removeSessionSet(setId: number) {
+  const set = await db.sessionExerciseSets.get(setId);
+  if (!set) {
+    throw new Error("Set not found");
+  }
+
+  const session = await db.sessions.get(set.sessionId);
+  if (!session || session.status !== "active") {
+    throw new Error("Active session not found");
+  }
+
+  await db.sessionExerciseSets.delete(setId);
+}
+
+export async function removeSessionExercise(sessionId: number, sessionExerciseKey: string) {
+  const session = await db.sessions.get(sessionId);
+  if (!session || session.status !== "active") {
+    throw new Error("Active session not found");
+  }
+
+  await db.sessionExerciseSets
+    .where("sessionId")
+    .equals(sessionId)
+    .and((set) => set.sessionExerciseKey === sessionExerciseKey)
+    .delete();
+}
+
 async function applySessionAsTemplate(sessionId: number) {
   const session = await db.sessions.get(sessionId);
   if (!session) {
@@ -811,6 +910,43 @@ export async function importWorkouts(drafts: WorkoutDraft[]) {
   for (const draft of drafts) {
     await createWorkoutRecord(draft);
   }
+}
+
+export interface WorkoutSessionHistoryItem {
+  session: Session & { id: number };
+  sets: SessionExerciseSet[];
+}
+
+export async function getWorkoutSessionHistory(workoutId: number): Promise<WorkoutSessionHistoryItem[]> {
+  const sessions = await db.sessions
+    .where("workoutId")
+    .equals(workoutId)
+    .and((session) => session.status === "completed" && session.id !== undefined)
+    .toArray();
+
+  const withIds = sessions
+    .filter((session): session is Session & { id: number } => session.id !== undefined)
+    .sort((a, b) => new Date(b.finishedAt ?? b.startedAt).getTime() - new Date(a.finishedAt ?? a.startedAt).getTime());
+
+  const sessionIds = withIds.map((session) => session.id);
+  const sessionSets = sessionIds.length ? await db.sessionExerciseSets.where("sessionId").anyOf(sessionIds).toArray() : [];
+
+  const bySession = new Map<number, SessionExerciseSet[]>();
+  for (const set of sessionSets) {
+    const current = bySession.get(set.sessionId) ?? [];
+    current.push(set);
+    bySession.set(set.sessionId, current);
+  }
+
+  return withIds.map((session) => ({
+    session,
+    sets: (bySession.get(session.id) ?? []).sort((a, b) => {
+      if (a.exerciseOrder !== b.exerciseOrder) {
+        return a.exerciseOrder - b.exerciseOrder;
+      }
+      return a.templateSetOrder - b.templateSetOrder;
+    })
+  }));
 }
 
 export async function getAllSessionsByWorkout(workoutId: number) {

@@ -147,7 +147,6 @@ export function repairImportPayload(raw: unknown): RepairResult {
         const setSource = rawSet as Record<string, unknown>;
         const repsValue = toNumber(setSource.targetReps ?? setSource.reps);
         const weightValue = toNumber(setSource.targetWeight ?? setSource.weight);
-
         if (setSource.reps !== undefined && setSource.targetReps === undefined) {
           changes.push(`Alias reps -> targetReps at workout[${workoutIndex}].exercise[${exerciseIndex}].set[${setIndex}]`);
         }
@@ -252,7 +251,6 @@ Regeln:
 2) Reps und Gewicht müssen Zahlen sein.
 3) Verwende nur die Felder aus dem Schema.
 4) Jede Übung braucht mindestens einen Satz.
-
 Schema:
 {
   "schemaVersion": "1.0",
@@ -282,7 +280,6 @@ Rules:
 2) Reps and weight must be numbers.
 3) Use only schema fields.
 4) Every exercise needs at least one set.
-
 Schema:
 {
   "schemaVersion": "1.0",

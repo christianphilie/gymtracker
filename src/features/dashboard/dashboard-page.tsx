@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { PenSquare, Play } from "lucide-react";
+import { History, PenSquare, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/db/db";
-import { startSession } from "@/db/repository";
+import { discardSession, startSession } from "@/db/repository";
 import { useSettings } from "@/app/settings-context";
 import { formatDateTime } from "@/lib/utils";
 
@@ -18,6 +18,14 @@ interface WorkoutListItem {
   activeSessionId?: number;
   activeSessionStartedAt?: string;
   sortTimestamp: number;
+}
+
+function PlayFilledIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path d="M8 6v12l10-6z" fill="currentColor" />
+    </svg>
+  );
 }
 
 export function DashboardPage() {
@@ -128,40 +136,72 @@ export function DashboardPage() {
             </div>
           </div>
 
-          {isActive ? (
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
-              {t("activeSession")}
-            </span>
-          ) : (
+          <div className="flex items-center gap-1">
+            {isActive ? (
+              <>
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                  {t("activeSession")}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label={t("discardSession")}
+                  onClick={async () => {
+                    if (!workout.activeSessionId) {
+                      return;
+                    }
+                    try {
+                      await discardSession(workout.activeSessionId);
+                      toast.success(t("sessionDiscarded"));
+                    } catch {
+                      toast.error("Action failed");
+                    }
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <div className="text-right text-xs text-muted-foreground">
+                <p>{t("lastSession")}</p>
+                <p>{workout.lastSessionAt ? formatDateTime(workout.lastSessionAt) : "-"}</p>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+
+        {isActive && (
+          <CardContent className="pt-0 text-xs text-muted-foreground">
+            {t("sessionStartedAt")}: {workout.activeSessionStartedAt ? formatDateTime(workout.activeSessionStartedAt) : "-"}
+          </CardContent>
+        )}
+
+        <CardFooter className="justify-between">
+          <div className="flex items-center gap-1">
             <Button
               variant="outline"
               size="icon"
-              aria-label={t("edit")}
-              onClick={() => navigate(`/workouts/${workout.id}/edit`)}
+              aria-label={t("sessionHistory")}
+              onClick={() => navigate(`/workouts/${workout.id}/history`)}
             >
-              <PenSquare className="h-4 w-4" />
+              <History className="h-4 w-4" />
             </Button>
-          )}
-        </CardHeader>
-
-        <CardContent className="pt-0 text-xs text-muted-foreground">
-          {isActive ? (
-            <>
-              {t("sessionStartedAt")}: {workout.activeSessionStartedAt ? formatDateTime(workout.activeSessionStartedAt) : "-"}
-            </>
-          ) : (
-            <>
-              {t("lastSession")}: {workout.lastSessionAt ? formatDateTime(workout.lastSessionAt) : "-"}
-            </>
-          )}
-        </CardContent>
-
-        <CardFooter className="justify-end">
+            {!isActive && (
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label={t("edit")}
+                onClick={() => navigate(`/workouts/${workout.id}/edit`)}
+              >
+                <PenSquare className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
           <Button
             className={isActive ? "bg-emerald-600 text-white hover:bg-emerald-700" : undefined}
             onClick={() => handleStartSession(workout.id!)}
           >
-            <Play className="mr-2 h-4 w-4" />
+            <PlayFilledIcon className="mr-2 h-4 w-4" />
             {isActive ? t("resumeSession") : t("startSession")}
           </Button>
         </CardFooter>

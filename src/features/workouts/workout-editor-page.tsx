@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { NotebookPen } from "lucide-react";
+import { ChevronDown, GripVertical, NotebookPen, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { DecimalInput } from "@/components/forms/decimal-input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +14,6 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   createWorkout,
@@ -41,14 +41,29 @@ function createEmptyDraft(): WorkoutDraft {
   };
 }
 
+function reorderExercises(draft: WorkoutDraft, fromIndex: number, toIndex: number) {
+  const next = structuredClone(draft);
+  const [moved] = next.exercises.splice(fromIndex, 1);
+  next.exercises.splice(toIndex, 0, moved);
+  return next;
+}
+
+function exerciseSearchUrl(name: string) {
+  return `https://www.google.com/search?q=${encodeURIComponent(`${name} exercise database`)}`;
+}
+
 export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const { workoutId } = useParams();
   const navigate = useNavigate();
-  const { t } = useSettings();
+  const { t, weightUnit } = useSettings();
   const [draft, setDraft] = useState<WorkoutDraft>(createEmptyDraft());
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [collapsedExercises, setCollapsedExercises] = useState<Record<number, boolean>>({});
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [isAddExerciseExpanded, setIsAddExerciseExpanded] = useState(false);
+  const [newExerciseName, setNewExerciseName] = useState("");
 
   useEffect(() => {
     if (mode !== "edit" || !workoutId) {
@@ -109,10 +124,10 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
       if (mode === "create") {
         const newWorkoutId = await createWorkout(draft);
         navigate(`/workouts/${newWorkoutId}/edit`);
-        toast.success(t("createWorkout"));
+        toast.success(t("workoutCreated"));
       } else {
         await updateWorkout(Number(workoutId), draft);
-        toast.success(t("updateWorkout"));
+        toast.success(t("workoutUpdated"));
       }
     } finally {
       setIsSaving(false);
@@ -139,159 +154,295 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
     <section className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>{mode === "create" ? t("newWorkout") : t("edit")}</CardTitle>
+          <CardTitle>{mode === "create" ? t("newWorkout") : t("editWorkoutTitle")}</CardTitle>
         </CardHeader>
-        <CardContent>
-          <Label htmlFor="workout-name">{t("workoutName")}</Label>
+        <CardContent className="space-y-2">
+          <label className="text-xs text-muted-foreground">{t("workoutName")}</label>
           <Input
             id="workout-name"
             value={draft.name}
             onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
+            placeholder={t("workoutName")}
           />
         </CardContent>
       </Card>
 
-      {draft.exercises.map((exercise, exerciseIndex) => (
-        <Card key={`exercise-${exerciseIndex}`}>
-          <CardHeader className="space-y-3">
-            <CardTitle>
-              {t("exerciseSingular")} #{exerciseIndex + 1}
-            </CardTitle>
-            <div className="space-y-2">
-              <Label>{t("exerciseName")}</Label>
-              <Input
-                value={exercise.name}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setDraft((prev) => {
-                    const next = structuredClone(prev);
-                    next.exercises[exerciseIndex].name = value;
-                    return next;
-                  });
-                }}
-                placeholder="Bench Press"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="inline-flex items-center gap-1">
-                <NotebookPen className="h-3.5 w-3.5" />
-                {t("notes")}
-              </Label>
-              <Textarea
-                value={exercise.notes ?? ""}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setDraft((prev) => {
-                    const next = structuredClone(prev);
-                    next.exercises[exerciseIndex].notes = value;
-                    return next;
-                  });
-                }}
-                placeholder="Optional"
-              />
-            </div>
-          </CardHeader>
+      {draft.exercises.map((exercise, exerciseIndex) => {
+        const collapsed = collapsedExercises[exerciseIndex] ?? false;
+        const title = exercise.name.trim() || t("exerciseSingular");
 
-          <CardContent className="space-y-2">
-            {exercise.sets.map((set, setIndex) => (
-              <div key={`set-${setIndex}`} className="grid grid-cols-5 gap-2 rounded-md border p-2">
-                <div className="col-span-2">
-                  <Label className="text-xs">{t("targetReps")}</Label>
+        return (
+          <Card
+            key={`exercise-${exerciseIndex}`}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              const rawFromData = event.dataTransfer.getData("text/plain");
+              const fromData = rawFromData.length ? Number(rawFromData) : Number.NaN;
+              const fromIndex = Number.isNaN(fromData) ? dragIndex : fromData;
+              if (fromIndex === null || fromIndex === exerciseIndex || Number.isNaN(fromIndex)) {
+                return;
+              }
+
+              setDraft((prev) => reorderExercises(prev, fromIndex, exerciseIndex));
+              setDragIndex(null);
+            }}
+          >
+            <CardHeader className="space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground"
+                    onClick={() =>
+                      setCollapsedExercises((prev) => ({
+                        ...prev,
+                        [exerciseIndex]: !collapsed
+                      }))
+                    }
+                    aria-label={collapsed ? t("expandExercise") : t("collapseExercise")}
+                  >
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${collapsed ? "-rotate-90" : ""}`} />
+                  </button>
+                  <CardTitle>{title}</CardTitle>
+                  <a
+                    href={exerciseSearchUrl(title)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] text-muted-foreground hover:text-foreground"
+                    aria-label={t("exerciseHelp")}
+                  >
+                    ?
+                  </a>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    draggable={true}
+                    onDragStart={(event) => {
+                      setDragIndex(exerciseIndex);
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", String(exerciseIndex));
+                    }}
+                    onDragEnd={() => setDragIndex(null)}
+                    aria-label={t("reorderExercise")}
+                    className="cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
+                  >
+                    <GripVertical className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {!collapsed && (
+                <>
+                  <label className="text-xs text-muted-foreground">{t("exerciseName")}</label>
                   <Input
-                    type="number"
-                    min={1}
-                    value={set.targetReps}
+                    value={exercise.name}
                     onChange={(event) => {
-                      const value = Number(event.target.value);
+                      const value = event.target.value;
                       setDraft((prev) => {
                         const next = structuredClone(prev);
-                        next.exercises[exerciseIndex].sets[setIndex].targetReps = Number.isNaN(value) ? 0 : value;
+                        next.exercises[exerciseIndex].name = value;
                         return next;
                       });
                     }}
+                    placeholder="Bench Press"
                   />
-                </div>
-                <div className="col-span-2">
-                  <Label className="text-xs">{t("targetWeight")}</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step="0.5"
-                    value={set.targetWeight}
-                    onChange={(event) => {
-                      const value = Number(event.target.value);
-                      setDraft((prev) => {
-                        const next = structuredClone(prev);
-                        next.exercises[exerciseIndex].sets[setIndex].targetWeight = Number.isNaN(value) ? 0 : value;
-                        return next;
-                      });
-                    }}
-                  />
-                </div>
-                <div className="col-span-1 flex items-end">
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    disabled={exercise.sets.length <= 1}
+
+                  <div className="space-y-2">
+                    <label className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      <NotebookPen className="h-3.5 w-3.5" />
+                      {t("notes")}
+                    </label>
+                    <Textarea
+                      value={exercise.notes ?? ""}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setDraft((prev) => {
+                          const next = structuredClone(prev);
+                          next.exercises[exerciseIndex].notes = value;
+                          return next;
+                        });
+                      }}
+                      placeholder="Optional"
+                    />
+                  </div>
+                </>
+              )}
+            </CardHeader>
+
+            {!collapsed && (
+              <CardContent className="space-y-2">
+                <p className="text-xs text-muted-foreground">{t("sets")}</p>
+                {exercise.sets.map((set, setIndex) => (
+                  <div key={`set-${setIndex}`} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2 py-1">
+                    <div className="min-w-0">
+                      <DecimalInput
+                        value={set.targetReps}
+                        min={1}
+                        step={1}
+                        className="pr-10"
+                        onCommit={(value) => {
+                          setDraft((prev) => {
+                            const next = structuredClone(prev);
+                            next.exercises[exerciseIndex].sets[setIndex].targetReps = value;
+                            return next;
+                          });
+                        }}
+                      />
+                      <div className="pointer-events-none -mt-7 mr-2 flex justify-end text-base text-muted-foreground">
+                        ×
+                      </div>
+                    </div>
+
+                    <div className="min-w-0">
+                      <DecimalInput
+                        value={set.targetWeight}
+                        min={0}
+                        step={0.5}
+                        className="pr-10"
+                        onCommit={(value) => {
+                          setDraft((prev) => {
+                            const next = structuredClone(prev);
+                            next.exercises[exerciseIndex].sets[setIndex].targetWeight = value;
+                            return next;
+                          });
+                        }}
+                      />
+                      <div className="pointer-events-none -mt-7 mr-2 flex justify-end text-base text-muted-foreground">
+                        {weightUnit}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="rounded-md"
+                        disabled={exercise.sets.length <= 1}
+                        onClick={() => {
+                          setDraft((prev) => {
+                            const next = structuredClone(prev);
+                            next.exercises[exerciseIndex].sets.splice(setIndex, 1);
+                            return next;
+                          });
+                        }}
+                        aria-label={t("remove")}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex justify-between">
+                  <button
+                    type="button"
+                    disabled={draft.exercises.length <= 1}
                     onClick={() => {
                       setDraft((prev) => {
                         const next = structuredClone(prev);
-                        next.exercises[exerciseIndex].sets.splice(setIndex, 1);
+                        next.exercises.splice(exerciseIndex, 1);
                         return next;
                       });
                     }}
+                    aria-label={t("removeExercise")}
+                    className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground/70 hover:text-foreground disabled:opacity-40"
                   >
-                    -
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="rounded-md text-lg leading-none"
+                    onClick={() => {
+                      setDraft((prev) => {
+                        const next = structuredClone(prev);
+                        next.exercises[exerciseIndex].sets.push({
+                          targetReps: 10,
+                          targetWeight: 0
+                        });
+                        return next;
+                      });
+                    }}
+                    aria-label={t("addSet")}
+                  >
+                    +
                   </Button>
                 </div>
-              </div>
-            ))}
+              </CardContent>
+            )}
+          </Card>
+        );
+      })}
 
-            <Button
-              variant="outline"
-              onClick={() => {
-                setDraft((prev) => {
-                  const next = structuredClone(prev);
-                  next.exercises[exerciseIndex].sets.push({ targetReps: 10, targetWeight: 0 });
-                  return next;
-                });
-              }}
-            >
-              {t("addSet")}
-            </Button>
-          </CardContent>
+      <Card>
+        <CardContent className="space-y-2 pt-4">
+          {!isAddExerciseExpanded && (
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAddExerciseExpanded(true)}
+                aria-label={t("addExercise")}
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                {t("addExercise")}
+              </Button>
+            </div>
+          )}
 
-          <CardFooter>
-            <Button
-              variant="outline"
-              disabled={draft.exercises.length <= 1}
-              onClick={() => {
-                setDraft((prev) => {
-                  const next = structuredClone(prev);
-                  next.exercises.splice(exerciseIndex, 1);
-                  return next;
-                });
-              }}
-            >
-              {t("remove")}
-            </Button>
-          </CardFooter>
-        </Card>
-      ))}
+          {isAddExerciseExpanded && (
+            <div className="flex items-center gap-2">
+              <Input
+                value={newExerciseName}
+                onChange={(event) => setNewExerciseName(event.target.value)}
+                placeholder={t("exerciseName")}
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  const trimmed = newExerciseName.trim();
+                  if (!trimmed) {
+                    return;
+                  }
 
-      <Button
-        variant="outline"
-        onClick={() => {
-          setDraft((prev) => ({
-            ...prev,
-            exercises: [...prev.exercises, { name: "", notes: "", sets: [{ targetReps: 10, targetWeight: 0 }] }]
-          }));
-        }}
-      >
-        {t("addExercise")}
-      </Button>
+                  setDraft((prev) => ({
+                    ...prev,
+                    exercises: [
+                      ...prev.exercises,
+                      {
+                        name: trimmed,
+                        notes: "",
+                        sets: [{ targetReps: 10, targetWeight: 0 }]
+                      }
+                    ]
+                  }));
+                  setNewExerciseName("");
+                  setIsAddExerciseExpanded(false);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  setNewExerciseName("");
+                  setIsAddExerciseExpanded(false);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      <div className="space-y-2 rounded-lg border bg-background p-3">
+      <div className="space-y-2 rounded-lg border bg-card p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
         <Button className="w-full" disabled={!isValid || isSaving || isDeleting} onClick={handleSave}>
           {t("save")}
         </Button>

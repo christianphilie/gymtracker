@@ -91,6 +91,26 @@ class GymTrackerDB extends Dexie {
         "++id, sessionId, templateExerciseId, sessionExerciseKey, isTemplateExercise, completed",
       updateSafetySnapshots: "++id, createdAt, appVersion, previousAppVersion"
     });
+
+    this.version(4)
+      .stores({
+        settings: "id, language, weightUnit",
+        workouts: "++id, name, createdAt, updatedAt",
+        exercises: "++id, workoutId, name, order, isTemplate",
+        exerciseTemplateSets: "++id, exerciseId, order",
+        sessions: "++id, workoutId, status, startedAt, finishedAt",
+        sessionExerciseSets:
+          "++id, sessionId, templateExerciseId, sessionExerciseKey, isTemplateExercise, completed",
+        updateSafetySnapshots: "++id, createdAt, appVersion, previousAppVersion"
+      })
+      .upgrade(async (tx) => {
+        await tx.table("settings").toCollection().modify((settings: Record<string, unknown>) => {
+          if (settings.restTimerSeconds === undefined) {
+            settings.restTimerSeconds = 120;
+          }
+        });
+      });
+
   }
 }
 

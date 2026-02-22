@@ -53,6 +53,40 @@
 - import backup with schema validation,
 - explicit overwrite confirmation before restore.
 34. Release notes and versioning policy added for agent continuity.
+35. Update-safety strategy added:
+- automatic snapshot on first launch after version change,
+- restore action in settings with confirmation,
+- retention policy capped to the latest 3 snapshots.
+36. UI refresh:
+- light gray app background,
+- white cards/buttons with subtle Vercel-like shadow,
+- pill-shaped action buttons.
+37. Session UX expansion:
+- collapsible exercise cards,
+- decimal-friendly iPhone inputs with select-on-focus and blur validation,
+- inline target-vs-actual hints,
+- remove set/exercise actions in active sessions.
+38. Workout editor now supports:
+- native drag-and-drop exercise reordering with handle icon,
+- collapsible exercise cards,
+- plus-only add actions with cancel flow.
+39. Session history view added per workout (`/workouts/:workoutId/history`) and linked from dashboard cards.
+40. Active-session dashboard cards now include icon-only discard action.
+41. Header active-session status now includes:
+- elapsed timer since latest check-off,
+- auto-switch to completion flag action when all sets are done.
+42. AI import endpoint added (`/api/ai-import`) with server-side secret usage (`OPENAI_API_KEY`) and UI tab integration.
+43. Data model and repository were extended for:
+- session history queries,
+- robust weight-unit conversion during settings switch.
+44. Weight unit switching now converts persisted weights across templates and session data.
+45. Settings now support configurable rest timer duration (2/3/5 minutes) persisted in IndexedDB.
+46. Session/workout editor inputs now use stronger select-on-focus behavior and larger inline value hints (`×`, unit, struck-through targets).
+47. Dashboard workout cards were refined:
+- last-session timestamp moved to top-right,
+- history/edit controls grouped in card footer,
+- filled play icon for start/resume CTA.
+48. Notifications now use white cards and localized success copy for workout create/update actions.
 
 ## Open TODOs (Priority)
 1. P0: Add automated tests (unit + integration) for import repair and session flows.
@@ -63,6 +97,10 @@
 6. P2: Add migration test fixtures and rollback notes for Dexie schema v2.
 7. P2: Add optional demo seed toggle for local development.
 8. P2: Add automated backup restore tests (schema validation + DB integrity checks).
+9. P2: Add tests for update-safety snapshot lifecycle (version change detection, retention cap, restore integrity).
+10. P2: Add integration tests for drag-and-drop reorder and session history rendering.
+11. P2: Add tests for weight-unit conversion correctness across template and session data.
+12. P2: Add API contract tests for `/api/ai-import` error and success paths.
 
 ## Open Bugs / Risks
 1. `npm audit --omit=dev` is clean (0 production vulnerabilities); current 16 highs are in dev/build tooling chain.

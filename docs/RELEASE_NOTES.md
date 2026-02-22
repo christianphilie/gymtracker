@@ -1,5 +1,26 @@
 # Release Notes
 
+## 0.4.0 - 2026-02-22
+
+### Added
+1. Session history page per workout with dashboard entry point.
+2. Direct AI import flow (`/api/ai-import`) with server-side secret usage.
+3. Full active-session lifecycle UX:
+- resumable autosaved sessions,
+- explicit discard flow,
+- completion dialog with optional template overwrite.
+4. Configurable rest timer duration in settings (2/3/5 minutes).
+
+### Changed
+1. Dashboard now separates active sessions from other workouts and improves card action layout.
+2. Session and workout editor inputs were refined for mobile:
+- decimal-friendly blur validation,
+- stronger select-on-focus behavior,
+- clearer inline value hints.
+3. Settings now include full data reset, full backup export/import, and update-safety snapshot restore controls.
+4. Monochrome Vercel-like styling pass with subtle shadows, pill actions, and tighter card consistency.
+5. Weight unit switching now converts persisted template/session weights (`kg`/`lb`) instead of relabeling.
+
 ## 0.3.0 - 2026-02-21
 
 ### Added

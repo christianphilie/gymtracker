@@ -4,6 +4,8 @@ import { db } from "@/db/db";
 import {
   createUpdateSafetySnapshotIfNeeded,
   ensureDefaultSettings,
+  updateRestTimerSeconds,
+  updateWeightUnitAndConvert,
   updateSettings
 } from "@/db/repository";
 import type { AppLanguage, WeightUnit } from "@/db/types";
@@ -13,9 +15,11 @@ import { toast } from "sonner";
 interface SettingsContextValue {
   language: AppLanguage;
   weightUnit: WeightUnit;
+  restTimerSeconds: number;
   t: (key: TranslationKey) => string;
   setLanguage: (language: AppLanguage) => Promise<void>;
   setWeightUnit: (unit: WeightUnit) => Promise<void>;
+  setRestTimerSeconds: (seconds: number) => Promise<void>;
 }
 
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
@@ -39,19 +43,24 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<SettingsContextValue>(() => {
     const language = settings?.language ?? "de";
     const weightUnit = settings?.weightUnit ?? "kg";
+    const restTimerSeconds = settings?.restTimerSeconds ?? 120;
 
     return {
       language,
       weightUnit,
+      restTimerSeconds,
       t: (key) => messages[language][key] ?? key,
       setLanguage: async (nextLanguage) => {
         await updateSettings({ language: nextLanguage });
       },
       setWeightUnit: async (nextUnit) => {
-        await updateSettings({ weightUnit: nextUnit });
+        await updateWeightUnitAndConvert(nextUnit);
+      },
+      setRestTimerSeconds: async (seconds) => {
+        await updateRestTimerSeconds(seconds);
       }
     };
-  }, [settings?.language, settings?.weightUnit]);
+  }, [settings?.language, settings?.weightUnit, settings?.restTimerSeconds]);
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }

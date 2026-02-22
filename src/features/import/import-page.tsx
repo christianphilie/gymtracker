@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useSettings } from "@/app/settings-context";
+import { APP_VERSION } from "@/app/version";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,8 @@ export function ImportPage() {
   const [repairResult, setRepairResult] = useState<RepairResult | null>(null);
   const [activeTab, setActiveTab] = useState("paste");
   const [isImporting, setIsImporting] = useState(false);
+  const [aiPlanText, setAiPlanText] = useState("");
+  const [isAiLoading, setIsAiLoading] = useState(false);
 
   const canValidate = rawInput.trim().length > 0;
   const hasPreview = (repairResult?.drafts.length ?? 0) > 0 && (repairResult?.errors.length ?? 0) === 0;
@@ -41,6 +44,47 @@ export function ImportPage() {
         errors: ["Invalid JSON"]
       });
       toast.error(t("invalidImport"));
+    }
+  };
+
+  const handleAiGenerate = async () => {
+    if (!aiPlanText.trim()) {
+      return;
+    }
+
+    setIsAiLoading(true);
+    try {
+      const response = await fetch("/api/ai-import", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          locale: language,
+          planText: aiPlanText.trim(),
+          appVersion: APP_VERSION,
+          promptTemplate
+        })
+      });
+
+      if (!response.ok) {
+        toast.error(t("aiImportFailed"));
+        return;
+      }
+
+      const payload = (await response.json()) as { jsonText?: string };
+      if (!payload.jsonText) {
+        toast.error(t("aiImportFailed"));
+        return;
+      }
+
+      setRawInput(payload.jsonText);
+      setActiveTab("paste");
+      toast.success(t("aiImportReady"));
+    } catch {
+      toast.error(t("aiImportFailed"));
+    } finally {
+      setIsAiLoading(false);
     }
   };
 
@@ -86,7 +130,7 @@ export function ImportPage() {
     <section className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>{t("import")}</CardTitle>
+          <CardTitle>{t("workoutsImport")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">{t("promptHelp")}</p>
@@ -104,6 +148,7 @@ export function ImportPage() {
             <TabsList>
               <TabsTrigger value="paste">{t("pasteJson")}</TabsTrigger>
               <TabsTrigger value="file">{t("uploadJsonFile")}</TabsTrigger>
+              <TabsTrigger value="ai">{t("aiImport")}</TabsTrigger>
             </TabsList>
             <TabsContent value="paste">
               <Textarea
@@ -117,10 +162,21 @@ export function ImportPage() {
               <Input type="file" accept="application/json,.json,text/plain" onChange={handleFileUpload} />
               <p className="text-xs text-muted-foreground">{fileName ?? t("noFileLoaded")}</p>
             </TabsContent>
+            <TabsContent value="ai" className="space-y-2">
+              <Textarea
+                className="min-h-[200px]"
+                value={aiPlanText}
+                onChange={(event) => setAiPlanText(event.target.value)}
+                placeholder={t("aiImportPlaceholder")}
+              />
+              <Button disabled={!aiPlanText.trim() || isAiLoading} onClick={() => void handleAiGenerate()}>
+                {t("aiGenerate")}
+              </Button>
+            </TabsContent>
           </Tabs>
 
           <Button disabled={!canValidate} onClick={handleValidate}>
-            {t("validate")}
+            {t("buildPreview")}
           </Button>
         </CardContent>
       </Card>
@@ -128,7 +184,7 @@ export function ImportPage() {
       {repairResult && (
         <Card>
           <CardHeader>
-            <CardTitle>{t("repairPreview")}</CardTitle>
+            <CardTitle>{t("importOverview")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {repairResult.errors.length > 0 && (
@@ -141,9 +197,7 @@ export function ImportPage() {
 
             {repairResult.errors.length === 0 && (
               <>
-                {repairResult.changes.length === 0 && (
-                  <p className="text-sm text-muted-foreground">{t("noRepairNeeded")}</p>
-                )}
+                {repairResult.changes.length === 0 && <p className="text-sm text-muted-foreground">{t("noChangesNeeded")}</p>}
 
                 {repairResult.changes.length > 0 && (
                   <ul className="list-disc space-y-1 pl-5 text-sm">

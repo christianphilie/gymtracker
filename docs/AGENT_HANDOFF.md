@@ -5,6 +5,7 @@
 2. `npm run dev`
 3. `npm run build`
 4. For Vercel deploy, keep `vercel.json` rewrite so BrowserRouter routes resolve to `index.html`.
+5. For direct AI import, configure `OPENAI_API_KEY` (and optional `OPENAI_MODEL`) in deployment env for `/api/ai-import`.
 
 ## Versioning Policy (Must Keep)
 1. No commit without a version bump.
@@ -34,6 +35,10 @@
 6. Discarded sessions must be fully removed and excluded from history.
 7. New sessions should follow template structure; previous-session extras are informational unless user explicitly overwrites template.
 8. Backup import/export must cover all IndexedDB tables, not only workout templates.
+9. On app version change, create at most one automatic safety snapshot per version transition.
+10. Keep only the latest three update safety snapshots.
+11. Safety snapshot restore is replace-mode and must require explicit user confirmation in UI.
+12. Weight unit switches must convert persisted weight values in templates and active/completed session sets.
 
 ## Extension Guidelines
 1. Prefer repository-level changes over direct table access in feature pages.

@@ -7,12 +7,15 @@ Minimal workout tracking PWA (React + TypeScript + Tailwind + shadcn-style compo
 - Multiple workouts with exercises and planned sets
 - Session tracking with target vs actual reps/weight and set check-off
 - Last-session snapshot per exercise
+- Session history per workout
 - JSON import with conservative auto-repair preview
 - Prompt-copy helper for LLM-based plan conversion
+- Direct AI import tab (server-side endpoint)
 - Full app backup export/import (device transfer)
 - Local persistence (IndexedDB) without login/backend
 - PWA-ready static app
 - German/English UI toggle and global weight unit (kg/lb)
+- Configurable rest timer duration (2/3/5 minutes)
 - In-app version display (Settings)
 
 ## Run
@@ -37,8 +40,11 @@ npm run preview
 3. Keep default Vite settings:
 - Build command: `npm run build`
 - Output directory: `dist`
-4. Deploy.
-5. Share the generated HTTPS URL.
+4. Add environment variable for AI import endpoint:
+- `OPENAI_API_KEY` (required for `/api/ai-import`)
+- `OPENAI_MODEL` (optional, defaults to `gpt-4.1-mini`)
+5. Deploy.
+6. Share the generated HTTPS URL.
 
 `vercel.json` is included so client-side routes (React Router) work correctly on direct opens.
 
