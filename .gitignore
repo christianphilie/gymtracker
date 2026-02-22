@@ -7,3 +7,4 @@ dist
 vite.config.js
 vite.config.d.ts
 .claude/
+.env

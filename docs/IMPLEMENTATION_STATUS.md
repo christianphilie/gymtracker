@@ -39,7 +39,7 @@
 24. Workout editor now supports full workout deletion with cascading cleanup of sessions/session sets.
 25. Settings now include full data reset action (`clearAllData`) behind explicit confirmation.
 26. Session/import UX polish:
-- collapsible \"add exercise\" block,
+- collapsible "add exercise" block,
 - completion dialog footer wraps reliably on mobile,
 - import page includes prompt guidance and explicit JSON upload label.
 27. Previous-session hints now consider only completed (checked) sets.
@@ -75,7 +75,7 @@
 41. Header active-session status now includes:
 - elapsed timer since latest check-off,
 - auto-switch to completion flag action when all sets are done.
-42. AI import endpoint added (`/api/ai-import`) with server-side secret usage (`OPENAI_API_KEY`) and UI tab integration.
+42. AI import endpoint added (`/api/ai-import`) with server-side secret usage (`GROQ_API_KEY`) and UI tab integration.
 43. Data model and repository were extended for:
 - session history queries,
 - robust weight-unit conversion during settings switch.
@@ -94,6 +94,16 @@
 53. Active-session header now shows inline "since ..." status and right-aligned previous-session timestamp.
 54. Footer is now localized (DE/EN) and keeps static GitHub attribution + local-data notice.
 55. Header timer switched from circular indicator to aligned progress-bar variant matching set-progress sizing and typography.
+56. Dark mode added: Light / Dark / System color scheme selector in settings; persisted in IndexedDB; applied via `.dark` class on `<html>`.
+57. Default full-body machine workout seeded on first launch and after full data reset; `ensureDefaultWorkout` uses a localStorage flag (`gymtracker:default-workout-seeded`) cleared only by `clearAllData` — prevents re-seed after manual workout deletion and React StrictMode double-invocation.
+58. AI import backend switched from OpenAI to Groq (`llama-3.3-70b-versatile`); requires `GROQ_API_KEY` env var.
+59. Settings page redesigned: page title with Settings icon; Satzpausen-Timer card first; Sprache + Einheit side-by-side at `md:`; "Datenverwaltung" section heading with Database icon; per-card icons (Timer, Globe, Weight, SunMoon).
+60. Update-safety notice is dismissable via X button; dismissal state (snapshot ID) persisted to localStorage (`gymtracker:dismissed-snapshot-id`).
+61. Import page restructured: title outside card; tabs renamed ("Aus Text erstellen" / "Aus Datei erstellen"); "Datei hochladen" tab removed; AI description updated.
+62. Session history: title / subtitle swapped; ChartNoAxesCombined icon replaces History icon.
+63. Dashboard: discard confirmation dialog added for active-session trash action; empty state and footer use plain outline buttons; Import button added alongside "Workout hinzufügen".
+64. Non-session header no longer shows Import button; Home + Settings buttons remain.
+65. Legal page (`/legal`) created with full Lucide ISC license text and Apache-2.0 / MIT attribution for all runtime dependencies; linked from global footer and settings version line.
 
 ## Open TODOs (Priority)
 1. P0: Add automated tests (unit + integration) for import repair and session flows.
@@ -110,6 +120,6 @@
 12. P2: Add API contract tests for `/api/ai-import` error and success paths.
 
 ## Open Bugs / Risks
-1. `npm audit --omit=dev` is clean (0 production vulnerabilities); current 16 highs are in dev/build tooling chain.
+1. `npm audit --omit=dev` is clean (0 production vulnerabilities); current highs are in dev/build tooling chain.
 2. No explicit ErrorBoundary in app shell.
 3. Import merge strategy intentionally creates duplicates on repeated imports.

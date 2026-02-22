@@ -1,5 +1,26 @@
 # Release Notes
 
+## 0.5.1 - 2026-02-22
+
+### Added
+1. Legal page (`/legal`) with full Lucide ISC license text, Apache-2.0 attributions (Dexie.js, class-variance-authority), and MIT attributions for all other runtime dependencies; linked from global app footer and settings page.
+2. Dashboard: discard-session confirmation dialog — trash button on active workout cards now requires explicit confirmation before discarding.
+3. Import button added to dashboard alongside "Workout hinzufügen" in both the empty state and at the bottom of the workout list.
+
+### Changed
+1. Settings page fully redesigned: added page title with Settings icon; Satzpausen-Timer card moved to first position; Sprache and Einheit cards displayed side-by-side at medium breakpoint; new "Datenverwaltung" section heading with Database icon; all cards now have matching lucide icons (Timer, Globe, Weight, SunMoon).
+2. Update-safety notice is now dismissable with an X button; dismissal ID persisted in localStorage so the banner does not reappear after page reload.
+3. Import page restructured: page title moved outside the card; tabs renamed to "Aus Text erstellen" and "Aus Datei erstellen"; "Datei hochladen" tab removed; AI-tab description no longer mentions PDFs.
+4. Session history page: page title now shows "Session-Verlauf" with ChartNoAxesCombined icon; workout name demoted to subtitle beneath the title.
+5. Dashboard empty state replaced with plain outline buttons matching the non-empty list style.
+6. Import button removed from non-session header (Home + Settings buttons remain).
+7. Legal link added to global app footer.
+
+### Fixed
+1. `ensureDefaultWorkout` no longer re-seeds the default workout after the user manually deletes all workouts. A localStorage flag (`gymtracker:default-workout-seeded`) is set on first successful seed and cleared only by "Alle Daten löschen". The flag is set synchronously before the async Dexie write to prevent React StrictMode double-invocation from creating two default workouts.
+
+---
+
 ## 0.5.0 - 2026-02-22
 
 ### Added
