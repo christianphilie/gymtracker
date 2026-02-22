@@ -190,8 +190,8 @@ export function WorkoutHistoryPage() {
 
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-1">
-          <h1 className="text-base font-semibold">{t("sessionHistory")}</h1>
-          <p className="text-sm text-muted-foreground">{payload.workout.workout.name}</p>
+          <h1 className="text-base font-semibold">{payload.workout.workout.name}</h1>
+          <p className="text-sm text-muted-foreground">{t("sessionHistory")}</p>
         </div>
         <p className="text-xs text-muted-foreground">
           {t("completedThisWeek")}: {completedThisWeek}

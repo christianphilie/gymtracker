@@ -45,7 +45,7 @@ export function SettingsPage() {
 
   const weightOptions: Array<{ value: WeightUnit; label: string }> = [
     { value: "kg", label: "kg" },
-    { value: "lb", label: "lb" }
+    { value: "lb", label: "lbs" }
   ];
 
   const handleClearAllData = async () => {
