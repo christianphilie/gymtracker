@@ -1,5 +1,19 @@
 # Release Notes
 
+## 0.4.1 - 2026-02-22
+
+### Added
+1. Session history now supports per-session edit and delete actions (with confirmation for delete).
+2. Session history cards now include basic workout stats per entry (exercises, sets, repetitions, weight).
+3. Dashboard now shows total completed workouts for the current week.
+
+### Changed
+1. Rest timer moved into the top bar next to set progress.
+2. Timer can be paused/resumed by tap and resets automatically when a new set is checked.
+3. Active session header now shows "since ..." inline with status badge and right-aligned last-session info.
+4. Footer copy is now localized (DE/EN) and keeps the GitHub credit link.
+5. Homescreen icon fallback simplified to favicon-only setup (removed extra icon asset).
+
 ## 0.4.0 - 2026-02-22
 
 ### Added

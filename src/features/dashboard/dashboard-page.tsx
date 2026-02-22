@@ -20,6 +20,15 @@ interface WorkoutListItem {
   sortTimestamp: number;
 }
 
+function getWeekStart(date: Date) {
+  const target = new Date(date);
+  const day = target.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  target.setHours(0, 0, 0, 0);
+  target.setDate(target.getDate() + diff);
+  return target;
+}
+
 function PlayFilledIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
@@ -31,6 +40,7 @@ function PlayFilledIcon({ className }: { className?: string }) {
 export function DashboardPage() {
   const { t } = useSettings();
   const navigate = useNavigate();
+  const weekStart = useMemo(() => getWeekStart(new Date()), []);
 
   const workouts = useLiveQuery(async () => {
     const list = await db.workouts.toArray();
@@ -92,6 +102,11 @@ export function DashboardPage() {
     });
   }, []);
 
+  const completedThisWeek = useLiveQuery(async () => {
+    const sessions = await db.sessions.where("status").equals("completed").toArray();
+    return sessions.filter((session) => new Date(session.finishedAt ?? session.startedAt) >= weekStart).length;
+  }, [weekStart]);
+
   const { activeWorkouts, inactiveWorkouts } = useMemo(() => {
     const active = (workouts ?? [])
       .filter((workout) => !!workout.activeSessionId)
@@ -142,9 +157,9 @@ export function DashboardPage() {
                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
                   {t("activeSession")}
                 </span>
-                <Button
-                  variant="outline"
-                  size="icon"
+                <button
+                  type="button"
+                  className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground/70 hover:text-foreground"
                   aria-label={t("discardSession")}
                   onClick={async () => {
                     if (!workout.activeSessionId) {
@@ -159,7 +174,7 @@ export function DashboardPage() {
                   }}
                 >
                   <Trash2 className="h-4 w-4" />
-                </Button>
+                </button>
               </>
             ) : (
               <div className="text-right text-xs text-muted-foreground">
@@ -213,6 +228,9 @@ export function DashboardPage() {
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-base font-semibold">{t("workouts")}</h1>
+        <p className="text-xs text-muted-foreground">
+          {t("completedThisWeek")}: {completedThisWeek ?? 0}
+        </p>
       </div>
 
       {!hasWorkouts && (

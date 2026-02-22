@@ -51,6 +51,8 @@
 10. On app version change, the app stores one full safety snapshot before users continue normal usage.
 11. Unit switch (`kg/lb`) converts stored template/session weights; no unit relabel-only mode.
 12. Rest timer starts after first checked set and uses configurable duration from settings (2/3/5 minutes).
+13. Rest timer can be paused/resumed manually and resets when a newer set completion timestamp appears.
+14. Completed sessions are mutable via history tooling (edit values/check-state or delete whole session with confirmation).
 
 ## Mobile Viewport Behavior
 1. Viewport is locked to app-like scale (manual pinch zoom disabled by design requirement).

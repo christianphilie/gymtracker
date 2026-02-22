@@ -11,6 +11,8 @@
 8. Add tests for weight-unit conversion behavior across template and session values.
 9. Add tests for `/api/ai-import` plus fallback UX when backend env is missing.
 10. Add tests for rest-timer behavior (starts on first completed set, configurable 2/3/5 minute threshold).
+11. Add tests for history session edit/delete actions (including DB integrity after remove).
+12. Add tests for top-bar timer pause/resume interactions and reset-on-new-check behavior.
 
 ## Later
 1. Workout archive/delete.

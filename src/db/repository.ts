@@ -917,6 +917,13 @@ export interface WorkoutSessionHistoryItem {
   sets: SessionExerciseSet[];
 }
 
+export interface SessionSetUpdateDraft {
+  id: number;
+  actualReps: number;
+  actualWeight: number;
+  completed: boolean;
+}
+
 export async function getWorkoutSessionHistory(workoutId: number): Promise<WorkoutSessionHistoryItem[]> {
   const sessions = await db.sessions
     .where("workoutId")
@@ -947,6 +954,41 @@ export async function getWorkoutSessionHistory(workoutId: number): Promise<Worko
       return a.templateSetOrder - b.templateSetOrder;
     })
   }));
+}
+
+export async function deleteCompletedSession(sessionId: number) {
+  const session = await db.sessions.get(sessionId);
+  if (!session || session.status !== "completed") {
+    throw new Error("Completed session not found");
+  }
+
+  await db.transaction("rw", db.sessions, db.sessionExerciseSets, async () => {
+    await db.sessionExerciseSets.where("sessionId").equals(sessionId).delete();
+    await db.sessions.delete(sessionId);
+  });
+}
+
+export async function updateCompletedSessionSets(sessionId: number, updates: SessionSetUpdateDraft[]) {
+  const session = await db.sessions.get(sessionId);
+  if (!session || session.status !== "completed") {
+    throw new Error("Completed session not found");
+  }
+
+  await db.transaction("rw", db.sessionExerciseSets, async () => {
+    for (const draft of updates) {
+      const current = await db.sessionExerciseSets.get(draft.id);
+      if (!current || current.sessionId !== sessionId) {
+        continue;
+      }
+
+      await db.sessionExerciseSets.update(draft.id, {
+        actualReps: draft.actualReps,
+        actualWeight: draft.actualWeight,
+        completed: draft.completed,
+        completedAt: draft.completed ? current.completedAt ?? nowIso() : undefined
+      });
+    }
+  });
 }
 
 export async function getAllSessionsByWorkout(workoutId: number) {

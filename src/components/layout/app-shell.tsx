@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Dumbbell, Flag, Import, Plus, Settings } from "lucide-react";
+import { Dumbbell, Flag, Import, Pause, Plus, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSettings } from "@/app/settings-context";
 import { db } from "@/db/db";
@@ -12,10 +12,18 @@ interface SessionHeaderState {
   total: number;
   completed: number;
   elapsedSeconds: number;
+  sinceIso: string | null;
   doneAndReady: boolean;
 }
 
-function HeaderActions({ sessionState }: { sessionState: SessionHeaderState | null }) {
+interface HeaderActionsProps {
+  sessionState: SessionHeaderState | null;
+  restTimerSeconds: number;
+  timerPaused: boolean;
+  onToggleTimer: () => void;
+}
+
+function HeaderActions({ sessionState, restTimerSeconds, timerPaused, onToggleTimer }: HeaderActionsProps) {
   const { t } = useSettings();
 
   if (sessionState?.doneAndReady) {
@@ -38,13 +46,49 @@ function HeaderActions({ sessionState }: { sessionState: SessionHeaderState | nu
 
   if (sessionState) {
     const donePercent = sessionState.total > 0 ? Math.round((sessionState.completed / sessionState.total) * 100) : 0;
+    const timerProgress = Math.min(sessionState.elapsedSeconds, restTimerSeconds) / restTimerSeconds;
+    const timerExceeded = sessionState.elapsedSeconds >= restTimerSeconds;
+    const timerRingColor = timerExceeded ? "#ef4444" : "#f59e0b";
+    const timerRadius = 12;
+    const timerCircumference = 2 * Math.PI * timerRadius;
+    const timerStrokeOffset = timerCircumference * (1 - Math.min(timerProgress, 1));
+
     return (
-      <div className="w-[118px] space-y-1">
-        <p className="text-right text-xs font-medium">
-          {sessionState.completed}/{sessionState.total} {t("sets")}
-        </p>
-        <div className="h-1.5 overflow-hidden rounded-full border bg-secondary">
-          <div className="h-full bg-primary" style={{ width: `${donePercent}%` }} />
+      <div className="flex items-center gap-2">
+        {sessionState.sinceIso && (
+          <button
+            type="button"
+            className="relative inline-flex h-8 w-8 items-center justify-center rounded-full"
+            onClick={onToggleTimer}
+            aria-label={timerPaused ? t("resumeSession") : t("pauseTimer")}
+          >
+            <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 32 32" aria-hidden="true">
+              <circle cx="16" cy="16" r={timerRadius} fill="none" stroke="hsl(var(--secondary))" strokeWidth="4" />
+              <circle
+                cx="16"
+                cy="16"
+                r={timerRadius}
+                fill="none"
+                stroke={timerRingColor}
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeDasharray={timerCircumference}
+                strokeDashoffset={timerStrokeOffset}
+              />
+            </svg>
+            <span className="z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-card text-[8px] font-medium">
+              {timerPaused ? <Pause className="h-3 w-3" /> : formatDurationClock(sessionState.elapsedSeconds)}
+            </span>
+          </button>
+        )}
+
+        <div className="w-[102px] space-y-1">
+          <p className="text-right text-xs font-medium">
+            {t("setSingular")} {sessionState.completed}/{sessionState.total}
+          </p>
+          <div className="h-1.5 overflow-hidden rounded-full border bg-secondary">
+            <div className="h-full bg-primary" style={{ width: `${donePercent}%` }} />
+          </div>
         </div>
       </div>
     );
@@ -105,6 +149,10 @@ export function AppShell() {
   }, [activeSessionId]);
 
   const [now, setNow] = useState(() => Date.now());
+  const [timerPaused, setTimerPaused] = useState(false);
+  const [timerPausedTotalMs, setTimerPausedTotalMs] = useState(0);
+  const [timerPauseStartedAt, setTimerPauseStartedAt] = useState<number | null>(null);
+
   useEffect(() => {
     if (!sessionMeta) {
       return;
@@ -114,58 +162,90 @@ export function AppShell() {
     return () => window.clearInterval(timer);
   }, [sessionMeta]);
 
+  useEffect(() => {
+    setTimerPaused(false);
+    setTimerPausedTotalMs(0);
+    setTimerPauseStartedAt(null);
+  }, [sessionMeta?.sessionId, sessionMeta?.sinceIso]);
+
   const sessionState = useMemo<SessionHeaderState | null>(() => {
     if (!sessionMeta) {
       return null;
     }
 
     const elapsedSeconds = sessionMeta.sinceIso
-      ? Math.max(0, Math.floor((now - new Date(sessionMeta.sinceIso).getTime()) / 1000))
+      ? (() => {
+          const rawElapsedMs = now - new Date(sessionMeta.sinceIso).getTime();
+          const activePauseMs = timerPaused && timerPauseStartedAt ? now - timerPauseStartedAt : 0;
+          const adjustedMs = Math.max(0, rawElapsedMs - timerPausedTotalMs - activePauseMs);
+          return Math.floor(adjustedMs / 1000);
+        })()
       : 0;
     return {
       sessionId: sessionMeta.sessionId,
       total: sessionMeta.total,
       completed: sessionMeta.completed,
       elapsedSeconds,
+      sinceIso: sessionMeta.sinceIso,
       doneAndReady: sessionMeta.total > 0 && sessionMeta.completed === sessionMeta.total
     };
-  }, [sessionMeta, now]);
+  }, [sessionMeta, now, timerPaused, timerPauseStartedAt, timerPausedTotalMs]);
 
-  const timerProgress = Math.min(sessionState?.elapsedSeconds ?? 0, restTimerSeconds) / restTimerSeconds;
-  const timerExceeded = (sessionState?.elapsedSeconds ?? 0) >= restTimerSeconds;
-  const timerDegrees = timerExceeded ? 360 : Math.round(timerProgress * 360);
-  const timerRingColor = timerExceeded ? "#ef4444" : "#f59e0b";
+  const handleToggleTimer = () => {
+    if (!sessionState?.sinceIso) {
+      return;
+    }
+
+    if (timerPaused) {
+      if (timerPauseStartedAt) {
+        setTimerPausedTotalMs((prev) => prev + (Date.now() - timerPauseStartedAt));
+      }
+      setTimerPauseStartedAt(null);
+      setTimerPaused(false);
+      return;
+    }
+
+    setTimerPauseStartedAt(Date.now());
+    setTimerPaused(true);
+  };
 
   return (
     <div className="mx-auto min-h-screen max-w-3xl bg-background">
       <header className="sticky top-0 z-20 border-x-0 border-b border-t-0 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="container flex h-14 items-center justify-between">
-          <Link to="/" className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight">
+          <Link to="/" className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
             <Dumbbell className="h-4 w-4" />
             {t("appName")}
           </Link>
-          <HeaderActions sessionState={sessionState} />
+          <HeaderActions
+            sessionState={sessionState}
+            restTimerSeconds={restTimerSeconds}
+            timerPaused={timerPaused}
+            onToggleTimer={handleToggleTimer}
+          />
         </div>
       </header>
-
-      {sessionState && !sessionState.doneAndReady && sessionState.elapsedSeconds > 0 && (
-        <div className="pointer-events-none fixed right-4 top-[4.25rem] z-30">
-          <div
-            className="flex h-11 w-11 items-center justify-center rounded-full p-[5px] shadow-[0_1px_2px_rgba(15,23,42,0.12)]"
-            style={{
-              background: `conic-gradient(${timerRingColor} ${timerDegrees}deg, hsl(var(--secondary)) 0deg)`
-            }}
-          >
-            <div className="flex h-full w-full items-center justify-center rounded-full bg-card text-[8px] font-medium">
-              {formatDurationClock(sessionState.elapsedSeconds)}
-            </div>
-          </div>
-        </div>
-      )}
 
       <main className="container py-4 pb-6">
         <Outlet />
       </main>
+
+      <footer className="border-t bg-background/80">
+        <div className="container flex flex-col gap-1 py-3 text-center text-xs text-muted-foreground">
+          <p>
+            {t("footerMadeWith")} <span className="text-foreground">❤</span> {t("footerBy")}{" "}
+            <a
+              href="https://github.com/christianphilie/gymtracker"
+              target="_blank"
+              rel="noreferrer"
+              className="underline-offset-4 hover:underline"
+            >
+              christianphilie
+            </a>
+          </p>
+          <p>{t("footerDataLocal")}</p>
+        </div>
+      </footer>
     </div>
   );
 }

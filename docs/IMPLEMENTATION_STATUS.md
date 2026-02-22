@@ -87,6 +87,12 @@
 - history/edit controls grouped in card footer,
 - filled play icon for start/resume CTA.
 48. Notifications now use white cards and localized success copy for workout create/update actions.
+49. Session history now supports editing and deleting completed sessions.
+50. Session history entries now show per-session stats (exercises, sets, repetitions, weight) under exercise lists.
+51. Dashboard now surfaces current-week completed workout count.
+52. Rest timer moved into the title bar, supports tap pause/resume, and restarts on new check-off events.
+53. Active-session header now shows inline "since ..." status and right-aligned previous-session timestamp.
+54. Footer is now localized (DE/EN) and keeps static GitHub attribution + local-data notice.
 
 ## Open TODOs (Priority)
 1. P0: Add automated tests (unit + integration) for import repair and session flows.

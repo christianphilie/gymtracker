@@ -37,7 +37,7 @@ function ExerciseSearchLink({ exerciseName }: { exerciseName: string }) {
       href={url}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] text-muted-foreground hover:text-foreground"
+      className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] text-muted-foreground hover:text-foreground"
       aria-label="Exercise links"
     >
       ?
@@ -150,21 +150,27 @@ export function SessionPage() {
   return (
     <section className="space-y-4 pb-6">
       <Card>
-        <CardHeader className="space-y-2">
-          <CardTitle>{payload.workout.workout.name}</CardTitle>
-          {!isCompleted && (
-            <div>
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
-                {t("activeSession")}
-              </span>
+        <CardHeader className="space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="space-y-1">
+              <CardTitle>{payload.workout.workout.name}</CardTitle>
+              {!isCompleted && (
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                    {t("activeSession")}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {t("since")} {formatDateTime(payload.session.startedAt)}
+                  </span>
+                </div>
+              )}
             </div>
-          )}
-          <p className="text-xs text-muted-foreground">
-            {t("sessionStartedAt")}: {formatDateTime(payload.session.startedAt)}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {t("lastSession")}: {payload.previousSummary ? formatDateTime(payload.previousSummary.completedAt) : "-"}
-          </p>
+
+            <div className="text-right text-xs text-muted-foreground">
+              <p>{t("lastSession")}</p>
+              <p>{payload.previousSummary ? formatDateTime(payload.previousSummary.completedAt) : "-"}</p>
+            </div>
+          </div>
           {payload.previousSummary && payload.previousSummary.extraExercises.length > 0 && (
             <p className="text-xs text-muted-foreground">
               {t("lastSessionExtras")}:{" "}
