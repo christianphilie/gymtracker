@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { History, PenSquare, Trash2 } from "lucide-react";
+import { Dumbbell, History, PenSquare, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -227,7 +227,10 @@ export function DashboardPage() {
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-base font-semibold">{t("workouts")}</h1>
+        <h1 className="inline-flex items-center gap-2 text-base font-semibold">
+          <Dumbbell className="h-4 w-4" />
+          {t("workouts")}
+        </h1>
         <p className="text-xs text-muted-foreground">
           {t("completedThisWeek")}: {completedThisWeek ?? 0}
         </p>
@@ -263,6 +266,17 @@ export function DashboardPage() {
           )}
           {inactiveWorkouts.map(renderWorkoutCard)}
         </div>
+      )}
+
+      {hasWorkouts && (
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2"
+          onClick={() => navigate("/workouts/new")}
+        >
+          <Plus className="h-4 w-4" />
+          {t("addWorkout")}
+        </Button>
       )}
     </section>
   );

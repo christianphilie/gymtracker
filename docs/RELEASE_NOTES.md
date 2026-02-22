@@ -1,5 +1,25 @@
 # Release Notes
 
+## 0.5.0 - 2026-02-22
+
+### Added
+1. Dark mode with Light / Dark / System selector in settings.
+2. Default full-body machine workout on first launch and after full data reset (Beinpresse, Brustpresse, Latzug, Schulterdrücken, Bizepscurl, Trizepsdrücken – 3 × 12).
+3. Apple-touch-icon (180 × 180 PNG) for iOS homescreen; gray favicon works on both light and dark browser chrome.
+
+### Changed
+1. AI import is now the primary (default) tab; wording and description simplified for non-technical users.
+2. AI generation auto-validates the result – no extra "Vorschau anzeigen" click needed.
+3. KI backend switched from OpenAI to Groq (`llama-3.3-70b-versatile`). Set `GROQ_API_KEY` in Vercel → Settings → Environment Variables (key from console.groq.com).
+4. Satzpausen-Timer renamed and now shows a short description in settings.
+5. Timer in header always shows the elapsed time; pause state indicated by Pause/Play icon next to the time.
+6. Home button replaces the Plus button in the top-bar navigation; new workout starts via dashboard.
+7. New exercises default to 3 sets; notes textarea uses 2 rows.
+8. Exercise and workout name inputs now show localised placeholder text.
+9. Workout editor navigates to home after saving (both create and edit).
+10. Dumbbell icon next to workout name in active session page; History icon in session history subtitle.
+11. "Workout hinzufügen" button added at the bottom of the dashboard workout list.
+
 ## 0.4.2 - 2026-02-22
 
 ### Changed

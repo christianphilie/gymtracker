@@ -17,17 +17,18 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   clearAllData,
+  ensureDefaultWorkout,
   exportAllDataSnapshot,
   getLatestUpdateSafetySnapshot,
   importAllDataSnapshot,
   restoreUpdateSafetySnapshot
 } from "@/db/repository";
-import type { AppLanguage, WeightUnit } from "@/db/types";
+import type { AppLanguage, ColorScheme, WeightUnit } from "@/db/types";
 import { createBackupPayload, parseBackupPayload, type AppBackupFile } from "@/features/settings/backup-utils";
 import { toast } from "sonner";
 
 export function SettingsPage() {
-  const { t, language, setLanguage, weightUnit, setWeightUnit, restTimerSeconds, setRestTimerSeconds } = useSettings();
+  const { t, language, setLanguage, weightUnit, setWeightUnit, restTimerSeconds, setRestTimerSeconds, colorScheme, setColorScheme } = useSettings();
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<AppBackupFile | null>(null);
@@ -48,8 +49,15 @@ export function SettingsPage() {
     { value: "lb", label: "lbs" }
   ];
 
+  const colorSchemeOptions: Array<{ value: ColorScheme; labelKey: "colorSchemeLight" | "colorSchemeDark" | "colorSchemeSystem" }> = [
+    { value: "light", labelKey: "colorSchemeLight" },
+    { value: "dark", labelKey: "colorSchemeDark" },
+    { value: "system", labelKey: "colorSchemeSystem" }
+  ];
+
   const handleClearAllData = async () => {
     await clearAllData();
+    await ensureDefaultWorkout();
     setClearDialogOpen(false);
     toast.success(t("allDataDeleted"));
   };
@@ -187,9 +195,26 @@ export function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("restTimerDuration")}</CardTitle>
+          <CardTitle>{t("colorScheme")}</CardTitle>
         </CardHeader>
         <CardContent>
+          <Tabs value={colorScheme} onValueChange={(value) => void setColorScheme(value as ColorScheme)}>
+            <TabsList className="grid w-full grid-cols-3">
+              {colorSchemeOptions.map((option) => (
+                <TabsTrigger key={option.value} value={option.value}>
+                  {t(option.labelKey)}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("restTimerDuration")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
           <Tabs
             value={String(restTimerSeconds)}
             onValueChange={(value) => void setRestTimerSeconds(Number(value))}
@@ -200,6 +225,7 @@ export function SettingsPage() {
               <TabsTrigger value="300">5 min</TabsTrigger>
             </TabsList>
           </Tabs>
+          <p className="text-xs text-muted-foreground">{t("restTimerDescription")}</p>
         </CardContent>
       </Card>
 

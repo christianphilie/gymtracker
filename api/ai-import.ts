@@ -1,4 +1,4 @@
-const MODEL = process.env.OPENAI_MODEL ?? "gpt-4.1-mini";
+const MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
 
 interface ApiRequest {
   method?: string;
@@ -16,9 +16,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     return;
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    res.status(500).json({ error: "OPENAI_API_KEY is not configured" });
+    res.status(500).json({ error: "GROQ_API_KEY is not configured" });
     return;
   }
 
@@ -48,7 +48,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     planText
   ].join("\n");
 
-  const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
+  const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -56,24 +56,25 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     },
     body: JSON.stringify({
       model: MODEL,
-      input: [
+      response_format: { type: "json_object" },
+      messages: [
         { role: "system", content: systemMessage },
         { role: "user", content: userMessage }
       ]
     })
   });
 
-  if (!openaiResponse.ok) {
-    const errorText = await openaiResponse.text();
+  if (!groqResponse.ok) {
+    const errorText = await groqResponse.text();
     res.status(502).json({ error: "AI provider request failed", detail: errorText });
     return;
   }
 
-  const payload = await openaiResponse.json();
-  const text = typeof payload.output_text === "string" ? payload.output_text : "";
+  const payload = await groqResponse.json();
+  const text = payload?.choices?.[0]?.message?.content;
 
-  if (!text.trim()) {
-    res.status(502).json({ error: "AI response did not contain output_text" });
+  if (typeof text !== "string" || !text.trim()) {
+    res.status(502).json({ error: "AI response did not contain content" });
     return;
   }
 

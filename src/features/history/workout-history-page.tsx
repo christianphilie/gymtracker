@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, Check, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, History, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { DecimalInput } from "@/components/forms/decimal-input";
@@ -191,7 +191,10 @@ export function WorkoutHistoryPage() {
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-1">
           <h1 className="text-base font-semibold">{payload.workout.workout.name}</h1>
-          <p className="text-sm text-muted-foreground">{t("sessionHistory")}</p>
+          <p className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+            <History className="h-3.5 w-3.5" />
+            {t("sessionHistory")}
+          </p>
         </div>
         <p className="text-xs text-muted-foreground">
           {t("completedThisWeek")}: {completedThisWeek}

@@ -5,6 +5,7 @@ import {
 } from "@/app/version";
 import { db } from "@/db/db";
 import type {
+  ColorScheme,
   Exercise,
   ExerciseTemplateSet,
   PreviousSessionSummary,
@@ -175,12 +176,15 @@ async function getActiveSessionForWorkout(workoutId: number) {
 export async function ensureDefaultSettings() {
   const existing = await db.settings.get(SETTINGS_ID);
   if (existing) {
+    const patch: Partial<Settings> = {};
     if (existing.restTimerSeconds === undefined) {
-      const patched: Settings = {
-        ...existing,
-        restTimerSeconds: 120,
-        updatedAt: nowIso()
-      };
+      patch.restTimerSeconds = 120;
+    }
+    if (existing.colorScheme === undefined) {
+      patch.colorScheme = "system";
+    }
+    if (Object.keys(patch).length > 0) {
+      const patched: Settings = { ...existing, ...patch, updatedAt: nowIso() };
       await db.settings.put(patched);
       return patched;
     }
@@ -193,6 +197,7 @@ export async function ensureDefaultSettings() {
     language: "de",
     weightUnit: "kg",
     restTimerSeconds: 120,
+    colorScheme: "system",
     createdAt: now,
     updatedAt: now
   };
@@ -202,7 +207,7 @@ export async function ensureDefaultSettings() {
 }
 
 export async function updateSettings(
-  patch: Partial<Pick<Settings, "language" | "weightUnit" | "restTimerSeconds">>
+  patch: Partial<Pick<Settings, "language" | "weightUnit" | "restTimerSeconds" | "colorScheme">>
 ) {
   const current = await ensureDefaultSettings();
   const next: Settings = {
@@ -217,6 +222,10 @@ export async function updateSettings(
 export async function updateRestTimerSeconds(seconds: number) {
   const clamped = seconds <= 120 ? 120 : seconds <= 180 ? 180 : 300;
   return updateSettings({ restTimerSeconds: clamped });
+}
+
+export async function updateColorScheme(scheme: ColorScheme) {
+  return updateSettings({ colorScheme: scheme });
 }
 
 export async function updateWeightUnitAndConvert(nextUnit: WeightUnit) {
@@ -449,6 +458,67 @@ export async function deleteWorkout(workoutId: number) {
       await db.workouts.delete(workoutId);
     }
   );
+}
+
+export async function ensureDefaultWorkout() {
+  const count = await db.workouts.count();
+  if (count > 0) {
+    return;
+  }
+
+  await createWorkout({
+    name: "Ganzkörpertraining",
+    exercises: [
+      {
+        name: "Beinpresse",
+        sets: [
+          { targetReps: 12, targetWeight: 50 },
+          { targetReps: 12, targetWeight: 50 },
+          { targetReps: 12, targetWeight: 50 }
+        ]
+      },
+      {
+        name: "Brustpresse (Maschine)",
+        sets: [
+          { targetReps: 12, targetWeight: 30 },
+          { targetReps: 12, targetWeight: 30 },
+          { targetReps: 12, targetWeight: 30 }
+        ]
+      },
+      {
+        name: "Latzug (Maschine)",
+        sets: [
+          { targetReps: 12, targetWeight: 40 },
+          { targetReps: 12, targetWeight: 40 },
+          { targetReps: 12, targetWeight: 40 }
+        ]
+      },
+      {
+        name: "Schulterdrücken (Maschine)",
+        sets: [
+          { targetReps: 12, targetWeight: 20 },
+          { targetReps: 12, targetWeight: 20 },
+          { targetReps: 12, targetWeight: 20 }
+        ]
+      },
+      {
+        name: "Bizepscurl (Maschine)",
+        sets: [
+          { targetReps: 12, targetWeight: 15 },
+          { targetReps: 12, targetWeight: 15 },
+          { targetReps: 12, targetWeight: 15 }
+        ]
+      },
+      {
+        name: "Trizepsdrücken (Kabelzug)",
+        sets: [
+          { targetReps: 12, targetWeight: 15 },
+          { targetReps: 12, targetWeight: 15 },
+          { targetReps: 12, targetWeight: 15 }
+        ]
+      }
+    ]
+  });
 }
 
 export async function clearAllData() {

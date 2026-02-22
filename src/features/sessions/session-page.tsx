@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, ChevronDown, Flag, NotebookPen, Plus, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, Dumbbell, Flag, NotebookPen, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { DecimalInput } from "@/components/forms/decimal-input";
@@ -150,7 +150,10 @@ export function SessionPage() {
   return (
     <section className="space-y-4 pb-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-base font-semibold">{payload.workout.workout.name}</h1>
+        <h1 className="inline-flex items-center gap-2 text-base font-semibold">
+          <Dumbbell className="h-4 w-4" />
+          {payload.workout.workout.name}
+        </h1>
         {!isCompleted && (
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">

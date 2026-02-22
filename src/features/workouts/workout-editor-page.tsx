@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronDown, GripVertical, NotebookPen, Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, GripVertical, NotebookPen, PenSquare, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,11 @@ function createEmptyDraft(): WorkoutDraft {
       {
         name: "",
         notes: "",
-        sets: [{ targetReps: 10, targetWeight: 0 }]
+        sets: [
+          { targetReps: 10, targetWeight: 0 },
+          { targetReps: 10, targetWeight: 0 },
+          { targetReps: 10, targetWeight: 0 }
+        ]
       }
     ]
   };
@@ -122,13 +126,13 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
     try {
       setIsSaving(true);
       if (mode === "create") {
-        const newWorkoutId = await createWorkout(draft);
-        navigate(`/workouts/${newWorkoutId}/edit`);
+        await createWorkout(draft);
         toast.success(t("workoutCreated"));
       } else {
         await updateWorkout(Number(workoutId), draft);
         toast.success(t("workoutUpdated"));
       }
+      navigate("/");
     } finally {
       setIsSaving(false);
     }
@@ -154,7 +158,10 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
     <section className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>{mode === "create" ? t("newWorkout") : t("editWorkoutTitle")}</CardTitle>
+          <CardTitle className="inline-flex items-center gap-2">
+            {mode === "create" ? <Plus className="h-4 w-4" /> : <PenSquare className="h-4 w-4" />}
+            {mode === "create" ? t("newWorkout") : t("editWorkoutTitle")}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           <label className="text-xs text-muted-foreground">{t("workoutName")}</label>
@@ -162,7 +169,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
             id="workout-name"
             value={draft.name}
             onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
-            placeholder={t("workoutName")}
+            placeholder={t("workoutNamePlaceholder")}
           />
         </CardContent>
       </Card>
@@ -247,7 +254,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                         return next;
                       });
                     }}
-                    placeholder="Bench Press"
+                    placeholder={t("exerciseNamePlaceholder")}
                   />
 
                   <div className="space-y-2">
@@ -256,6 +263,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                       {t("notes")}
                     </label>
                     <Textarea
+                      rows={2}
                       value={exercise.notes ?? ""}
                       onChange={(event) => {
                         const value = event.target.value;
@@ -417,7 +425,11 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                       {
                         name: trimmed,
                         notes: "",
-                        sets: [{ targetReps: 10, targetWeight: 0 }]
+                        sets: [
+                          { targetReps: 10, targetWeight: 0 },
+                          { targetReps: 10, targetWeight: 0 },
+                          { targetReps: 10, targetWeight: 0 }
+                        ]
                       }
                     ]
                   }));

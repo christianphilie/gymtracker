@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Dumbbell, Flag, Import, Plus, Settings } from "lucide-react";
+import { Dumbbell, Flag, Home, Import, Pause, Play, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSettings } from "@/app/settings-context";
 import { db } from "@/db/db";
@@ -60,7 +60,11 @@ function HeaderActions({ sessionState, restTimerSeconds, timerPaused, onToggleTi
             aria-label={timerPaused ? t("resumeSession") : t("pauseTimer")}
           >
             <p className="inline-flex h-[16px] w-full items-center justify-start text-left text-xs font-medium leading-none">
-              {timerPaused ? t("paused") : formatDurationClock(sessionState.elapsedSeconds)}
+              <span className="flex-1">{formatDurationClock(sessionState.elapsedSeconds)}</span>
+              {timerPaused
+                ? <Play className="h-3 w-3 shrink-0" />
+                : <Pause className="h-3 w-3 shrink-0" />
+              }
             </p>
             <div className="h-1.5 overflow-hidden rounded-full border bg-secondary">
               <div
@@ -85,9 +89,9 @@ function HeaderActions({ sessionState, restTimerSeconds, timerPaused, onToggleTi
 
   return (
     <div className="flex items-center justify-end gap-2">
-      <Button asChild variant="outline" size="icon" aria-label={t("newWorkout")}>
-        <Link to="/workouts/new">
-          <Plus className="h-4 w-4" />
+      <Button asChild variant="outline" size="icon" aria-label={t("home")}>
+        <Link to="/">
+          <Home className="h-4 w-4" />
         </Link>
       </Button>
       <Button asChild variant="outline" size="icon" aria-label={t("import")}>
