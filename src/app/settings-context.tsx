@@ -17,6 +17,7 @@ import { toast } from "sonner";
 interface SettingsContextValue {
   language: AppLanguage;
   weightUnit: WeightUnit;
+  weightUnitLabel: string;
   restTimerSeconds: number;
   colorScheme: ColorScheme;
   t: (key: TranslationKey) => string;
@@ -78,6 +79,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     return {
       language,
       weightUnit,
+      weightUnitLabel: weightUnit === "lb" ? "lbs" : "kg",
       restTimerSeconds,
       colorScheme: currentColorScheme,
       t: (key) => messages[language][key] ?? key,

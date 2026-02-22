@@ -144,26 +144,42 @@ export function ImportPage() {
               </Button>
             </TabsContent>
 
-            <TabsContent value="manual" className="space-y-3">
-              <p className="text-sm text-muted-foreground">{t("importFromFileDescription")}</p>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(promptTemplate);
-                  toast.success(t("copyPrompt"));
-                }}
-              >
-                {t("copyPrompt")}
-              </Button>
-              <Textarea
-                className="mono-text min-h-[220px]"
-                value={rawInput}
-                onChange={(event) => setRawInput(event.target.value)}
-                placeholder='{"schemaVersion":"1.0",...}'
-              />
-              <Button disabled={!canValidate} onClick={handleValidate}>
-                {t("buildPreview")}
-              </Button>
+            <TabsContent value="manual" className="space-y-4">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{t("importFromFileStep1")}</p>
+                  <p className="text-xs text-muted-foreground">{t("importFromFileStep1Desc")}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(promptTemplate);
+                      toast.success(t("copyPrompt"));
+                    }}
+                  >
+                    {t("copyPrompt")}
+                  </Button>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{t("importFromFileStep2")}</p>
+                  <p className="text-xs text-muted-foreground">{t("importFromFileStep2Desc")}</p>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{t("importFromFileStep3")}</p>
+                  <p className="text-xs text-muted-foreground">{t("importFromFileStep3Desc")}</p>
+                  <Textarea
+                    className="mono-text min-h-[160px]"
+                    value={rawInput}
+                    onChange={(event) => setRawInput(event.target.value)}
+                    placeholder='{"schemaVersion":"1.0",...}'
+                  />
+                  <Button disabled={!canValidate} onClick={handleValidate}>
+                    {t("buildPreview")}
+                  </Button>
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         </CardContent>

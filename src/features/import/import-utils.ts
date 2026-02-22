@@ -69,12 +69,8 @@ export function repairImportPayload(raw: unknown): RepairResult {
     ? source.schemaVersion.trim()
     : "1.0";
 
-  if (schemaVersion !== "1.0") {
-    changes.push(`schemaVersion forced to "1.0" (was "${schemaVersion}")`);
-  }
-
   if (source.schemaVersion !== "1.0") {
-    changes.push("schemaVersion missing/invalid -> set to 1.0");
+    changes.push(`schemaVersion missing/invalid -> set to "1.0"`);
   }
 
   const locale = source.locale === "de" || source.locale === "en" ? source.locale : undefined;
@@ -145,8 +141,10 @@ export function repairImportPayload(raw: unknown): RepairResult {
         }
 
         const setSource = rawSet as Record<string, unknown>;
-        const repsValue = toNumber(setSource.targetReps ?? setSource.reps);
-        const weightValue = toNumber(setSource.targetWeight ?? setSource.weight);
+        const rawReps = setSource.targetReps ?? setSource.reps;
+        const rawWeight = setSource.targetWeight ?? setSource.weight;
+        const repsValue = rawReps === null ? undefined : toNumber(rawReps);
+        const weightValue = rawWeight === null ? 0 : toNumber(rawWeight) ?? 0;
         if (setSource.reps !== undefined && setSource.targetReps === undefined) {
           changes.push(`Alias reps -> targetReps at workout[${workoutIndex}].exercise[${exerciseIndex}].set[${setIndex}]`);
         }
@@ -163,14 +161,14 @@ export function repairImportPayload(raw: unknown): RepairResult {
           changes.push(`String converted to number for weight at workout[${workoutIndex}].exercise[${exerciseIndex}].set[${setIndex}]`);
         }
 
-        if (repsValue === undefined || repsValue <= 0 || weightValue === undefined || weightValue < 0) {
-          changes.push(`set removed at workout[${workoutIndex}].exercise[${exerciseIndex}].set[${setIndex}] (invalid values)`);
+        if (repsValue === undefined || repsValue <= 0) {
+          changes.push(`set removed at workout[${workoutIndex}].exercise[${exerciseIndex}].set[${setIndex}] (invalid reps)`);
           return;
         }
 
         repairedSets.push({
-          targetReps: Math.round(repsValue),
-          targetWeight: Number(weightValue)
+          targetReps: Math.round(Math.abs(repsValue)),
+          targetWeight: Math.max(0, Number(weightValue))
         });
       });
 
@@ -244,27 +242,36 @@ export function repairImportPayload(raw: unknown): RepairResult {
 
 export function getPromptTemplate(language: AppLanguage) {
   if (language === "de") {
-    return `Du bist ein Datenkonverter. Konvertiere den Trainingsplan in valides JSON nach diesem Schema. Gib ausschließlich JSON zurück, ohne Markdown und ohne Erklärung.
+    return `Du bist ein Datenkonverter. Konvertiere den Trainingsplan in valides JSON nach diesem Schema. Gib ausschließlich das rohe JSON zurück – kein Markdown, keine Code-Blöcke, keine Erklärungen.
 
 Regeln:
-1) schemaVersion muss "1.0" sein.
-2) Reps und Gewicht müssen Zahlen sein.
-3) Verwende nur die Felder aus dem Schema.
-4) Jede Übung braucht mindestens einen Satz.
+1) schemaVersion muss exakt "1.0" sein.
+2) targetReps und targetWeight müssen Zahlen sein (kein String, kein null).
+3) targetWeight darf 0 sein, wenn kein Gewicht angegeben ist.
+4) Das Feld "notes" nur einfügen, wenn wirklich eine Anmerkung vorhanden ist – sonst weglassen.
+5) Nur die Felder aus dem Schema verwenden – keine Extrafelder.
+6) Jede Übung braucht mindestens einen Satz.
+
 Schema:
 {
   "schemaVersion": "1.0",
   "locale": "de",
   "workouts": [
     {
-      "name": "Upper Body A",
+      "name": "Oberkörper A",
       "exercises": [
         {
-          "name": "Bench Press",
-          "notes": "Optional",
+          "name": "Bankdrücken",
           "sets": [
             { "targetReps": 8, "targetWeight": 60 },
             { "targetReps": 8, "targetWeight": 60 }
+          ]
+        },
+        {
+          "name": "Klimmzüge",
+          "notes": "Mit Zusatzgewicht",
+          "sets": [
+            { "targetReps": 6, "targetWeight": 10 }
           ]
         }
       ]
@@ -273,13 +280,16 @@ Schema:
 }`;
   }
 
-  return `You are a data converter. Convert the workout plan into valid JSON using this schema. Return JSON only, no markdown and no explanation.
+  return `You are a data converter. Convert the workout plan into valid JSON using this schema. Return only raw JSON – no markdown, no code blocks, no explanations.
 
 Rules:
-1) schemaVersion must be "1.0".
-2) Reps and weight must be numbers.
-3) Use only schema fields.
-4) Every exercise needs at least one set.
+1) schemaVersion must be exactly "1.0".
+2) targetReps and targetWeight must be numbers (not strings, not null).
+3) targetWeight may be 0 if no weight is specified.
+4) Only include the "notes" field if there is an actual note – omit it otherwise.
+5) Use only the schema fields – no extra fields.
+6) Every exercise needs at least one set.
+
 Schema:
 {
   "schemaVersion": "1.0",
@@ -290,10 +300,16 @@ Schema:
       "exercises": [
         {
           "name": "Bench Press",
-          "notes": "Optional",
           "sets": [
             { "targetReps": 8, "targetWeight": 60 },
             { "targetReps": 8, "targetWeight": 60 }
+          ]
+        },
+        {
+          "name": "Pull-ups",
+          "notes": "With added weight",
+          "sets": [
+            { "targetReps": 6, "targetWeight": 10 }
           ]
         }
       ]

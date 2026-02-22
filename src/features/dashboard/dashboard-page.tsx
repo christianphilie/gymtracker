@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { History, Import, List, PenSquare, Plus, Trash2 } from "lucide-react";
+import { BarChart2, Import, List, PenSquare, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -210,7 +210,7 @@ export function DashboardPage() {
               aria-label={t("sessionHistory")}
               onClick={() => navigate(`/workouts/${workout.id}/history`)}
             >
-              <History className="h-4 w-4" />
+              <BarChart2 className="h-4 w-4" />
             </Button>
             {!isActive && (
               <Button
@@ -227,7 +227,7 @@ export function DashboardPage() {
             className={isActive ? "bg-emerald-600 text-white hover:bg-emerald-700" : undefined}
             onClick={() => handleStartSession(workout.id!)}
           >
-            <PlayFilledIcon className="mr-2 h-4 w-4" />
+            <PlayFilledIcon className={`mr-2 ${isActive ? "h-5 w-5" : "h-4 w-4"}`} />
             {isActive ? t("resumeSession") : t("startSession")}
           </Button>
         </CardFooter>
@@ -250,11 +250,11 @@ export function DashboardPage() {
       {!hasWorkouts && (
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">{t("noWorkouts")}</p>
-          <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate("/workouts/new")}>
+          <Button variant="secondary" className="w-full justify-start gap-2" onClick={() => navigate("/workouts/new")}>
             <Plus className="h-4 w-4" />
             {t("addWorkout")}
           </Button>
-          <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate("/import")}>
+          <Button variant="secondary" className="w-full justify-start gap-2" onClick={() => navigate("/import")}>
             <Import className="h-4 w-4" />
             {t("workoutsImport")}
           </Button>
@@ -281,11 +281,11 @@ export function DashboardPage() {
 
       {hasWorkouts && (
         <div className="space-y-2">
-          <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate("/workouts/new")}>
+          <Button variant="secondary" className="w-full justify-start gap-2" onClick={() => navigate("/workouts/new")}>
             <Plus className="h-4 w-4" />
             {t("addWorkout")}
           </Button>
-          <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate("/import")}>
+          <Button variant="secondary" className="w-full justify-start gap-2" onClick={() => navigate("/import")}>
             <Import className="h-4 w-4" />
             {t("workoutsImport")}
           </Button>
