@@ -183,6 +183,12 @@ export async function ensureDefaultSettings() {
     if (existing.colorScheme === undefined) {
       patch.colorScheme = "system";
     }
+    if (existing.lockerNumber === undefined) {
+      patch.lockerNumber = "";
+    }
+    if (existing.lockerNumberUpdatedAt === undefined) {
+      patch.lockerNumberUpdatedAt = "";
+    }
     if (Object.keys(patch).length > 0) {
       const patched: Settings = { ...existing, ...patch, updatedAt: nowIso() };
       await db.settings.put(patched);
@@ -197,6 +203,8 @@ export async function ensureDefaultSettings() {
     language: "de",
     weightUnit: "kg",
     restTimerSeconds: 120,
+    lockerNumber: "",
+    lockerNumberUpdatedAt: "",
     colorScheme: "system",
     createdAt: now,
     updatedAt: now
@@ -207,7 +215,7 @@ export async function ensureDefaultSettings() {
 }
 
 export async function updateSettings(
-  patch: Partial<Pick<Settings, "language" | "weightUnit" | "restTimerSeconds" | "colorScheme">>
+  patch: Partial<Pick<Settings, "language" | "weightUnit" | "restTimerSeconds" | "colorScheme" | "lockerNumber" | "lockerNumberUpdatedAt">>
 ) {
   const current = await ensureDefaultSettings();
   const next: Settings = {
@@ -220,8 +228,15 @@ export async function updateSettings(
 }
 
 export async function updateRestTimerSeconds(seconds: number) {
-  const clamped = seconds <= 120 ? 120 : seconds <= 180 ? 180 : 300;
+  const clamped = seconds <= 0 ? 0 : seconds <= 120 ? 120 : seconds <= 180 ? 180 : 300;
   return updateSettings({ restTimerSeconds: clamped });
+}
+
+export async function updateLockerNumber(lockerNumber: string) {
+  return updateSettings({
+    lockerNumber: lockerNumber.trim(),
+    lockerNumberUpdatedAt: nowIso()
+  });
 }
 
 export async function updateColorScheme(scheme: ColorScheme) {

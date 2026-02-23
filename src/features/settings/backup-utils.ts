@@ -6,6 +6,10 @@ const settingsSchema = z.object({
   id: z.number().int(),
   language: z.enum(["de", "en"]),
   weightUnit: z.enum(["kg", "lb"]),
+  restTimerSeconds: z.number().int().nonnegative().optional(),
+  lockerNumber: z.string().optional(),
+  lockerNumberUpdatedAt: z.string().optional(),
+  colorScheme: z.enum(["light", "dark", "system"]).optional(),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1)
 });

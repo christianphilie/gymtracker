@@ -16,7 +16,7 @@ import {
 import { db } from "@/db/db";
 import { discardSession, ensureDefaultWorkout, startSession } from "@/db/repository";
 import { useSettings } from "@/app/settings-context";
-import { formatDateTime } from "@/lib/utils";
+import { formatSessionDateLabel } from "@/lib/utils";
 
 interface WorkoutListItem {
   id?: number;
@@ -27,6 +27,8 @@ interface WorkoutListItem {
   activeSessionStartedAt?: string;
   sortTimestamp: number;
 }
+
+const ACTIVE_SESSION_PILL_CLASS = "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700";
 
 function getWeekStart(date: Date) {
   const target = new Date(date);
@@ -46,7 +48,7 @@ function PlayFilledIcon({ className }: { className?: string }) {
 }
 
 export function DashboardPage() {
-  const { t } = useSettings();
+  const { t, language } = useSettings();
   const navigate = useNavigate();
   const weekStart = useMemo(() => getWeekStart(new Date()), []);
   const [discardConfirmSessionId, setDiscardConfirmSessionId] = useState<number | null>(null);
@@ -184,7 +186,7 @@ export function DashboardPage() {
           <div className="flex items-center gap-1">
             {isActive ? (
               <>
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                <span className={ACTIVE_SESSION_PILL_CLASS}>
                   {t("activeSession")}
                 </span>
                 <button
@@ -203,7 +205,7 @@ export function DashboardPage() {
             ) : (
               <div className="text-right text-xs text-muted-foreground">
                 <p>{t("lastSession")}</p>
-                <p>{workout.lastSessionAt ? formatDateTime(workout.lastSessionAt) : "-"}</p>
+                <p>{workout.lastSessionAt ? formatSessionDateLabel(workout.lastSessionAt, language) : "-"}</p>
               </div>
             )}
           </div>
@@ -211,7 +213,8 @@ export function DashboardPage() {
 
         {isActive && (
           <CardContent className="pt-0 text-xs text-muted-foreground">
-            {t("sessionStartedAt")}: {workout.activeSessionStartedAt ? formatDateTime(workout.activeSessionStartedAt) : "-"}
+            {t("sessionStartedAt")}:{" "}
+            {workout.activeSessionStartedAt ? formatSessionDateLabel(workout.activeSessionStartedAt, language) : "-"}
           </CardContent>
         )}
 

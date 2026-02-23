@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronDown, GripVertical, NotebookPen, PenSquare, Plus, Save, Trash2, X } from "lucide-react";
+import { BookOpen, ChevronDown, GripVertical, NotebookPen, PenSquare, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [isAddExerciseExpanded, setIsAddExerciseExpanded] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState("");
+  const [deleteExerciseIndex, setDeleteExerciseIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (mode !== "edit" || !workoutId) {
@@ -254,7 +255,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                     className="inline-flex ml-1 h-5 w-5 items-center justify-center rounded-full border text-[10px] text-muted-foreground hover:text-foreground"
                     aria-label={t("exerciseHelp")}
                   >
-                    ?
+                    <BookOpen className="h-3 w-3" />
                   </a>
                 </div>
 
@@ -319,7 +320,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
               <CardContent className="space-y-2">
                 <p className="text-xs text-muted-foreground">{t("sets")}</p>
                 {exercise.sets.map((set, setIndex) => (
-                  <div key={`set-${setIndex}`} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2 py-1">
+                  <div key={`set-${setIndex}`} className="grid grid-cols-[1fr_1fr] items-center gap-2 py-1">
                     <div className="min-w-0">
                       <DecimalInput
                         value={set.targetReps}
@@ -358,37 +359,25 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="rounded-md"
-                        disabled={exercise.sets.length <= 1}
-                        onClick={() => {
-                          setDraft((prev) => {
-                            const next = structuredClone(prev);
-                            next.exercises[exerciseIndex].sets.splice(setIndex, 1);
-                            return next;
-                          });
-                        }}
-                        aria-label={t("remove")}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
                   </div>
                 ))}
 
-                <div className="flex items-center justify-between border-t pt-2">
+                <div className="flex items-center justify-end gap-2 border-t pt-2">
                   <button
                     type="button"
                     disabled={draft.exercises.length <= 1}
                     onClick={() => {
-                      setDraft((prev) => {
-                        const next = structuredClone(prev);
-                        next.exercises.splice(exerciseIndex, 1);
-                        return next;
-                      });
+                      const setCount = draft.exercises[exerciseIndex]?.sets.length ?? 0;
+                      if (setCount > 1) {
+                        setDraft((prev) => {
+                          const next = structuredClone(prev);
+                          next.exercises[exerciseIndex].sets.pop();
+                          return next;
+                        });
+                        return;
+                      }
+
+                      setDeleteExerciseIndex(exerciseIndex);
                     }}
                     aria-label={t("removeExercise")}
                     className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground disabled:opacity-40"
@@ -512,6 +501,40 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
           </Button>
         )}
       </div>
+
+      <Dialog open={deleteExerciseIndex !== null} onOpenChange={(open) => !open && setDeleteExerciseIndex(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("removeExercise")}</DialogTitle>
+            <DialogDescription>{t("deleteExerciseConfirm")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteExerciseIndex(null)}>
+              {t("cancel")}
+            </Button>
+            <Button
+              className="border-red-700 bg-red-700 text-white hover:bg-red-800"
+              onClick={() => {
+                if (deleteExerciseIndex === null) {
+                  return;
+                }
+
+                setDraft((prev) => {
+                  if (prev.exercises.length <= 1 || deleteExerciseIndex >= prev.exercises.length) {
+                    return prev;
+                  }
+                  const next = structuredClone(prev);
+                  next.exercises.splice(deleteExerciseIndex, 1);
+                  return next;
+                });
+                setDeleteExerciseIndex(null);
+              }}
+            >
+              {t("removeExercise")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>

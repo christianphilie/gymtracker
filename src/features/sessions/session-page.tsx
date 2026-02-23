@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, ChevronDown, Flag, NotebookPen, OctagonX, Play, Plus, Trash2, X } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Flag, NotebookPen, OctagonX, Play, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { DecimalInput } from "@/components/forms/decimal-input";
@@ -28,7 +28,11 @@ import {
   removeSessionSet,
   updateSessionSet
 } from "@/db/repository";
-import { formatDateTime } from "@/lib/utils";
+import { formatSessionDateLabel } from "@/lib/utils";
+
+const ACTIVE_SESSION_PILL_CLASS = "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700";
+const SUCCESS_CIRCLE_CLASS = "inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700";
+const SESSION_COLLAPSED_STORAGE_KEY_PREFIX = "gymtracker:session-collapsed:";
 
 function ExerciseSearchLink({ exerciseName }: { exerciseName: string }) {
   const url = `https://www.google.com/search?q=${encodeURIComponent(`${exerciseName} exercise database`)}`;
@@ -40,7 +44,7 @@ function ExerciseSearchLink({ exerciseName }: { exerciseName: string }) {
       className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] text-muted-foreground hover:text-foreground"
       aria-label="Exercise links"
     >
-      ?
+      <BookOpen className="h-3 w-3" />
     </a>
   );
 }
@@ -52,13 +56,15 @@ function formatInlineValue(value: number) {
 export function SessionPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const { t, weightUnitLabel } = useSettings();
+  const { t, weightUnitLabel, language } = useSettings();
   const numericSessionId = Number(sessionId);
   const [newExerciseName, setNewExerciseName] = useState("");
   const [isAddExerciseExpanded, setIsAddExerciseExpanded] = useState(false);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const [collapsedExercises, setCollapsedExercises] = useState<Record<string, boolean>>({});
+  const [loadedCollapsedStateSessionId, setLoadedCollapsedStateSessionId] = useState<number | null>(null);
+  const [deleteExerciseTarget, setDeleteExerciseTarget] = useState<{ key: string } | null>(null);
 
   const payload = useLiveQuery(async () => {
     if (Number.isNaN(numericSessionId)) {
@@ -82,6 +88,48 @@ export function SessionPage() {
   }, [numericSessionId]);
 
   useEffect(() => {
+    if (Number.isNaN(numericSessionId)) {
+      return;
+    }
+    setLoadedCollapsedStateSessionId(null);
+
+    try {
+      const raw = window.localStorage.getItem(`${SESSION_COLLAPSED_STORAGE_KEY_PREFIX}${numericSessionId}`);
+      if (!raw) {
+        setCollapsedExercises({});
+        setLoadedCollapsedStateSessionId(numericSessionId);
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === "object") {
+        setCollapsedExercises(parsed as Record<string, boolean>);
+      } else {
+        setCollapsedExercises({});
+      }
+    } catch {
+      setCollapsedExercises({});
+    } finally {
+      setLoadedCollapsedStateSessionId(numericSessionId);
+    }
+  }, [numericSessionId]);
+
+  useEffect(() => {
+    if (Number.isNaN(numericSessionId) || loadedCollapsedStateSessionId !== numericSessionId) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        `${SESSION_COLLAPSED_STORAGE_KEY_PREFIX}${numericSessionId}`,
+        JSON.stringify(collapsedExercises)
+      );
+    } catch {
+      // Ignore storage errors (quota/private mode).
+    }
+  }, [collapsedExercises, loadedCollapsedStateSessionId, numericSessionId]);
+
+  useEffect(() => {
     const onCompleteRequest = (event: Event) => {
       const customEvent = event as CustomEvent<{ sessionId?: number }>;
       if (customEvent.detail?.sessionId === numericSessionId) {
@@ -95,6 +143,27 @@ export function SessionPage() {
     };
   }, [numericSessionId]);
 
+
+  useEffect(() => {
+    if (!payload) return;
+
+    const grouped = new Map<string, SessionExerciseSet[]>();
+    for (const set of payload.sets) {
+      const current = grouped.get(set.sessionExerciseKey) ?? [];
+      current.push(set);
+      grouped.set(set.sessionExerciseKey, current);
+    }
+
+    setCollapsedExercises((prev) => {
+      const next = { ...prev };
+      for (const [key, sets] of grouped.entries()) {
+        if (sets.length > 0 && sets.every((set) => set.completed)) {
+          next[key] = true;
+        }
+      }
+      return next;
+    });
+  }, [payload]);
   const groupedSets = useMemo(() => {
     const map = new Map<string, SessionExerciseSet[]>();
 
@@ -131,16 +200,6 @@ export function SessionPage() {
       .sort((a, b) => a.exerciseOrder - b.exerciseOrder);
   }, [groupedSets]);
 
-  const templateSetCounts = useMemo(() => {
-    const map = new Map<number, number>();
-    for (const block of payload?.workout.exercises ?? []) {
-      if (block.exercise.id) {
-        map.set(block.exercise.id, block.sets.length);
-      }
-    }
-    return map;
-  }, [payload?.workout.exercises]);
-
   if (!payload) {
     return <p className="text-sm text-muted-foreground">Session not found.</p>;
   }
@@ -156,11 +215,11 @@ export function SessionPage() {
         </h1>
         {!isCompleted && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+            <span className={ACTIVE_SESSION_PILL_CLASS}>
               {t("activeSession")}
             </span>
             <span className="text-xs text-muted-foreground">
-              {t("since")} {formatDateTime(payload.session.startedAt)}
+              {t("since")} {formatSessionDateLabel(payload.session.startedAt, language)}
             </span>
           </div>
         )}
@@ -174,18 +233,18 @@ export function SessionPage() {
 
       {sessionExercises.map((exercise) => {
         const isCollapsed = collapsedExercises[exercise.sessionExerciseKey] ?? false;
+        const allCompleted = exercise.sets.length > 0 && exercise.sets.every((set) => set.completed);
         const lastTemplateSets =
           exercise.templateExerciseId !== undefined
             ? payload.previousSummary?.templateExerciseSets[exercise.templateExerciseId]
             : undefined;
-        const templateSetCount =
-          exercise.templateExerciseId !== undefined ? (templateSetCounts.get(exercise.templateExerciseId) ?? 0) : 0;
-        const extraLastSessionSets = (lastTemplateSets ?? []).filter(
-          (lastSet) => lastSet.templateSetOrder >= templateSetCount
-        ).length;
+        const lastSessionSetSummary = lastTemplateSets
+          ?.sort((a, b) => a.templateSetOrder - b.templateSetOrder)
+          .map((set) => `${set.actualReps ?? set.targetReps} x ${set.actualWeight ?? set.targetWeight} ${weightUnitLabel}`)
+          .join(" | ");
 
         return (
-          <Card key={exercise.sessionExerciseKey}>
+          <Card key={exercise.sessionExerciseKey} className={`transition-all duration-200 ${allCompleted ? "opacity-70" : ""}`}>
             <CardHeader className="space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-0.5">
@@ -205,6 +264,11 @@ export function SessionPage() {
                   <CardTitle>{exercise.exerciseName}</CardTitle>
                   <ExerciseSearchLink exerciseName={exercise.exerciseName} />
                 </div>
+                {allCompleted && (
+                  <span className={SUCCESS_CIRCLE_CLASS} aria-label={t("done")}>
+                    <Check className="h-4 w-4" />
+                  </span>
+                )}
               </div>
 
               {exercise.exerciseNotes && (
@@ -215,13 +279,13 @@ export function SessionPage() {
               )}
               {lastTemplateSets && (
                 <p className="text-xs text-muted-foreground">
-                  {t("lastSession")}: {lastTemplateSets.length} {t("sets")}
-                  {extraLastSessionSets > 0 ? ` (${extraLastSessionSets} ${t("extraSets")})` : ""}
+                  {t("lastSession")}: {lastSessionSetSummary}
                 </p>
               )}
             </CardHeader>
 
-            {!isCollapsed && (
+            <div className={`grid transition-all duration-200 ${isCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}>
+              <div className="overflow-hidden">
               <CardContent className="space-y-2">
                 {exercise.sets.map((set) => {
                   const actualRepsValue = set.actualReps ?? set.targetReps;
@@ -238,7 +302,7 @@ export function SessionPage() {
                             min={0}
                             step={1}
                             disabled={isCompleted}
-                            className="pr-14"
+                            className={`pr-14 ${set.completed ? "border-muted bg-muted/70 text-muted-foreground opacity-60" : ""}`}
                             onCommit={async (value) => {
                               if (value === 0 && !isCompleted) {
                                 await removeSessionSet(set.id!);
@@ -249,7 +313,7 @@ export function SessionPage() {
                               });
                             }}
                           />
-                          <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-base text-muted-foreground">
+                          <div className={`pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-base text-muted-foreground ${set.completed ? "opacity-50" : ""}`}>
                             {showTargetRepsHint && <span className="line-through">{formatInlineValue(set.targetReps)}</span>}
                             <span>×</span>
                           </div>
@@ -263,14 +327,14 @@ export function SessionPage() {
                             min={0}
                             step={0.5}
                             disabled={isCompleted}
-                            className="pr-16"
+                            className={`pr-16 ${set.completed ? "border-muted bg-muted/70 text-muted-foreground opacity-60" : ""}`}
                             onCommit={(value) => {
                               void updateSessionSet(set.id!, {
                                 actualWeight: value
                               });
                             }}
                           />
-                          <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-base text-muted-foreground">
+                          <div className={`pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-base text-muted-foreground ${set.completed ? "opacity-50" : ""}`}>
                             {showTargetWeightHint && <span className="line-through">{formatInlineValue(set.targetWeight)}</span>}
                             <span>{weightUnitLabel}</span>
                           </div>
@@ -298,13 +362,19 @@ export function SessionPage() {
                 })}
 
                 {!isCompleted && (
-                  <div className="flex items-center justify-between border-t pt-2">
+                  <div className="flex items-center justify-end gap-2 border-t pt-2">
                     <button
                       type="button"
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
                       aria-label={t("removeExercise")}
                       onClick={async () => {
-                        await removeSessionExercise(numericSessionId, exercise.sessionExerciseKey);
+                        const sorted = [...exercise.sets].sort((a, b) => b.templateSetOrder - a.templateSetOrder);
+                        if (sorted.length > 1) {
+                          await removeSessionSet(sorted[0].id!);
+                          return;
+                        }
+
+                        setDeleteExerciseTarget({ key: exercise.sessionExerciseKey });
                       }}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -323,7 +393,8 @@ export function SessionPage() {
                   </div>
                 )}
               </CardContent>
-            )}
+              </div>
+            </div>
           </Card>
         );
       })}
@@ -405,6 +476,32 @@ export function SessionPage() {
           </Button>
         </div>
       )}
+
+      <Dialog open={deleteExerciseTarget !== null} onOpenChange={(open) => !open && setDeleteExerciseTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("removeExercise")}</DialogTitle>
+            <DialogDescription>{t("deleteExerciseConfirm")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteExerciseTarget(null)}>
+              {t("cancel")}
+            </Button>
+            <Button
+              className="border-red-700 bg-red-700 text-white hover:bg-red-800"
+              onClick={async () => {
+                if (!deleteExerciseTarget) {
+                  return;
+                }
+                await removeSessionExercise(numericSessionId, deleteExerciseTarget.key);
+                setDeleteExerciseTarget(null);
+              }}
+            >
+              {t("removeExercise")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isDiscardDialogOpen} onOpenChange={setIsDiscardDialogOpen}>
         <DialogContent>

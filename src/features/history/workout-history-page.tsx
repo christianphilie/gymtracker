@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
-import { formatDateTime, formatNumber } from "@/lib/utils";
+import { formatNumber, formatSessionDateLabel } from "@/lib/utils";
 
 interface EditableSessionSet {
   id: number;
@@ -46,7 +46,7 @@ function getWeekStart(date: Date) {
 
 export function WorkoutHistoryPage() {
   const { workoutId } = useParams();
-  const { t, weightUnit } = useSettings();
+  const { t, weightUnit, language } = useSettings();
   const numericWorkoutId = Number(workoutId);
   const [deleteSessionId, setDeleteSessionId] = useState<number | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
@@ -202,7 +202,9 @@ export function WorkoutHistoryPage() {
         <Card key={entry.session.id}>
           <CardHeader className="space-y-2">
             <div className="flex items-start justify-between gap-2">
-              <CardTitle className="text-sm">{formatDateTime(entry.session.finishedAt ?? entry.session.startedAt)}</CardTitle>
+              <CardTitle className="text-sm">
+                {formatSessionDateLabel(entry.session.finishedAt ?? entry.session.startedAt, language)}
+              </CardTitle>
               <div className="flex items-center gap-1">
                 <Button variant="outline" size="icon" aria-label={t("editSession")} onClick={() => startEditSession(entry)}>
                   <Pencil className="h-4 w-4" />

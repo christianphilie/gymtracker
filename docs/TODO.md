@@ -18,6 +18,7 @@
 1. Workout archive/delete.
 2. Richer history filters (date ranges, PR highlights, volume rollups).
 3. Optional cloud/login phase (V2+): consider Vercel serverless functions + Supabase (Postgres + Row-Level Security) for a lightweight backend that requires zero infrastructure management. Auth via Supabase Auth (magic link / Google OAuth). All existing Dexie data would migrate on first login.
+4. Revisit optional "x2" exercise/set concept (likely as a clearer multiplier/intensity/tag model with explicit UX and history semantics).
 
 ## Done
 1. App scaffold and architecture.

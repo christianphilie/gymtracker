@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import type { AppLanguage } from "@/db/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -15,6 +16,63 @@ export function formatDateTime(value: Date | string) {
     hour: "2-digit",
     minute: "2-digit"
   }).format(date);
+}
+
+function startOfLocalDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function formatLocalTime(date: Date, language: AppLanguage) {
+  return new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function formatLocalDate(date: Date, language: AppLanguage) {
+  return new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(date);
+}
+
+export function formatSessionDateLabel(value: Date | string, language: AppLanguage) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const today = new Date();
+  const diffMs = startOfLocalDay(today).getTime() - startOfLocalDay(date).getTime();
+  const dayDiff = Math.round(diffMs / 86_400_000);
+
+  if (dayDiff < 0) {
+    return `${formatLocalDate(date, language)}, ${formatLocalTime(date, language)}`;
+  }
+
+  if (dayDiff === 0) {
+    const prefix = language === "de" ? "Heute" : "Today";
+    return `${prefix}, ${formatLocalTime(date, language)}`;
+  }
+
+  if (dayDiff === 1) {
+    const prefix = language === "de" ? "gestern" : "Yesterday";
+    return `${prefix}, ${formatLocalTime(date, language)}`;
+  }
+
+  if (dayDiff === 2) {
+    const prefix = language === "de" ? "vorgestern" : "Day before yesterday";
+    return `${prefix}, ${formatLocalTime(date, language)}`;
+  }
+
+  if (dayDiff < 14) {
+    return language === "de" ? `vor ${dayDiff} Tagen` : `${dayDiff} days ago`;
+  }
+
+  return formatLocalDate(date, language);
 }
 
 export function formatNumber(value: number | undefined, fractionDigits = 0) {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Database, Download, Globe, Settings, SunMoon, Timer, Upload, Weight, X } from "lucide-react";
 import { useSettings } from "@/app/settings-context";
@@ -30,6 +31,7 @@ const DISMISSED_SNAPSHOT_KEY = "gymtracker:dismissed-snapshot-id";
 
 export function SettingsPage() {
   const { t, language, setLanguage, weightUnit, setWeightUnit, restTimerSeconds, setRestTimerSeconds, colorScheme, setColorScheme } = useSettings();
+  const navigate = useNavigate();
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<AppBackupFile | null>(null);
@@ -142,6 +144,7 @@ export function SettingsPage() {
       await importAllDataSnapshot(pendingImport.data);
       setImportDialogOpen(false);
       toast.success(t("backupImportSuccess"));
+      navigate("/");
     } catch {
       toast.error(t("backupImportFailed"));
     } finally {
@@ -182,6 +185,7 @@ export function SettingsPage() {
         <CardContent className="space-y-3">
           <Tabs value={String(restTimerSeconds)} onValueChange={(value) => void setRestTimerSeconds(Number(value))}>
             <TabsList className="w-full">
+              <TabsTrigger value="0" className="flex-1">{t("noTimer")}</TabsTrigger>
               <TabsTrigger value="120" className="flex-1">2 min</TabsTrigger>
               <TabsTrigger value="180" className="flex-1">3 min</TabsTrigger>
               <TabsTrigger value="300" className="flex-1">5 min</TabsTrigger>
