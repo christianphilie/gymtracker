@@ -298,10 +298,10 @@ export function SessionPage() {
                 })}
 
                 {!isCompleted && (
-                  <div className="flex justify-between">
+                  <div className="flex items-center justify-between border-t pt-2">
                     <button
                       type="button"
-                      className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground/70 hover:text-foreground"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
                       aria-label={t("removeExercise")}
                       onClick={async () => {
                         await removeSessionExercise(numericSessionId, exercise.sessionExerciseKey);

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Dumbbell, Flag, Pause, Play, Settings } from "lucide-react";
+import { Dumbbell, Flag, Pause, Play, Save, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSettings } from "@/app/settings-context";
 import { db } from "@/db/db";
@@ -21,9 +21,20 @@ interface HeaderActionsProps {
   restTimerSeconds: number;
   timerPaused: boolean;
   onToggleTimer: () => void;
+  showEditorSave: boolean;
+  editorSaveDisabled: boolean;
+  onEditorSave: () => void;
 }
 
-function HeaderActions({ sessionState, restTimerSeconds, timerPaused, onToggleTimer }: HeaderActionsProps) {
+function HeaderActions({
+  sessionState,
+  restTimerSeconds,
+  timerPaused,
+  onToggleTimer,
+  showEditorSave,
+  editorSaveDisabled,
+  onEditorSave
+}: HeaderActionsProps) {
   const { t } = useSettings();
 
   if (sessionState?.doneAndReady) {
@@ -87,6 +98,15 @@ function HeaderActions({ sessionState, restTimerSeconds, timerPaused, onToggleTi
     );
   }
 
+  if (showEditorSave) {
+    return (
+      <Button size="sm" disabled={editorSaveDisabled} onClick={onEditorSave}>
+        <Save className="mr-2 h-4 w-4" />
+        {t("save")}
+      </Button>
+    );
+  }
+
   return (
     <div className="flex items-center justify-end">
       <Button asChild variant="outline" size="icon" aria-label={t("settings")}>
@@ -102,7 +122,9 @@ export function AppShell() {
   const { t, restTimerSeconds } = useSettings();
   const location = useLocation();
   const sessionMatch = location.pathname.match(/^\/sessions\/(\d+)$/);
+  const workoutEditMatch = location.pathname.match(/^\/workouts\/(\d+)\/edit$/);
   const activeSessionId = sessionMatch ? Number(sessionMatch[1]) : null;
+  const isWorkoutEditRoute = !!workoutEditMatch;
 
   const sessionMeta = useLiveQuery(async () => {
     if (!activeSessionId || Number.isNaN(activeSessionId)) {
@@ -135,6 +157,24 @@ export function AppShell() {
   const [timerPaused, setTimerPaused] = useState(false);
   const [timerPausedTotalMs, setTimerPausedTotalMs] = useState(0);
   const [timerPauseStartedAt, setTimerPauseStartedAt] = useState<number | null>(null);
+  const [editorSaveDisabled, setEditorSaveDisabled] = useState(true);
+
+  useEffect(() => {
+    if (!isWorkoutEditRoute) {
+      setEditorSaveDisabled(true);
+      return;
+    }
+
+    const onSaveState = (event: Event) => {
+      const customEvent = event as CustomEvent<{ disabled?: boolean }>;
+      setEditorSaveDisabled(customEvent.detail?.disabled ?? true);
+    };
+
+    window.addEventListener("gymtracker:workout-editor-save-state", onSaveState as EventListener);
+    return () => {
+      window.removeEventListener("gymtracker:workout-editor-save-state", onSaveState as EventListener);
+    };
+  }, [isWorkoutEditRoute]);
 
   useEffect(() => {
     if (!sessionMeta) {
@@ -192,6 +232,10 @@ export function AppShell() {
     setTimerPaused(true);
   };
 
+  const handleEditorSave = () => {
+    window.dispatchEvent(new CustomEvent("gymtracker:save-workout-editor"));
+  };
+
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col bg-background">
       <header className="sticky top-0 z-20 border-x-0 border-b border-t-0 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
@@ -205,6 +249,9 @@ export function AppShell() {
             restTimerSeconds={restTimerSeconds}
             timerPaused={timerPaused}
             onToggleTimer={handleToggleTimer}
+            showEditorSave={isWorkoutEditRoute}
+            editorSaveDisabled={editorSaveDisabled}
+            onEditorSave={handleEditorSave}
           />
         </div>
       </header>

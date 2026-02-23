@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronDown, GripVertical, NotebookPen, PenSquare, Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, GripVertical, NotebookPen, PenSquare, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,6 @@ import {
   type WorkoutDraft
 } from "@/db/repository";
 import { useSettings } from "@/app/settings-context";
-import { Label } from "node_modules/@radix-ui/react-label/dist";
 
 interface WorkoutEditorPageProps {
   mode: "create" | "edit";
@@ -154,6 +153,38 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
       setIsDeleting(false);
     }
   };
+
+  useEffect(() => {
+    if (mode !== "edit") {
+      return;
+    }
+
+    window.dispatchEvent(
+      new CustomEvent("gymtracker:workout-editor-save-state", {
+        detail: { disabled: !isValid || isSaving || isDeleting }
+      })
+    );
+  }, [mode, isDeleting, isSaving, isValid]);
+
+  useEffect(() => {
+    if (mode !== "edit") {
+      return;
+    }
+
+    const onSaveRequest = () => {
+      void handleSave();
+    };
+
+    window.addEventListener("gymtracker:save-workout-editor", onSaveRequest);
+    return () => {
+      window.removeEventListener("gymtracker:save-workout-editor", onSaveRequest);
+      window.dispatchEvent(
+        new CustomEvent("gymtracker:workout-editor-save-state", {
+          detail: { disabled: true }
+        })
+      );
+    };
+  }, [mode, handleSave]);
 
   return (
     <section className="space-y-4">
@@ -348,7 +379,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                   </div>
                 ))}
 
-                <div className="flex justify-between">
+                <div className="flex items-center justify-between border-t pt-2">
                   <button
                     type="button"
                     disabled={draft.exercises.length <= 1}
@@ -360,7 +391,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                       });
                     }}
                     aria-label={t("removeExercise")}
-                    className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground/70 hover:text-foreground disabled:opacity-40"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground disabled:opacity-40"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -464,15 +495,17 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
 
       <div className="space-y-2 rounded-lg border bg-card p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
         <Button className="w-full" disabled={!isValid || isSaving || isDeleting} onClick={handleSave}>
+          <Save className="mr-2 h-4 w-4" />
           {t("save")}
         </Button>
         {mode === "edit" && (
           <Button
             variant="outline"
-            className="w-full border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
+            className="w-full"
             disabled={isSaving || isDeleting}
             onClick={() => setIsDeleteDialogOpen(true)}
           >
+            <Trash2 className="mr-2 h-4 w-4" />
             {t("deleteWorkout")}
           </Button>
         )}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ChartNoAxesCombined, Import, List, OctagonX, PenSquare, Plus } from "lucide-react";
+import { ChartNoAxesCombined, Dumbbell, Import, List, OctagonX, PenSquare, Plus, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { db } from "@/db/db";
-import { discardSession, startSession } from "@/db/repository";
+import { discardSession, ensureDefaultWorkout, startSession } from "@/db/repository";
 import { useSettings } from "@/app/settings-context";
 import { formatDateTime } from "@/lib/utils";
 
@@ -50,6 +50,7 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const weekStart = useMemo(() => getWeekStart(new Date()), []);
   const [discardConfirmSessionId, setDiscardConfirmSessionId] = useState<number | null>(null);
+  const [isCreatingStarterWorkout, setIsCreatingStarterWorkout] = useState(false);
 
   const workouts = useLiveQuery(async () => {
     const list = await db.workouts.toArray();
@@ -155,6 +156,18 @@ export function DashboardPage() {
     }
   };
 
+  const handleUseStarterWorkout = async () => {
+    try {
+      setIsCreatingStarterWorkout(true);
+      await ensureDefaultWorkout();
+      toast.success(t("workoutCreated"));
+    } catch {
+      toast.error("Action failed");
+    } finally {
+      setIsCreatingStarterWorkout(false);
+    }
+  };
+
   const renderWorkoutCard = (workout: WorkoutListItem) => {
     const isActive = !!workout.activeSessionId;
 
@@ -248,17 +261,48 @@ export function DashboardPage() {
       </div>
 
       {!hasWorkouts && (
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">{t("noWorkouts")}</p>
-          <Button variant="secondary" className="w-full justify-start gap-2" onClick={() => navigate("/workouts/new")}>
-            <Plus className="h-4 w-4" />
-            {t("addWorkout")}
-          </Button>
-          <Button variant="secondary" className="w-full justify-start gap-2" onClick={() => navigate("/import")}>
-            <Import className="h-4 w-4" />
-            {t("workoutsImport")}
-          </Button>
-        </div>
+        <Card>
+          <CardHeader className="space-y-1">
+            <CardTitle>{t("dashboardIntroTitle")}</CardTitle>
+            <p className="text-sm text-muted-foreground">{t("dashboardIntroDescription")}</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Button
+              variant="secondary"
+              className="h-auto w-full items-start justify-start gap-3 whitespace-normal py-3 text-left"
+              disabled={isCreatingStarterWorkout}
+              onClick={() => void handleUseStarterWorkout()}
+            >
+              <Dumbbell className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="flex flex-col items-start">
+                <span>{t("useStarterWorkout")}</span>
+                <span className="text-xs font-normal text-muted-foreground">{t("useStarterWorkoutHint")}</span>
+              </span>
+            </Button>
+            <Button
+              variant="secondary"
+              className="h-auto w-full items-start justify-start gap-3 whitespace-normal py-3 text-left"
+              onClick={() => navigate("/workouts/new")}
+            >
+              <Plus className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="flex flex-col items-start">
+                <span>{t("createWorkout")}</span>
+                <span className="text-xs font-normal text-muted-foreground">{t("createWorkoutHint")}</span>
+              </span>
+            </Button>
+            <Button
+              variant="secondary"
+              className="h-auto w-full items-start justify-start gap-3 whitespace-normal py-3 text-left"
+              onClick={() => navigate("/import")}
+            >
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="flex flex-col items-start">
+                <span>{t("aiGenerate")}</span>
+                <span className="text-xs font-normal text-muted-foreground">{t("aiImportEntryHint")}</span>
+              </span>
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
       {activeWorkouts.length > 0 && (
@@ -287,7 +331,7 @@ export function DashboardPage() {
           </Button>
           <Button variant="secondary" className="w-full justify-start gap-2" onClick={() => navigate("/import")}>
             <Import className="h-4 w-4" />
-            {t("workoutsImport")}
+            {t("aiGenerate")}
           </Button>
         </div>
       )}

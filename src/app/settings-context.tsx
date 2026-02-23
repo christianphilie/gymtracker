@@ -4,7 +4,6 @@ import { db } from "@/db/db";
 import {
   createUpdateSafetySnapshotIfNeeded,
   ensureDefaultSettings,
-  ensureDefaultWorkout,
   updateColorScheme,
   updateRestTimerSeconds,
   updateWeightUnitAndConvert,
@@ -35,7 +34,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       try {
         await ensureDefaultSettings();
         await createUpdateSafetySnapshotIfNeeded();
-        await ensureDefaultWorkout();
       } catch {
         toast.error(messages.de.updateSafetyCreateFailed);
       }

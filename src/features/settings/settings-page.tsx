@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Database, Download, Globe, Settings, SunMoon, Timer, Upload, Weight, X } from "lucide-react";
 import { useSettings } from "@/app/settings-context";
@@ -18,7 +17,6 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   clearAllData,
-  ensureDefaultWorkout,
   exportAllDataSnapshot,
   getLatestUpdateSafetySnapshot,
   importAllDataSnapshot,
@@ -73,7 +71,6 @@ export function SettingsPage() {
 
   const handleClearAllData = async () => {
     await clearAllData();
-    await ensureDefaultWorkout();
     setClearDialogOpen(false);
     toast.success(t("allDataDeleted"));
   };
@@ -297,7 +294,7 @@ export function SettingsPage() {
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">{t("dataExportHint")}</p>
           <Button variant="outline" className="w-full justify-start gap-2" onClick={() => void handleExportAllData()}>
-            <Download className="h-4 w-4" />
+            <Upload className="h-4 w-4" />
             {t("exportAllData")}
           </Button>
           <p className="border-t pt-3 text-xs text-muted-foreground">{t("dataExportImportDivider")}</p>
@@ -320,7 +317,7 @@ export function SettingsPage() {
             disabled={!pendingImport}
             onClick={() => setImportDialogOpen(true)}
           >
-            <Upload className="h-4 w-4" />
+            <Download className="h-4 w-4" />
             {t("importAllData")}
           </Button>
         </CardContent>
@@ -342,13 +339,7 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      <p className="text-center text-xs text-muted-foreground">
-        {t("versionLabel")} {APP_VERSION}{" "}
-        ·{" "}
-        <Link to="/legal" className="underline-offset-4 hover:underline">
-          {t("legal")}
-        </Link>
-      </p>
+      <p className="text-center text-xs text-muted-foreground">{t("versionLabel")} {APP_VERSION}</p>
 
       <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
         <DialogContent>
