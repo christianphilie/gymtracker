@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ChevronDown, GripVertical, NotebookPen, PenSquare, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -118,7 +118,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
     );
   }, [draft]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!isValid) {
       return;
     }
@@ -136,7 +136,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [draft, isValid, mode, navigate, t, workoutId]);
 
   const handleDeleteWorkout = async () => {
     if (mode !== "edit" || !workoutId) {
@@ -493,7 +493,9 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         </Card>
       )}
 
-      <div className="space-y-2 rounded-lg border bg-card p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="h-px bg-border" />
+
+      <div className="space-y-2">
         <Button className="w-full" disabled={!isValid || isSaving || isDeleting} onClick={handleSave}>
           <Save className="mr-2 h-4 w-4" />
           {t("save")}
@@ -501,7 +503,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         {mode === "edit" && (
           <Button
             variant="outline"
-            className="w-full"
+            className="w-full border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
             disabled={isSaving || isDeleting}
             onClick={() => setIsDeleteDialogOpen(true)}
           >

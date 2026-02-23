@@ -65,10 +65,6 @@ export function repairImportPayload(raw: unknown): RepairResult {
 
   const source = raw as Record<string, unknown>;
 
-  const schemaVersion = typeof source.schemaVersion === "string" && source.schemaVersion.trim()
-    ? source.schemaVersion.trim()
-    : "1.0";
-
   if (source.schemaVersion !== "1.0") {
     changes.push(`schemaVersion missing/invalid -> set to "1.0"`);
   }

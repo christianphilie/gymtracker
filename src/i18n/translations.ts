@@ -165,7 +165,7 @@ export const messages = {
     importFromFileStep2Desc: "Öffne einen neuen Chat mit deiner eigenen KI (z.\u2009B. ChatGPT, Claude) und füge den Prompt zusammen mit deinen Trainingsplan (z.B. als PDF) ein. Schicke den Prompt ab. Die KI gibt dir JSON-Code zurück.",
     importFromFileStep3: "Schritt 3: JSON-Code unten einfügen",
     importFromFileStep3Desc: "Füge den von deiner KI erzeugten JSON in das Feld unten ein und klicke auf \"Vorschau anzeigen\".",
-    dashboardIntroTitle: "So möchtest du starten",
+    dashboardIntroTitle: "Wie möchtest du starten?",
     dashboardIntroDescription: "Wähle eine Option, um dein erstes Workout anzulegen oder zu importieren.",
     useStarterWorkout: "Standard-Workout benutzen",
     useStarterWorkoutHint: "Fügt ein sofort nutzbares Ganzkörper-Workout mit Beispielübungen hinzu.",

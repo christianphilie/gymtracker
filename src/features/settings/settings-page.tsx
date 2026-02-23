@@ -181,10 +181,10 @@ export function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <Tabs value={String(restTimerSeconds)} onValueChange={(value) => void setRestTimerSeconds(Number(value))}>
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="120">2 min</TabsTrigger>
-              <TabsTrigger value="180">3 min</TabsTrigger>
-              <TabsTrigger value="300">5 min</TabsTrigger>
+            <TabsList className="w-full">
+              <TabsTrigger value="120" className="flex-1">2 min</TabsTrigger>
+              <TabsTrigger value="180" className="flex-1">3 min</TabsTrigger>
+              <TabsTrigger value="300" className="flex-1">5 min</TabsTrigger>
             </TabsList>
           </Tabs>
           <p className="text-xs text-muted-foreground">{t("restTimerDescription")}</p>
@@ -202,9 +202,9 @@ export function SettingsPage() {
           </CardHeader>
           <CardContent>
             <Tabs value={language} onValueChange={(value) => void setLanguage(value as AppLanguage)}>
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="w-full">
                 {languageOptions.map((option) => (
-                  <TabsTrigger key={option.value} value={option.value}>
+                  <TabsTrigger key={option.value} value={option.value} className="flex-1">
                     {option.label}
                   </TabsTrigger>
                 ))}
@@ -222,9 +222,9 @@ export function SettingsPage() {
           </CardHeader>
           <CardContent>
             <Tabs value={weightUnit} onValueChange={(value) => void setWeightUnit(value as WeightUnit)}>
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="w-full">
                 {weightOptions.map((option) => (
-                  <TabsTrigger key={option.value} value={option.value}>
+                  <TabsTrigger key={option.value} value={option.value} className="flex-1">
                     {option.label}
                   </TabsTrigger>
                 ))}
@@ -244,9 +244,9 @@ export function SettingsPage() {
         </CardHeader>
         <CardContent>
           <Tabs value={colorScheme} onValueChange={(value) => void setColorScheme(value as ColorScheme)}>
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="w-full">
               {colorSchemeOptions.map((option) => (
-                <TabsTrigger key={option.value} value={option.value}>
+                <TabsTrigger key={option.value} value={option.value} className="flex-1">
                   {t(option.labelKey)}
                 </TabsTrigger>
               ))}
