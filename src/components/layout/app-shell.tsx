@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, Dumbbell, Flag, Lock, Pause, Play, Save, Settings } from "lucide-react";
+import { Check, Dumbbell, Flag, DoorClosedLocked, Pause, Play, Save, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSettings } from "@/app/settings-context";
@@ -319,8 +319,8 @@ export function AppShell() {
           </Link>
           <div className="flex items-center gap-2">
             {location.pathname === "/" && (
-              <label className="inline-flex h-9 items-center gap-1 rounded-md border border-input bg-background px-2 text-sm shadow-sm">
-                <Lock className="h-4 w-4 text-muted-foreground" />
+              <label className={`inline-flex h-9 items-center rounded-md border border-input bg-background text-sm shadow-sm transition-all duration-200 overflow-hidden ${lockerDraft ? "w-[4.5rem] gap-1 px-2" : "w-9 gap-0 px-2 focus-within:w-[4.5rem] focus-within:gap-1"}`}>
+                <DoorClosedLocked className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <Input
                   aria-label={t("lockerNumber")}
                   inputMode="numeric"
@@ -337,8 +337,8 @@ export function AppShell() {
                       event.currentTarget.blur();
                     }
                   }}
-                  placeholder="123"
-                  className="h-7 w-12 border-0 bg-transparent p-0 text-center text-sm font-medium tabular-nums shadow-none focus-visible:ring-0"
+                  placeholder=" # "
+                  className="h-7 w-10 min-w-0 border-0 bg-transparent p-0 text-center text-sm font-medium tabular-nums shadow-none focus-visible:ring-0"
                 />
               </label>
             )}
