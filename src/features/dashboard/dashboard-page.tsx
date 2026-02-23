@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ChartNoAxesCombined, Dumbbell, List, OctagonX, PenSquare, Plus, Sparkles } from "lucide-react";
+import { ChartNoAxesCombined, Download, Dumbbell, List, OctagonX, PenSquare, Plus, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -263,6 +263,7 @@ export function DashboardPage() {
       </div>
 
       {!hasWorkouts && (
+        <>
         <Card>
           <CardHeader className="space-y-1">
             <CardTitle>{t("dashboardIntroTitle")}</CardTitle>
@@ -305,6 +306,19 @@ export function DashboardPage() {
             </Button>
           </CardContent>
         </Card>
+        <div className="border-t p-4">
+          <p className="mb-2 text-xs text-muted-foreground">{t("dashboardImportExistingDataHint")}</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="w-full justify-start gap-2"
+            onClick={() => navigate("/settings")}
+          >
+            <Download className="h-4 w-4" />
+            {t("dashboardImportExistingData")}
+          </Button>
+        </div>
+        </>
       )}
 
       {activeWorkouts.length > 0 && (

@@ -3,9 +3,26 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Dumbbell, Flag, Pause, Play, Save, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useSettings } from "@/app/settings-context";
 import { db } from "@/db/db";
 import { formatDurationClock } from "@/lib/utils";
+
+const IOS_WEBAPP_HINT_DISMISSED_KEY = "gymtracker:ios-webapp-hint-dismissed";
+
+function isStandaloneDisplayMode() {
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.matchMedia("(display-mode: fullscreen)").matches ||
+    nav.standalone === true
+  );
+}
+
+function isLikelyIosDevice() {
+  const ua = window.navigator.userAgent;
+  return /iPad|iPhone|iPod/.test(ua) || (window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1);
+}
 
 interface SessionHeaderState {
   sessionId: number;
@@ -158,6 +175,15 @@ export function AppShell() {
   const [timerPausedTotalMs, setTimerPausedTotalMs] = useState(0);
   const [timerPauseStartedAt, setTimerPauseStartedAt] = useState<number | null>(null);
   const [editorSaveDisabled, setEditorSaveDisabled] = useState(true);
+  const [showIosWebAppHint, setShowIosWebAppHint] = useState(false);
+
+  useEffect(() => {
+    const dismissed = localStorage.getItem(IOS_WEBAPP_HINT_DISMISSED_KEY) === "true";
+    if (dismissed || !isLikelyIosDevice() || isStandaloneDisplayMode()) {
+      return;
+    }
+    setShowIosWebAppHint(true);
+  }, []);
 
   useEffect(() => {
     if (!isWorkoutEditRoute) {
@@ -236,6 +262,11 @@ export function AppShell() {
     window.dispatchEvent(new CustomEvent("gymtracker:save-workout-editor"));
   };
 
+  const dismissIosWebAppHint = () => {
+    localStorage.setItem(IOS_WEBAPP_HINT_DISMISSED_KEY, "true");
+    setShowIosWebAppHint(false);
+  };
+
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col bg-background">
       <header className="sticky top-0 z-20 border-x-0 border-b border-t-0 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
@@ -287,6 +318,22 @@ export function AppShell() {
           </p>
         </div>
       </footer>
+
+      <Dialog open={showIosWebAppHint} onOpenChange={(open) => !open && dismissIosWebAppHint()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("iosWebAppHintTitle")}</DialogTitle>
+            <DialogDescription>{t("iosWebAppHintDescription")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 text-sm text-muted-foreground">
+            <p>{t("iosWebAppHintStep1")}</p>
+            <p>{t("iosWebAppHintStep2")}</p>
+          </div>
+          <DialogFooter>
+            <Button onClick={dismissIosWebAppHint}>{t("understood")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
