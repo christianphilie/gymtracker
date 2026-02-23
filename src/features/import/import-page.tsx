@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { Copy, Import, Sparkles } from "lucide-react";
+import { Copy, File, Import, Sparkles, Type } from "lucide-react";
 import { useSettings } from "@/app/settings-context";
 import { APP_VERSION } from "@/app/version";
 import { Button } from "@/components/ui/button";
@@ -108,8 +108,8 @@ export function ImportPage() {
   return (
     <section className="space-y-4">
       <h1 className="inline-flex items-center gap-2 text-base font-semibold">
-        <Import className="h-4 w-4" />
-        {t("workoutsImport")}
+        <Sparkles className="h-4 w-4" />
+        {t("aiGenerate")}
       </h1>
 
       <Card>
@@ -117,10 +117,11 @@ export function ImportPage() {
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="w-full">
               <TabsTrigger value="ai" className="flex-1">
-                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                <Type className="mr-1.5 h-3.5 w-3.5" />
                 {t("importFromText")}
               </TabsTrigger>
               <TabsTrigger value="manual" className="flex-1">
+                <File className="mr-1.5 h-3.5 w-3.5" />
                 {t("importFromFile")}
               </TabsTrigger>
             </TabsList>

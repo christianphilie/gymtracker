@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ChartNoAxesCombined, Dumbbell, Import, List, OctagonX, PenSquare, Plus, Sparkles } from "lucide-react";
+import { ChartNoAxesCombined, Dumbbell, List, OctagonX, PenSquare, Plus, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -255,9 +255,11 @@ export function DashboardPage() {
           <List className="h-4 w-4" />
           {t("workouts")}
         </h1>
-        <p className="text-xs text-muted-foreground">
-          {t("completedThisWeek")}: {completedThisWeek ?? 0}
-        </p>
+        {hasWorkouts && (
+          <p className="text-xs text-muted-foreground">
+            {t("completedThisWeek")}: {completedThisWeek ?? 0}
+          </p>
+        )}
       </div>
 
       {!hasWorkouts && (
@@ -269,11 +271,11 @@ export function DashboardPage() {
           <CardContent className="space-y-2">
             <Button
               variant="secondary"
-              className="h-auto w-full items-start justify-start gap-3 whitespace-normal py-3 text-left"
+              className="h-auto w-full items-center justify-start gap-3 whitespace-normal py-3 text-left"
               disabled={isCreatingStarterWorkout}
               onClick={() => void handleUseStarterWorkout()}
             >
-              <Dumbbell className="mt-0.5 h-4 w-4 shrink-0" />
+              <Dumbbell className="h-4 w-4 shrink-0" />
               <span className="flex flex-col items-start">
                 <span>{t("useStarterWorkout")}</span>
                 <span className="text-xs font-normal text-muted-foreground">{t("useStarterWorkoutHint")}</span>
@@ -281,10 +283,10 @@ export function DashboardPage() {
             </Button>
             <Button
               variant="secondary"
-              className="h-auto w-full items-start justify-start gap-3 whitespace-normal py-3 text-left"
+              className="h-auto w-full items-center justify-start gap-3 whitespace-normal py-3 text-left"
               onClick={() => navigate("/workouts/new")}
             >
-              <Plus className="mt-0.5 h-4 w-4 shrink-0" />
+              <Plus className="h-4 w-4 shrink-0" />
               <span className="flex flex-col items-start">
                 <span>{t("createWorkout")}</span>
                 <span className="text-xs font-normal text-muted-foreground">{t("createWorkoutHint")}</span>
@@ -292,10 +294,10 @@ export function DashboardPage() {
             </Button>
             <Button
               variant="secondary"
-              className="h-auto w-full items-start justify-start gap-3 whitespace-normal py-3 text-left"
+              className="h-auto w-full items-center justify-start gap-3 whitespace-normal py-3 text-left"
               onClick={() => navigate("/import")}
             >
-              <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
+              <Sparkles className="h-4 w-4 shrink-0" />
               <span className="flex flex-col items-start">
                 <span>{t("aiGenerate")}</span>
                 <span className="text-xs font-normal text-muted-foreground">{t("aiImportEntryHint")}</span>
@@ -324,16 +326,19 @@ export function DashboardPage() {
       )}
 
       {hasWorkouts && (
-        <div className="space-y-2">
-          <Button variant="secondary" className="w-full justify-start gap-2" onClick={() => navigate("/workouts/new")}>
-            <Plus className="h-4 w-4" />
-            {t("addWorkout")}
-          </Button>
-          <Button variant="secondary" className="w-full justify-start gap-2" onClick={() => navigate("/import")}>
-            <Import className="h-4 w-4" />
-            {t("aiGenerate")}
-          </Button>
-        </div>
+        <>
+          <div className="h-px bg-border" />
+          <div className="space-y-2">
+            <Button variant="secondary" className="w-full justify-start gap-2" onClick={() => navigate("/workouts/new")}>
+              <Plus className="h-4 w-4" />
+              {t("addWorkout")}
+            </Button>
+            <Button variant="secondary" className="w-full justify-start gap-2" onClick={() => navigate("/import")}>
+              <Sparkles className="h-4 w-4" />
+              {t("aiGenerate")}
+            </Button>
+          </div>
+        </>
       )}
 
       <Dialog open={discardConfirmSessionId !== null} onOpenChange={(open) => !open && setDiscardConfirmSessionId(null)}>
