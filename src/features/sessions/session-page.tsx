@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, ChevronDown, Flag, NotebookPen, Play, Plus, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, Flag, NotebookPen, OctagonX, Play, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { DecimalInput } from "@/components/forms/decimal-input";
@@ -167,7 +167,7 @@ export function SessionPage() {
         {payload.previousSummary && payload.previousSummary.extraExercises.length > 0 && (
           <p className="text-xs text-muted-foreground">
             {t("lastSessionExtras")}:{" "}
-            {payload.previousSummary.extraExercises.map((item) => `${item.name} (${item.setCount})`).join(", ")}
+            {payload.previousSummary.extraExercises.map((item) => `${item.name} (${item.setCount} ${t("extraSets")})`).join(", ")}
           </p>
         )}
       </div>
@@ -328,64 +328,70 @@ export function SessionPage() {
         );
       })}
 
-      {!isCompleted && (
+      {!isCompleted && !isAddExerciseExpanded && (
+        <div className="flex justify-end">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="w-full"
+            onClick={() => setIsAddExerciseExpanded(true)}
+            aria-label={t("addExercise")}
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            {t("addExercise")}
+          </Button>
+        </div>
+      )}
+
+      {!isCompleted && isAddExerciseExpanded && (
         <Card className="relative">
-          {isAddExerciseExpanded && (
-            <button
-              type="button"
-              className="absolute right-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-              aria-label={t("cancel")}
-              onClick={() => {
-                setNewExerciseName("");
-                setIsAddExerciseExpanded(false);
-              }}
-            >
-              <X className="h-3 w-3" />
-            </button>
-          )}
-          <CardContent className="space-y-3 pt-4">
-            {!isAddExerciseExpanded && (
-              <div className="flex justify-end">
-                <Button variant="outline" size="sm" onClick={() => setIsAddExerciseExpanded(true)} aria-label={t("addExercise")}>
-                  <Plus className="mr-1 h-4 w-4" />
-                  {t("addExercise")}
-                </Button>
-              </div>
-            )}
+          <button
+            type="button"
+            className="absolute right-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+            aria-label={t("cancel")}
+            onClick={() => {
+              setNewExerciseName("");
+              setIsAddExerciseExpanded(false);
+            }}
+          >
+            <X className="h-3 w-3" />
+          </button>
+          <CardContent className="space-y-2 pt-2">
+            <label className="text-xs text-muted-foreground">{t("exerciseName")}</label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="new-session-exercise"
+                value={newExerciseName}
+                onChange={(event) => setNewExerciseName(event.target.value)}
+                placeholder={t("exerciseNamePlaceholder")}
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-md text-lg leading-none"
+                onClick={async () => {
+                  const trimmed = newExerciseName.trim();
+                  if (!trimmed) {
+                    return;
+                  }
 
-            {isAddExerciseExpanded && (
-              <div className="flex items-center gap-2 pr-6">
-                <Input
-                  id="new-session-exercise"
-                  value={newExerciseName}
-                  onChange={(event) => setNewExerciseName(event.target.value)}
-                  placeholder={t("exerciseName")}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    if (!newExerciseName.trim()) {
-                      return;
-                    }
-
-                    try {
-                      await addSessionExercise(numericSessionId, newExerciseName);
-                      setNewExerciseName("");
-                      setIsAddExerciseExpanded(false);
-                    } catch {
-                      toast.error("Could not add exercise");
-                    }
-                  }}
-                >
-                  <Plus className="mr-1 h-4 w-4" />
-                  {t("addExercise")}
-                </Button>
-              </div>
-            )}
+                  try {
+                    await addSessionExercise(numericSessionId, trimmed);
+                    setNewExerciseName("");
+                    setIsAddExerciseExpanded(false);
+                  } catch {
+                    toast.error("Could not add exercise");
+                  }
+                }}
+              >
+                +
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
+
+      <div className="h-px bg-border" />
 
       {!isCompleted && (
         <div className="space-y-2">
@@ -394,7 +400,7 @@ export function SessionPage() {
             {t("completeSession")}
           </Button>
           <Button variant="outline" className="w-full" onClick={() => setIsDiscardDialogOpen(true)}>
-            <Trash2 className="mr-2 h-4 w-4" />
+            <OctagonX className="mr-2 h-4 w-4" />
             {t("discardSession")}
           </Button>
         </div>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ChartNoAxesCombined, Import, List, PenSquare, Plus, Trash2 } from "lucide-react";
+import { ChartNoAxesCombined, Import, List, OctagonX, PenSquare, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -184,7 +184,7 @@ export function DashboardPage() {
                     }
                   }}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <OctagonX className="h-4 w-4" />
                 </button>
               </>
             ) : (
