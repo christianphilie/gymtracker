@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { Import, Sparkles } from "lucide-react";
 import { useSettings } from "@/app/settings-context";
 import { APP_VERSION } from "@/app/version";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { importWorkouts } from "@/db/repository";
@@ -15,9 +15,8 @@ export function ImportPage() {
   const { t, language } = useSettings();
   const navigate = useNavigate();
   const [rawInput, setRawInput] = useState("");
-  const [fileName, setFileName] = useState<string | null>(null);
   const [repairResult, setRepairResult] = useState<RepairResult | null>(null);
-  const [activeTab, setActiveTab] = useState("paste");
+  const [activeTab, setActiveTab] = useState("ai");
   const [isImporting, setIsImporting] = useState(false);
   const [aiPlanText, setAiPlanText] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -25,16 +24,17 @@ export function ImportPage() {
   const canValidate = rawInput.trim().length > 0;
   const hasPreview = (repairResult?.drafts.length ?? 0) > 0 && (repairResult?.errors.length ?? 0) === 0;
 
-  const handleValidate = () => {
+  const promptTemplate = useMemo(() => getPromptTemplate(language), [language]);
+
+  const runValidation = (jsonText: string) => {
     try {
-      const parsed = JSON.parse(rawInput);
+      const parsed = JSON.parse(jsonText);
       const result = repairImportPayload(parsed);
       setRepairResult(result);
-
       if (result.errors.length > 0) {
         toast.error(t("invalidImport"));
       } else {
-        toast.success(t("previewImport"));
+        toast.success(t("aiImportReady"));
       }
     } catch {
       setRepairResult({
@@ -47,18 +47,21 @@ export function ImportPage() {
     }
   };
 
+  const handleValidate = () => {
+    runValidation(rawInput);
+  };
+
   const handleAiGenerate = async () => {
     if (!aiPlanText.trim()) {
       return;
     }
 
     setIsAiLoading(true);
+    setRepairResult(null);
     try {
       const response = await fetch("/api/ai-import", {
         method: "POST",
-        headers: {
-          "content-type": "application/json"
-        },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           locale: language,
           planText: aiPlanText.trim(),
@@ -79,34 +82,12 @@ export function ImportPage() {
       }
 
       setRawInput(payload.jsonText);
-      setActiveTab("paste");
-      toast.success(t("aiImportReady"));
+      runValidation(payload.jsonText);
     } catch {
       toast.error(t("aiImportFailed"));
     } finally {
       setIsAiLoading(false);
     }
-  };
-
-  const handleFileUpload: React.ChangeEventHandler<HTMLInputElement> = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    setFileName(file.name);
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = typeof reader.result === "string" ? reader.result : "";
-      setRawInput(text);
-      setActiveTab("paste");
-      toast.success(t("fileLoaded"));
-    };
-    reader.onerror = () => {
-      toast.error(t("invalidImport"));
-    };
-    reader.readAsText(file);
   };
 
   const handleImport = async () => {
@@ -124,69 +105,91 @@ export function ImportPage() {
     }
   };
 
-  const promptTemplate = useMemo(() => getPromptTemplate(language), [language]);
-
   return (
     <section className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("workoutsImport")}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">{t("promptHelp")}</p>
-          <Button
-            variant="outline"
-            onClick={async () => {
-              await navigator.clipboard.writeText(promptTemplate);
-              toast.success(t("copyPrompt"));
-            }}
-          >
-            {t("copyPrompt")}
-          </Button>
+      <h1 className="inline-flex items-center gap-2 text-base font-semibold">
+        <Import className="h-4 w-4" />
+        {t("workoutsImport")}
+      </h1>
 
+      <Card>
+        <CardContent className="space-y-3 pt-4">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList>
-              <TabsTrigger value="paste">{t("pasteJson")}</TabsTrigger>
-              <TabsTrigger value="file">{t("uploadJsonFile")}</TabsTrigger>
-              <TabsTrigger value="ai">{t("aiImport")}</TabsTrigger>
+            <TabsList className="w-full">
+              <TabsTrigger value="ai" className="flex-1">
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                {t("importFromText")}
+              </TabsTrigger>
+              <TabsTrigger value="manual" className="flex-1">
+                {t("importFromFile")}
+              </TabsTrigger>
             </TabsList>
-            <TabsContent value="paste">
-              <Textarea
-                className="mono-text min-h-[220px]"
-                value={rawInput}
-                onChange={(event) => setRawInput(event.target.value)}
-                placeholder='{"schemaVersion":"1.0",...}'
-              />
-            </TabsContent>
-            <TabsContent value="file" className="space-y-2">
-              <Input type="file" accept="application/json,.json,text/plain" onChange={handleFileUpload} />
-              <p className="text-xs text-muted-foreground">{fileName ?? t("noFileLoaded")}</p>
-            </TabsContent>
-            <TabsContent value="ai" className="space-y-2">
+
+            <TabsContent value="ai" className="space-y-3">
+              <p className="text-sm text-muted-foreground">{t("aiImportDescription")}</p>
               <Textarea
                 className="min-h-[200px]"
                 value={aiPlanText}
                 onChange={(event) => setAiPlanText(event.target.value)}
                 placeholder={t("aiImportPlaceholder")}
               />
-              <Button disabled={!aiPlanText.trim() || isAiLoading} onClick={() => void handleAiGenerate()}>
-                {t("aiGenerate")}
+              <p className="text-xs text-muted-foreground">{t("aiImportPrivacy")}</p>
+              <Button
+                className="w-full"
+                disabled={!aiPlanText.trim() || isAiLoading}
+                onClick={() => void handleAiGenerate()}
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                {isAiLoading ? "..." : t("aiGenerate")}
               </Button>
             </TabsContent>
-          </Tabs>
 
-          <Button disabled={!canValidate} onClick={handleValidate}>
-            {t("buildPreview")}
-          </Button>
+            <TabsContent value="manual" className="space-y-4">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{t("importFromFileStep1")}</p>
+                  <p className="text-xs text-muted-foreground">{t("importFromFileStep1Desc")}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(promptTemplate);
+                      toast.success(t("copyPrompt"));
+                    }}
+                  >
+                    {t("copyPrompt")}
+                  </Button>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{t("importFromFileStep2")}</p>
+                  <p className="text-xs text-muted-foreground">{t("importFromFileStep2Desc")}</p>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{t("importFromFileStep3")}</p>
+                  <p className="text-xs text-muted-foreground">{t("importFromFileStep3Desc")}</p>
+                  <Textarea
+                    className="mono-text min-h-[160px]"
+                    value={rawInput}
+                    onChange={(event) => setRawInput(event.target.value)}
+                    placeholder='{"schemaVersion":"1.0",...}'
+                  />
+                  <Button disabled={!canValidate} onClick={handleValidate}>
+                    {t("buildPreview")}
+                  </Button>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
       {repairResult && (
         <Card>
-          <CardHeader>
-            <CardTitle>{t("importOverview")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 pt-4">
+            <p className="text-sm font-medium">{t("importOverview")}</p>
+
             {repairResult.errors.length > 0 && (
               <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">
                 {repairResult.errors.map((error) => (
@@ -217,7 +220,7 @@ export function ImportPage() {
                   ))}
                 </div>
 
-                <Button disabled={!hasPreview || isImporting} onClick={handleImport}>
+                <Button className="w-full" disabled={!hasPreview || isImporting} onClick={handleImport}>
                   {t("importPlan")}
                 </Button>
               </>

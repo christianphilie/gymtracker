@@ -1,11 +1,13 @@
 export type AppLanguage = "de" | "en";
 export type WeightUnit = "kg" | "lb";
+export type ColorScheme = "light" | "dark" | "system";
 
 export interface Settings {
   id: number;
   language: AppLanguage;
   weightUnit: WeightUnit;
   restTimerSeconds?: number;
+  colorScheme?: ColorScheme;
   createdAt: string;
   updatedAt: string;
 }

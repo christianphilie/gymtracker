@@ -6,6 +6,8 @@ import { SessionPage } from "@/features/sessions/session-page";
 import { ImportPage } from "@/features/import/import-page";
 import { SettingsPage } from "@/features/settings/settings-page";
 import { WorkoutHistoryPage } from "@/features/history/workout-history-page";
+import { LegalPage } from "@/features/legal/legal-page";
+import { PrivacyPage } from "@/features/privacy/privacy-page";
 
 export const router = createBrowserRouter([
   {
@@ -18,7 +20,9 @@ export const router = createBrowserRouter([
       { path: "workouts/:workoutId/history", element: <WorkoutHistoryPage /> },
       { path: "sessions/:sessionId", element: <SessionPage /> },
       { path: "import", element: <ImportPage /> },
-      { path: "settings", element: <SettingsPage /> }
+      { path: "settings", element: <SettingsPage /> },
+      { path: "legal", element: <LegalPage /> },
+      { path: "privacy", element: <PrivacyPage /> }
     ]
   }
 ]);

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, Check, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, ChartNoAxesCombined, Check, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { DecimalInput } from "@/components/forms/decimal-input";
@@ -92,12 +92,7 @@ export function WorkoutHistoryPage() {
       return {
         ...entry,
         exercises,
-        stats: {
-          exerciseCount,
-          setCount,
-          repsTotal,
-          totalWeight
-        }
+        stats: { exerciseCount, setCount, repsTotal, totalWeight }
       };
     });
   }, [payload?.history]);
@@ -114,9 +109,7 @@ export function WorkoutHistoryPage() {
     const editable = entry.sets
       .filter((set): set is typeof set & { id: number } => set.id !== undefined)
       .sort((a, b) => {
-        if (a.exerciseOrder !== b.exerciseOrder) {
-          return a.exerciseOrder - b.exerciseOrder;
-        }
+        if (a.exerciseOrder !== b.exerciseOrder) return a.exerciseOrder - b.exerciseOrder;
         return a.templateSetOrder - b.templateSetOrder;
       })
       .map((set) => ({
@@ -148,9 +141,7 @@ export function WorkoutHistoryPage() {
   }, [editingSets]);
 
   const handleSaveSessionEdit = async () => {
-    if (!editingSessionId) {
-      return;
-    }
+    if (!editingSessionId) return;
 
     setIsSavingEdit(true);
     try {
@@ -190,8 +181,11 @@ export function WorkoutHistoryPage() {
 
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-1">
-          <h1 className="text-base font-semibold">{payload.workout.workout.name}</h1>
-          <p className="text-sm text-muted-foreground">{t("sessionHistory")}</p>
+          <h1 className="inline-flex items-center gap-2 text-base font-semibold">
+            <ChartNoAxesCombined className="h-4 w-4" />
+            {t("sessionHistory")}
+          </h1>
+          <p className="text-sm text-muted-foreground">{payload.workout.workout.name}</p>
         </div>
         <p className="text-xs text-muted-foreground">
           {t("completedThisWeek")}: {completedThisWeek}
@@ -231,31 +225,21 @@ export function WorkoutHistoryPage() {
                 <div key={firstSet.sessionExerciseKey} className="space-y-1">
                   <p className="text-xs font-medium">{firstSet.exerciseName}</p>
                   <div className="space-y-1 text-xs text-muted-foreground">
-                    {sets.map((set, index) => {
-                      return (
-                        <p key={set.id ?? `${firstSet.sessionExerciseKey}-${index}`}>
-                          #{index + 1}: {set.actualReps ?? set.targetReps} × {set.actualWeight ?? set.targetWeight} {weightUnit}
-                        </p>
-                      );
-                    })}
+                    {sets.map((set, index) => (
+                      <p key={set.id ?? `${firstSet.sessionExerciseKey}-${index}`}>
+                        #{index + 1}: {set.actualReps ?? set.targetReps} × {set.actualWeight ?? set.targetWeight} {weightUnit}
+                      </p>
+                    ))}
                   </div>
                 </div>
               );
             })}
 
             <div className="grid grid-cols-2 gap-2 border-t pt-3 text-xs text-muted-foreground sm:grid-cols-4">
-              <p>
-                {t("exercises")}: <span className="text-foreground">{entry.stats.exerciseCount}</span>
-              </p>
-              <p>
-                {t("sets")}: <span className="text-foreground">{entry.stats.setCount}</span>
-              </p>
-              <p>
-                {t("repsTotal")}: <span className="text-foreground">{entry.stats.repsTotal}</span>
-              </p>
-              <p>
-                {t("totalWeight")}: <span className="text-foreground">{formatNumber(entry.stats.totalWeight, 1)} {weightUnit}</span>
-              </p>
+              <p>{t("exercises")}: <span className="text-foreground">{entry.stats.exerciseCount}</span></p>
+              <p>{t("sets")}: <span className="text-foreground">{entry.stats.setCount}</span></p>
+              <p>{t("repsTotal")}: <span className="text-foreground">{entry.stats.repsTotal}</span></p>
+              <p>{t("totalWeight")}: <span className="text-foreground">{formatNumber(entry.stats.totalWeight, 1)} {weightUnit}</span></p>
             </div>
           </CardContent>
         </Card>
@@ -289,9 +273,7 @@ export function WorkoutHistoryPage() {
                               );
                             }}
                           />
-                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">
-                            ×
-                          </span>
+                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">×</span>
                         </div>
                         <div className="relative">
                           <DecimalInput
@@ -305,9 +287,7 @@ export function WorkoutHistoryPage() {
                               );
                             }}
                           />
-                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">
-                            {weightUnit}
-                          </span>
+                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">{weightUnit}</span>
                         </div>
                         <Button
                           variant={set.completed ? "default" : "outline"}
@@ -330,12 +310,8 @@ export function WorkoutHistoryPage() {
             })}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingSessionId(null)}>
-              {t("cancel")}
-            </Button>
-            <Button disabled={isSavingEdit} onClick={() => void handleSaveSessionEdit()}>
-              {t("save")}
-            </Button>
+            <Button variant="outline" onClick={() => setEditingSessionId(null)}>{t("cancel")}</Button>
+            <Button disabled={isSavingEdit} onClick={() => void handleSaveSessionEdit()}>{t("save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -347,15 +323,11 @@ export function WorkoutHistoryPage() {
             <DialogDescription>{t("deleteSessionConfirm")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteSessionId(null)}>
-              {t("cancel")}
-            </Button>
+            <Button variant="outline" onClick={() => setDeleteSessionId(null)}>{t("cancel")}</Button>
             <Button
               className="border-red-700 bg-red-700 text-white hover:bg-red-800"
               onClick={async () => {
-                if (!deleteSessionId) {
-                  return;
-                }
+                if (!deleteSessionId) return;
                 try {
                   await deleteCompletedSession(deleteSessionId);
                   toast.success(t("sessionDeleted"));

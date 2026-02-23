@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Dumbbell, Flag, Import, Plus, Settings } from "lucide-react";
+import { Dumbbell, Flag, Pause, Play, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSettings } from "@/app/settings-context";
 import { db } from "@/db/db";
@@ -55,12 +55,16 @@ function HeaderActions({ sessionState, restTimerSeconds, timerPaused, onToggleTi
         {sessionState.sinceIso && (
           <button
             type="button"
-            className="m-0 w-[102px] space-y-1 border-0 bg-transparent p-0 text-left align-top [appearance:none]"
+            className="m-0 w-[80px] space-y-1 border-0 bg-transparent p-0 text-left align-top [appearance:none]"
             onClick={onToggleTimer}
             aria-label={timerPaused ? t("resumeSession") : t("pauseTimer")}
           >
             <p className="inline-flex h-[16px] w-full items-center justify-start text-left text-xs font-medium leading-none">
-              {timerPaused ? t("paused") : formatDurationClock(sessionState.elapsedSeconds)}
+              <span className="flex-1">{formatDurationClock(sessionState.elapsedSeconds)}</span>
+              {timerPaused
+                ? <Play className="h-3 w-3 shrink-0" />
+                : <Pause className="h-3 w-3 shrink-0" />
+              }
             </p>
             <div className="h-1.5 overflow-hidden rounded-full border bg-secondary">
               <div
@@ -71,7 +75,7 @@ function HeaderActions({ sessionState, restTimerSeconds, timerPaused, onToggleTi
           </button>
         )}
 
-        <div className="w-[102px] space-y-1">
+        <div className="w-[80px] space-y-1">
           <p className="inline-flex h-[16px] w-full items-center justify-end text-right text-xs font-medium leading-none">
             {t("setSingular")} {sessionState.completed}/{sessionState.total}
           </p>
@@ -84,17 +88,7 @@ function HeaderActions({ sessionState, restTimerSeconds, timerPaused, onToggleTi
   }
 
   return (
-    <div className="flex items-center justify-end gap-2">
-      <Button asChild variant="outline" size="icon" aria-label={t("newWorkout")}>
-        <Link to="/workouts/new">
-          <Plus className="h-4 w-4" />
-        </Link>
-      </Button>
-      <Button asChild variant="outline" size="icon" aria-label={t("import")}>
-        <Link to="/import">
-          <Import className="h-4 w-4" />
-        </Link>
-      </Button>
+    <div className="flex items-center justify-end">
       <Button asChild variant="outline" size="icon" aria-label={t("settings")}>
         <Link to="/settings">
           <Settings className="h-4 w-4" />
@@ -199,10 +193,10 @@ export function AppShell() {
   };
 
   return (
-    <div className="mx-auto min-h-screen max-w-3xl bg-background">
+    <div className="mx-auto flex min-h-screen max-w-3xl flex-col bg-background">
       <header className="sticky top-0 z-20 border-x-0 border-b border-t-0 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="container flex h-14 items-center justify-between">
-          <Link to="/" className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
+          <Link to="/" className="inline-flex items-center gap-2 text-base font-semibold pl-4 pr-5 py-2 bg-secondary rounded-full border hover:border-border">
             <Dumbbell className="h-4 w-4" />
             {t("appName")}
           </Link>
@@ -215,7 +209,7 @@ export function AppShell() {
         </div>
       </header>
 
-      <main className="container py-4 pb-6">
+      <main className="container flex-1 py-4 pb-6">
         <Outlet />
       </main>
 
@@ -232,7 +226,15 @@ export function AppShell() {
               christianphilie
             </a>
           </p>
-          <p>{t("footerDataLocal")}</p>
+          <p>
+            <Link to="/legal" className="underline-offset-4 hover:underline">
+              {t("legal")}
+            </Link>
+            {" · "}
+            <Link to="/privacy" className="underline-offset-4 hover:underline">
+              {t("privacy")}
+            </Link>
+          </p>
         </div>
       </footer>
     </div>

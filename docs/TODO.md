@@ -17,7 +17,7 @@
 ## Later
 1. Workout archive/delete.
 2. Richer history filters (date ranges, PR highlights, volume rollups).
-3. Optional cloud/login phase (V2+).
+3. Optional cloud/login phase (V2+): consider Vercel serverless functions + Supabase (Postgres + Row-Level Security) for a lightweight backend that requires zero infrastructure management. Auth via Supabase Auth (magic link / Google OAuth). All existing Dexie data would migrate on first login.
 
 ## Done
 1. App scaffold and architecture.
@@ -31,4 +31,14 @@
 9. Automatic update safety snapshot + restore flow.
 10. Workout session history screen linked from dashboard.
 11. Native drag-and-drop reordering in workout editor.
-12. Direct AI import tab with server-side secret handling.
+12. Direct AI import tab with server-side secret handling (Groq).
+13. Dark mode (Light / Dark / System) with color scheme selector in settings.
+14. Default full-body workout seeded on first launch and after data reset.
+15. Settings page redesign: icons per card, Satzpausen-Timer first, Sprache+Einheit side-by-side, Datenverwaltung section heading.
+16. Update-safety notice dismissable with localStorage persistence.
+17. Import page: title outside card, two renamed tabs, "Datei hochladen" tab removed.
+18. Session history: title/subtitle swapped, ChartNoAxesCombined icon.
+19. Dashboard: discard confirmation dialog, plain-button empty state, Import button added.
+20. Import button removed from non-session header.
+21. Legal page (`/legal`) with Lucide ISC + Apache-2.0 + MIT attributions; linked from footer and settings.
+22. `ensureDefaultWorkout` localStorage-flag fix (no re-seed after manual delete; StrictMode safe).

@@ -1,5 +1,46 @@
 # Release Notes
 
+## 0.5.1 - 2026-02-22
+
+### Added
+1. Legal page (`/legal`) with full Lucide ISC license text, Apache-2.0 attributions (Dexie.js, class-variance-authority), and MIT attributions for all other runtime dependencies; linked from global app footer and settings page.
+2. Dashboard: discard-session confirmation dialog — trash button on active workout cards now requires explicit confirmation before discarding.
+3. Import button added to dashboard alongside "Workout hinzufügen" in both the empty state and at the bottom of the workout list.
+
+### Changed
+1. Settings page fully redesigned: added page title with Settings icon; Satzpausen-Timer card moved to first position; Sprache and Einheit cards displayed side-by-side at medium breakpoint; new "Datenverwaltung" section heading with Database icon; all cards now have matching lucide icons (Timer, Globe, Weight, SunMoon).
+2. Update-safety notice is now dismissable with an X button; dismissal ID persisted in localStorage so the banner does not reappear after page reload.
+3. Import page restructured: page title moved outside the card; tabs renamed to "Aus Text erstellen" and "Aus Datei erstellen"; "Datei hochladen" tab removed; AI-tab description no longer mentions PDFs.
+4. Session history page: page title now shows "Session-Verlauf" with ChartNoAxesCombined icon; workout name demoted to subtitle beneath the title.
+5. Dashboard empty state replaced with plain outline buttons matching the non-empty list style.
+6. Import button removed from non-session header (Home + Settings buttons remain).
+7. Legal link added to global app footer.
+
+### Fixed
+1. `ensureDefaultWorkout` no longer re-seeds the default workout after the user manually deletes all workouts. A localStorage flag (`gymtracker:default-workout-seeded`) is set on first successful seed and cleared only by "Alle Daten löschen". The flag is set synchronously before the async Dexie write to prevent React StrictMode double-invocation from creating two default workouts.
+
+---
+
+## 0.5.0 - 2026-02-22
+
+### Added
+1. Dark mode with Light / Dark / System selector in settings.
+2. Default full-body machine workout on first launch and after full data reset (Beinpresse, Brustpresse, Latzug, Schulterdrücken, Bizepscurl, Trizepsdrücken – 3 × 12).
+3. Apple-touch-icon (180 × 180 PNG) for iOS homescreen; gray favicon works on both light and dark browser chrome.
+
+### Changed
+1. AI import is now the primary (default) tab; wording and description simplified for non-technical users.
+2. AI generation auto-validates the result – no extra "Vorschau anzeigen" click needed.
+3. KI backend switched from OpenAI to Groq (`llama-3.3-70b-versatile`). Set `GROQ_API_KEY` in Vercel → Settings → Environment Variables (key from console.groq.com).
+4. Satzpausen-Timer renamed and now shows a short description in settings.
+5. Timer in header always shows the elapsed time; pause state indicated by Pause/Play icon next to the time.
+6. Home button replaces the Plus button in the top-bar navigation; new workout starts via dashboard.
+7. New exercises default to 3 sets; notes textarea uses 2 rows.
+8. Exercise and workout name inputs now show localised placeholder text.
+9. Workout editor navigates to home after saving (both create and edit).
+10. Dumbbell icon next to workout name in active session page; History icon in session history subtitle.
+11. "Workout hinzufügen" button added at the bottom of the dashboard workout list.
+
 ## 0.4.2 - 2026-02-22
 
 ### Changed
