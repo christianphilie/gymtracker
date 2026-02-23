@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { BookOpen, ChevronDown, GripVertical, NotebookPen, PenSquare, Plus, Save, Trash2, X } from "lucide-react";
+import { BookSearch, ChevronDown, GripVertical, NotebookPen, PenSquare, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { Button } from "@/components/ui/button";
@@ -236,7 +236,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                 <div className="flex items-center gap-0.5">
                   <button
                     type="button"
-                    className="text-muted-foreground hover:text-foreground"
+                    className="flex items-center gap-0.5"
                     onClick={() =>
                       setCollapsedExercises((prev) => ({
                         ...prev,
@@ -245,18 +245,9 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                     }
                     aria-label={collapsed ? t("expandExercise") : t("collapseExercise")}
                   >
-                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${collapsed ? "-rotate-90" : ""}`} />
+                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${collapsed ? "-rotate-90" : ""}`} />
+                    <CardTitle>{title}</CardTitle>
                   </button>
-                  <CardTitle>{title}</CardTitle>
-                  <a
-                    href={exerciseSearchUrl(title)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex ml-1 h-5 w-5 items-center justify-center rounded-full border text-[10px] text-muted-foreground hover:text-foreground"
-                    aria-label={t("exerciseHelp")}
-                  >
-                    <BookOpen className="h-3 w-3" />
-                  </a>
                 </div>
 
                 <div className="flex items-center gap-1">
@@ -277,8 +268,11 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                 </div>
               </div>
 
-              {!collapsed && (
-                <>
+            </CardHeader>
+
+            <div className={`grid transition-all duration-200 ${collapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}>
+              <div className="overflow-hidden">
+                <CardContent className="space-y-2">
                   <label className="text-xs text-muted-foreground">{t("exerciseName")}</label>
                   <Input
                     value={exercise.name}
@@ -312,100 +306,105 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                       placeholder=""
                     />
                   </div>
-                </>
-              )}
-            </CardHeader>
 
-            {!collapsed && (
-              <CardContent className="space-y-2">
-                <p className="text-xs text-muted-foreground">{t("sets")}</p>
-                {exercise.sets.map((set, setIndex) => (
-                  <div key={`set-${setIndex}`} className="grid grid-cols-[1fr_1fr] items-center gap-2 py-1">
-                    <div className="min-w-0">
-                      <DecimalInput
-                        value={set.targetReps}
-                        min={1}
-                        step={1}
-                        className="pr-10"
-                        onCommit={(value) => {
-                          setDraft((prev) => {
-                            const next = structuredClone(prev);
-                            next.exercises[exerciseIndex].sets[setIndex].targetReps = value;
-                            return next;
-                          });
-                        }}
-                      />
-                      <div className="pointer-events-none -mt-7 mr-2 flex justify-end text-base text-muted-foreground">
-                        ×
+                  <p className="text-xs text-muted-foreground">{t("sets")}</p>
+                  {exercise.sets.map((set, setIndex) => (
+                    <div key={`set-${setIndex}`} className="grid grid-cols-[1fr_1fr] items-center gap-2 py-1">
+                      <div className="min-w-0">
+                        <DecimalInput
+                          value={set.targetReps}
+                          min={1}
+                          step={1}
+                          className="pr-10"
+                          onCommit={(value) => {
+                            setDraft((prev) => {
+                              const next = structuredClone(prev);
+                              next.exercises[exerciseIndex].sets[setIndex].targetReps = value;
+                              return next;
+                            });
+                          }}
+                        />
+                        <div className="pointer-events-none -mt-7 mr-2 flex justify-end text-base text-muted-foreground">
+                          ×
+                        </div>
+                      </div>
+
+                      <div className="min-w-0">
+                        <DecimalInput
+                          value={set.targetWeight}
+                          min={0}
+                          step={0.5}
+                          className="pr-10"
+                          onCommit={(value) => {
+                            setDraft((prev) => {
+                              const next = structuredClone(prev);
+                              next.exercises[exerciseIndex].sets[setIndex].targetWeight = value;
+                              return next;
+                            });
+                          }}
+                        />
+                        <div className="pointer-events-none -mt-7 mr-2 flex justify-end text-base text-muted-foreground">
+                          {weightUnitLabel}
+                        </div>
                       </div>
                     </div>
+                  ))}
 
-                    <div className="min-w-0">
-                      <DecimalInput
-                        value={set.targetWeight}
-                        min={0}
-                        step={0.5}
-                        className="pr-10"
-                        onCommit={(value) => {
+                  <div className="flex items-center gap-2 border-t pt-2">
+                    <a
+                      href={exerciseSearchUrl(exercise.name.trim() || title)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
+                      aria-label={t("exerciseHelp")}
+                    >
+                      <BookSearch className="h-4 w-4" />
+                    </a>
+                    <div className="flex-1" />
+                    <button
+                      type="button"
+                      disabled={draft.exercises.length <= 1}
+                      onClick={() => {
+                        const setCount = draft.exercises[exerciseIndex]?.sets.length ?? 0;
+                        if (setCount > 1) {
                           setDraft((prev) => {
                             const next = structuredClone(prev);
-                            next.exercises[exerciseIndex].sets[setIndex].targetWeight = value;
+                            next.exercises[exerciseIndex].sets.pop();
                             return next;
                           });
-                        }}
-                      />
-                      <div className="pointer-events-none -mt-7 mr-2 flex justify-end text-base text-muted-foreground">
-                        {weightUnitLabel}
-                      </div>
-                    </div>
+                          return;
+                        }
 
-                  </div>
-                ))}
+                        setDeleteExerciseIndex(exerciseIndex);
+                      }}
+                      aria-label={t("removeExercise")}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground disabled:opacity-40"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
 
-                <div className="flex items-center justify-end gap-2 border-t pt-2">
-                  <button
-                    type="button"
-                    disabled={draft.exercises.length <= 1}
-                    onClick={() => {
-                      const setCount = draft.exercises[exerciseIndex]?.sets.length ?? 0;
-                      if (setCount > 1) {
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="rounded-md text-lg leading-none"
+                      onClick={() => {
                         setDraft((prev) => {
                           const next = structuredClone(prev);
-                          next.exercises[exerciseIndex].sets.pop();
+                          next.exercises[exerciseIndex].sets.push({
+                            targetReps: 10,
+                            targetWeight: 0
+                          });
                           return next;
                         });
-                        return;
-                      }
-
-                      setDeleteExerciseIndex(exerciseIndex);
-                    }}
-                    aria-label={t("removeExercise")}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground disabled:opacity-40"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="rounded-md text-lg leading-none"
-                    onClick={() => {
-                      setDraft((prev) => {
-                        const next = structuredClone(prev);
-                        next.exercises[exerciseIndex].sets.push({
-                          targetReps: 10,
-                          targetWeight: 0
-                        });
-                        return next;
-                      });
-                    }}
-                    aria-label={t("addSet")}
-                  >
-                    +
-                  </Button>
-                </div>
-              </CardContent>
-            )}
+                      }}
+                      aria-label={t("addSet")}
+                    >
+                      +
+                    </Button>
+                  </div>
+                </CardContent>
+              </div>
+            </div>
           </Card>
         );
       })}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { BookOpen, Check, ChevronDown, Flag, NotebookPen, OctagonX, Play, Plus, Trash2, X } from "lucide-react";
+import { BookSearch, Check, ChevronDown, Flag, NotebookPen, OctagonX, Play, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { DecimalInput } from "@/components/forms/decimal-input";
@@ -31,7 +31,7 @@ import {
 import { formatSessionDateLabel } from "@/lib/utils";
 
 const ACTIVE_SESSION_PILL_CLASS = "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700";
-const SUCCESS_CIRCLE_CLASS = "inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700";
+const SUCCESS_CIRCLE_CLASS = "inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700";
 const SESSION_COLLAPSED_STORAGE_KEY_PREFIX = "gymtracker:session-collapsed:";
 
 function ExerciseSearchLink({ exerciseName }: { exerciseName: string }) {
@@ -41,10 +41,10 @@ function ExerciseSearchLink({ exerciseName }: { exerciseName: string }) {
       href={url}
       target="_blank"
       rel="noreferrer"
-      className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] text-muted-foreground hover:text-foreground"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
       aria-label="Exercise links"
     >
-      <BookOpen className="h-3 w-3" />
+      <BookSearch className="h-4 w-4" />
     </a>
   );
 }
@@ -244,13 +244,13 @@ export function SessionPage() {
           .join(" | ");
 
         return (
-          <Card key={exercise.sessionExerciseKey} className={`transition-all duration-200 ${allCompleted ? "opacity-70" : ""}`}>
+          <Card key={exercise.sessionExerciseKey} className={`transition-all duration-200`}>
             <CardHeader className="space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-0.5">
                   <button
                     type="button"
-                    className="text-muted-foreground hover:text-foreground"
+                    className="flex items-center gap-0.5"
                     aria-label={isCollapsed ? t("expandExercise") : t("collapseExercise")}
                     onClick={() =>
                       setCollapsedExercises((prev) => ({
@@ -259,14 +259,13 @@ export function SessionPage() {
                       }))
                     }
                   >
-                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                    <CardTitle>{exercise.exerciseName}</CardTitle>
                   </button>
-                  <CardTitle>{exercise.exerciseName}</CardTitle>
-                  <ExerciseSearchLink exerciseName={exercise.exerciseName} />
                 </div>
                 {allCompleted && (
                   <span className={SUCCESS_CIRCLE_CLASS} aria-label={t("done")}>
-                    <Check className="h-4 w-4" />
+                    <Check className="h-3 w-3" />
                   </span>
                 )}
               </div>
@@ -302,7 +301,7 @@ export function SessionPage() {
                             min={0}
                             step={1}
                             disabled={isCompleted}
-                            className={`pr-14 ${set.completed ? "border-muted bg-muted/70 text-muted-foreground opacity-60" : ""}`}
+                            className={`pr-14 ${set.completed ? "border-muted bg-muted/70 text-muted-foreground opacity-75" : ""}`}
                             onCommit={async (value) => {
                               if (value === 0 && !isCompleted) {
                                 await removeSessionSet(set.id!);
@@ -327,7 +326,7 @@ export function SessionPage() {
                             min={0}
                             step={0.5}
                             disabled={isCompleted}
-                            className={`pr-16 ${set.completed ? "border-muted bg-muted/70 text-muted-foreground opacity-60" : ""}`}
+                            className={`pr-16 ${set.completed ? "border-muted bg-muted/70 text-muted-foreground opacity-75" : ""}`}
                             onCommit={(value) => {
                               void updateSessionSet(set.id!, {
                                 actualWeight: value
@@ -362,7 +361,9 @@ export function SessionPage() {
                 })}
 
                 {!isCompleted && (
-                  <div className="flex items-center justify-end gap-2 border-t pt-2">
+                  <div className="flex items-center gap-2 border-t pt-2">
+                    <ExerciseSearchLink exerciseName={exercise.exerciseName}/>
+                    <div className="flex-1" />
                     <button
                       type="button"
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
