@@ -3,26 +3,27 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Dumbbell, Flag, Pause, Play, Save, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+// import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useSettings } from "@/app/settings-context";
 import { db } from "@/db/db";
 import { formatDurationClock } from "@/lib/utils";
 
-const IOS_WEBAPP_HINT_DISMISSED_KEY = "gymtracker:ios-webapp-hint-dismissed";
-
-function isStandaloneDisplayMode() {
-  const nav = window.navigator as Navigator & { standalone?: boolean };
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    window.matchMedia("(display-mode: fullscreen)").matches ||
-    nav.standalone === true
-  );
-}
-
-function isLikelyIosDevice() {
-  const ua = window.navigator.userAgent;
-  return /iPad|iPhone|iPod/.test(ua) || (window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1);
-}
+// iOS homescreen hint (temporarily disabled; keep for later re-enable)
+// const IOS_WEBAPP_HINT_DISMISSED_KEY = "gymtracker:ios-webapp-hint-dismissed";
+//
+// function isStandaloneDisplayMode() {
+//   const nav = window.navigator as Navigator & { standalone?: boolean };
+//   return (
+//     window.matchMedia("(display-mode: standalone)").matches ||
+//     window.matchMedia("(display-mode: fullscreen)").matches ||
+//     nav.standalone === true
+//   );
+// }
+//
+// function isLikelyIosDevice() {
+//   const ua = window.navigator.userAgent;
+//   return /iPad|iPhone|iPod/.test(ua) || (window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1);
+// }
 
 interface SessionHeaderState {
   sessionId: number;
@@ -175,15 +176,15 @@ export function AppShell() {
   const [timerPausedTotalMs, setTimerPausedTotalMs] = useState(0);
   const [timerPauseStartedAt, setTimerPauseStartedAt] = useState<number | null>(null);
   const [editorSaveDisabled, setEditorSaveDisabled] = useState(true);
-  const [showIosWebAppHint, setShowIosWebAppHint] = useState(false);
-
-  useEffect(() => {
-    const dismissed = localStorage.getItem(IOS_WEBAPP_HINT_DISMISSED_KEY) === "true";
-    if (dismissed || !isLikelyIosDevice() || isStandaloneDisplayMode()) {
-      return;
-    }
-    setShowIosWebAppHint(true);
-  }, []);
+  // const [showIosWebAppHint, setShowIosWebAppHint] = useState(false);
+  //
+  // useEffect(() => {
+  //   const dismissed = localStorage.getItem(IOS_WEBAPP_HINT_DISMISSED_KEY) === "true";
+  //   if (dismissed || !isLikelyIosDevice() || isStandaloneDisplayMode()) {
+  //     return;
+  //   }
+  //   setShowIosWebAppHint(true);
+  // }, []);
 
   useEffect(() => {
     if (!isWorkoutEditRoute) {
@@ -262,10 +263,10 @@ export function AppShell() {
     window.dispatchEvent(new CustomEvent("gymtracker:save-workout-editor"));
   };
 
-  const dismissIosWebAppHint = () => {
-    localStorage.setItem(IOS_WEBAPP_HINT_DISMISSED_KEY, "true");
-    setShowIosWebAppHint(false);
-  };
+  // const dismissIosWebAppHint = () => {
+  //   localStorage.setItem(IOS_WEBAPP_HINT_DISMISSED_KEY, "true");
+  //   setShowIosWebAppHint(false);
+  // };
 
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col bg-background">
@@ -318,7 +319,7 @@ export function AppShell() {
           </p>
         </div>
       </footer>
-
+      {/*
       <Dialog open={showIosWebAppHint} onOpenChange={(open) => !open && dismissIosWebAppHint()}>
         <DialogContent>
           <DialogHeader>
@@ -334,6 +335,7 @@ export function AppShell() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      */}
     </div>
   );
 }

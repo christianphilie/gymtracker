@@ -2,8 +2,15 @@
 
 ## Unreleased
 
+No entries yet.
+
+---
+
+## 0.5.2 - 2026-02-23
+
 ### Added
 1. Dashboard empty state now shows an intro chooser with explicit actions: use starter workout, create a workout, or import workouts with AI.
+2. Dashboard intro now includes a less prominent "existing data" path to Settings, so users can find the backup import flow after switching app contexts/devices.
 
 ### Changed
 1. Starter workout is no longer auto-seeded on app launch or after full reset; users return to the empty-state intro flow until they choose an option.
@@ -12,6 +19,7 @@
 4. Settings tabs now use the same trigger layout pattern as the import page for consistent active-state alignment.
 5. Settings page version line no longer includes the legal link (legal page remains reachable from the global footer).
 6. Dashboard/import wording updated to "Workouts mit KI importieren" / "Import workouts with AI".
+7. iPhone homescreen install hint dialog is temporarily disabled in the UI for now (implementation kept in code, commented for later reuse).
 
 ### Fixed
 1. Weight-unit switching (`kg`/`lb`) was hardened against duplicate conversion when concurrent settings updates occur.
@@ -20,8 +28,6 @@
 ### Docs
 1. Technical spec, handoff guide, status, and backlog were updated to reflect the explicit intro-based starter-workout flow (no auto-seeding).
 2. `IMPLEMENTATION_PLAN.md` is now marked as a historical planning snapshot; active tracking remains in status/backlog docs.
-
----
 
 ## 0.5.1 - 2026-02-22
 
