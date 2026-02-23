@@ -1,6 +1,4 @@
-import { Link } from "react-router-dom";
-import { ArrowLeft, Scale } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Scale } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSettings } from "@/app/settings-context";
 
@@ -49,13 +47,6 @@ export function LegalPage() {
 
   return (
     <section className="space-y-4">
-      <Button asChild variant="outline" size="sm">
-        <Link to="/settings">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          {t("settings")}
-        </Link>
-      </Button>
-
       <h1 className="inline-flex items-center gap-2 text-base font-semibold">
         <Scale className="h-4 w-4" />
         {t("legal")}

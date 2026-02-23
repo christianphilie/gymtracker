@@ -34,19 +34,41 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   const systemMessage =
     locale === "de"
-      ? "Du extrahierst Trainingspläne aus Fließtext und gibst nur valides JSON zurück."
-      : "You extract workout plans from plain text and return valid JSON only.";
+      ? "Du bist ein präziser Datenkonverter für Trainingspläne. Gib ausschließlich valides JSON zurück – kein Markdown, keine Erklärungen, keine Code-Blöcke. Das JSON muss direkt parsebar sein."
+      : "You are a precise data converter for workout plans. Return only valid JSON – no markdown, no explanations, no code blocks. The JSON must be directly parseable.";
 
-  const userMessage = [
-    "Convert this workout plan into the target JSON schema.",
-    "Return JSON only, no markdown.",
-    "",
-    "Target schema / prompt template:",
-    promptTemplate,
-    "",
-    "Workout plan source:",
-    planText
-  ].join("\n");
+  const userMessage =
+    locale === "de"
+      ? [
+          "Konvertiere den folgenden Trainingsplan in das vorgegebene JSON-Schema.",
+          "Wichtige Regeln:",
+          "- Gib NUR das JSON zurück, kein ```json oder andere Umrahmungen",
+          "- Alle Zahlen (targetReps, targetWeight) müssen echte Zahlen sein, keine Strings",
+          "- targetWeight darf 0 sein, wenn kein Gewicht angegeben ist",
+          "- Das Feld 'notes' weglassen wenn keine Anmerkungen vorhanden sind",
+          "- Kein leeres notes-Feld und keine anderen Extrafelder hinzufügen",
+          "",
+          "Zielschema:",
+          promptTemplate,
+          "",
+          "Trainingsplan:",
+          planText
+        ].join("\n")
+      : [
+          "Convert the following workout plan into the given JSON schema.",
+          "Important rules:",
+          "- Return ONLY the JSON, no ```json or other wrapping",
+          "- All numbers (targetReps, targetWeight) must be real numbers, not strings",
+          "- targetWeight may be 0 if no weight is specified",
+          "- Omit the 'notes' field if there are no notes",
+          "- Do not add empty notes fields or any extra fields",
+          "",
+          "Target schema:",
+          promptTemplate,
+          "",
+          "Workout plan:",
+          planText
+        ].join("\n");
 
   const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -71,11 +93,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   }
 
   const payload = await groqResponse.json();
-  const text = payload?.choices?.[0]?.message?.content;
+  let text = payload?.choices?.[0]?.message?.content;
 
   if (typeof text !== "string" || !text.trim()) {
     res.status(502).json({ error: "AI response did not contain content" });
     return;
+  }
+
+  // Strip any accidental markdown code fences
+  text = text.trim();
+  if (text.startsWith("```")) {
+    text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
   }
 
   res.status(200).json({ jsonText: text });

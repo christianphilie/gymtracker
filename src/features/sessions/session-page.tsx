@@ -52,7 +52,7 @@ function formatInlineValue(value: number) {
 export function SessionPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const { t, weightUnit } = useSettings();
+  const { t, weightUnitLabel } = useSettings();
   const numericSessionId = Number(sessionId);
   const [newExerciseName, setNewExerciseName] = useState("");
   const [isAddExerciseExpanded, setIsAddExerciseExpanded] = useState(false);
@@ -149,13 +149,13 @@ export function SessionPage() {
 
   return (
     <section className="space-y-4 pb-6">
-      <div className="flex items-center justify-between">
+      <div className="space-y-1">
         <h1 className="inline-flex items-center gap-2 text-base font-semibold">
           <Play className="h-4 w-4" />
           {payload.workout.workout.name}
         </h1>
         {!isCompleted && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
               {t("activeSession")}
             </span>
@@ -272,7 +272,7 @@ export function SessionPage() {
                           />
                           <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-base text-muted-foreground">
                             {showTargetWeightHint && <span className="line-through">{formatInlineValue(set.targetWeight)}</span>}
-                            <span>{weightUnit}</span>
+                            <span>{weightUnitLabel}</span>
                           </div>
                         </div>
                       </div>
@@ -329,7 +329,20 @@ export function SessionPage() {
       })}
 
       {!isCompleted && (
-        <Card>
+        <Card className="relative">
+          {isAddExerciseExpanded && (
+            <button
+              type="button"
+              className="absolute right-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+              aria-label={t("cancel")}
+              onClick={() => {
+                setNewExerciseName("");
+                setIsAddExerciseExpanded(false);
+              }}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
           <CardContent className="space-y-3 pt-4">
             {!isAddExerciseExpanded && (
               <div className="flex justify-end">
@@ -341,7 +354,7 @@ export function SessionPage() {
             )}
 
             {isAddExerciseExpanded && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 pr-6">
                 <Input
                   id="new-session-exercise"
                   value={newExerciseName}
@@ -367,17 +380,6 @@ export function SessionPage() {
                 >
                   <Plus className="mr-1 h-4 w-4" />
                   {t("addExercise")}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => {
-                    setNewExerciseName("");
-                    setIsAddExerciseExpanded(false);
-                  }}
-                  aria-label={t("cancel")}
-                >
-                  <X className="h-4 w-4" />
                 </Button>
               </div>
             )}
