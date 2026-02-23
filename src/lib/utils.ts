@@ -59,17 +59,17 @@ export function formatSessionDateLabel(value: Date | string, language: AppLangua
   }
 
   if (dayDiff === 1) {
-    const prefix = language === "de" ? "gestern" : "Yesterday";
+    const prefix = language === "de" ? "Gestern" : "Yesterday";
     return `${prefix}, ${formatLocalTime(date, language)}`;
   }
 
   if (dayDiff === 2) {
-    const prefix = language === "de" ? "vorgestern" : "Day before yesterday";
+    const prefix = language === "de" ? "Vorgestern" : "Day before yesterday";
     return `${prefix}, ${formatLocalTime(date, language)}`;
   }
 
   if (dayDiff < 14) {
-    return language === "de" ? `vor ${dayDiff} Tagen` : `${dayDiff} days ago`;
+    return language === "de" ? `Vor ${dayDiff} Tagen` : `${dayDiff} days ago`;
   }
 
   return formatLocalDate(date, language);
