@@ -23,6 +23,7 @@ import {
   type WorkoutDraft
 } from "@/db/repository";
 import { useSettings } from "@/app/settings-context";
+import { Label } from "node_modules/@radix-ui/react-label/dist";
 
 interface WorkoutEditorPageProps {
   mode: "create" | "edit";
@@ -156,14 +157,13 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
 
   return (
     <section className="space-y-4">
+    <h1 className="inline-flex items-center gap-2 text-base font-semibold">
+      {mode === "create" ? <Plus className="h-4 w-4" /> : <PenSquare className="h-4 w-4" />}
+      {mode === "create" ? t("newWorkout") : t("editWorkoutTitle")}
+      </h1>
+
       <Card>
-        <CardHeader>
-          <CardTitle className="inline-flex items-center gap-2">
-            {mode === "create" ? <Plus className="h-4 w-4" /> : <PenSquare className="h-4 w-4" />}
-            {mode === "create" ? t("newWorkout") : t("editWorkoutTitle")}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-2 pt-2">
           <label className="text-xs text-muted-foreground">{t("workoutName")}</label>
           <Input
             id="workout-name"
@@ -174,9 +174,13 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         </CardContent>
       </Card>
 
+      <h2 className="inline-flex items-center gap-2 text-base font-semibold">
+        {t("exercises")}
+      </h2>
+
       {draft.exercises.map((exercise, exerciseIndex) => {
         const collapsed = collapsedExercises[exerciseIndex] ?? false;
-        const title = exercise.name.trim() || t("exerciseSingular");
+        const title = exercise.name.trim() || t("exerciseNew");
 
         return (
           <Card
@@ -216,7 +220,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                     href={exerciseSearchUrl(title)}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] text-muted-foreground hover:text-foreground"
+                    className="inline-flex ml-1 h-5 w-5 items-center justify-center rounded-full border text-[10px] text-muted-foreground hover:text-foreground"
                     aria-label={t("exerciseHelp")}
                   >
                     ?
@@ -273,7 +277,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                           return next;
                         });
                       }}
-                      placeholder="Optional"
+                      placeholder=""
                     />
                   </div>
                 </>
@@ -386,8 +390,23 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         );
       })}
 
-      <Card className="relative">
-        {isAddExerciseExpanded && (
+      {!isAddExerciseExpanded && (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={() => setIsAddExerciseExpanded(true)}
+            aria-label={t("addExercise")}
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            {t("addExercise")}
+          </Button>
+        </div>
+      )}
+
+      {isAddExerciseExpanded && (
+        <Card className="relative">
           <button
             type="button"
             className="absolute right-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground"
@@ -399,32 +418,18 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
           >
             <X className="h-3 w-3" />
           </button>
-        )}
-        <CardContent className="space-y-2 pt-4">
-          {!isAddExerciseExpanded && (
-            <div className="flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsAddExerciseExpanded(true)}
-                aria-label={t("addExercise")}
-              >
-                <Plus className="mr-1 h-4 w-4" />
-                {t("addExercise")}
-              </Button>
-            </div>
-          )}
-
-          {isAddExerciseExpanded && (
-            <div className="flex items-center gap-2 pr-6">
+          <CardContent className="space-y-2 pt-2">
+            <label className="text-xs text-muted-foreground">{t("exerciseName")}</label>
+            <div className="flex items-center gap-2">
               <Input
                 value={newExerciseName}
                 onChange={(event) => setNewExerciseName(event.target.value)}
-                placeholder={t("exerciseName")}
+                placeholder={t("exerciseNamePlaceholder")}
               />
               <Button
                 variant="outline"
                 size="icon"
+                className="rounded-md text-lg leading-none"
                 onClick={() => {
                   const trimmed = newExerciseName.trim();
                   if (!trimmed) {
@@ -450,12 +455,12 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                   setIsAddExerciseExpanded(false);
                 }}
               >
-                <Plus className="h-4 w-4" />
+                +
               </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="space-y-2 rounded-lg border bg-card p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
         <Button className="w-full" disabled={!isValid || isSaving || isDeleting} onClick={handleSave}>

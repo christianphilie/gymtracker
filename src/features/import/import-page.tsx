@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { Import, Sparkles } from "lucide-react";
+import { Copy, Import, Sparkles } from "lucide-react";
 import { useSettings } from "@/app/settings-context";
 import { APP_VERSION } from "@/app/version";
 import { Button } from "@/components/ui/button";
@@ -157,6 +157,7 @@ export function ImportPage() {
                       toast.success(t("copyPrompt"));
                     }}
                   >
+                    <Copy className="mr-1.5 h-3.5 w-3.5" />
                     {t("copyPrompt")}
                   </Button>
                 </div>
@@ -175,7 +176,7 @@ export function ImportPage() {
                     onChange={(event) => setRawInput(event.target.value)}
                     placeholder='{"schemaVersion":"1.0",...}'
                   />
-                  <Button disabled={!canValidate} onClick={handleValidate}>
+                  <Button className="w-full" disabled={!canValidate} onClick={handleValidate}>
                     {t("buildPreview")}
                   </Button>
                 </div>

@@ -22,11 +22,6 @@ export default defineConfig({
             src: "favicon.svg",
             sizes: "any",
             type: "image/svg+xml"
-          },
-          {
-            src: "apple-touch-icon.png",
-            sizes: "180x180",
-            type: "image/png"
           }
         ]
       },
