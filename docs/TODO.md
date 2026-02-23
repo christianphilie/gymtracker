@@ -33,12 +33,16 @@
 11. Native drag-and-drop reordering in workout editor.
 12. Direct AI import tab with server-side secret handling (Groq).
 13. Dark mode (Light / Dark / System) with color scheme selector in settings.
-14. Default full-body workout seeded on first launch and after data reset.
+14. Starter workout template available via explicit dashboard intro action (`ensureDefaultWorkout`) instead of auto-seeding on launch/reset.
 15. Settings page redesign: icons per card, Satzpausen-Timer first, Sprache+Einheit side-by-side, Datenverwaltung section heading.
 16. Update-safety notice dismissable with localStorage persistence.
 17. Import page: title outside card, two renamed tabs, "Datei hochladen" tab removed.
 18. Session history: title/subtitle swapped, ChartNoAxesCombined icon.
 19. Dashboard: discard confirmation dialog, plain-button empty state, Import button added.
 20. Import button removed from non-session header.
-21. Legal page (`/legal`) with Lucide ISC + Apache-2.0 + MIT attributions; linked from footer and settings.
-22. `ensureDefaultWorkout` localStorage-flag fix (no re-seed after manual delete; StrictMode safe).
+21. Legal page (`/legal`) with Lucide ISC + Apache-2.0 + MIT attributions; linked from footer.
+22. Historic: `ensureDefaultWorkout` localStorage-flag fix (later superseded by explicit intro flow without auto-seeding).
+23. Dashboard intro chooser for empty state (starter workout / create manually / AI import).
+24. Workout editor polish: header save action in edit view, button/icon styling alignment, and footer action separator.
+25. Settings/import UI polish: tab trigger alignment consistency, export/import icon correction, and settings legal link removal.
+26. Weight-unit conversion hardening to avoid duplicate conversion during concurrent settings updates.

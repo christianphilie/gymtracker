@@ -23,7 +23,7 @@
 - Dexie schema/types/repository.
 
 4. `src/features/`:
-- dashboard, workouts, sessions, history, import, settings, legal.
+- dashboard, workouts, sessions, history, import, settings, legal, privacy.
 
 ## Data Model (Dexie)
 1. `settings`: language, weightUnit, colorScheme, restTimerSeconds.
@@ -47,7 +47,7 @@
 5. Completing a session can optionally rewrite workout template exercises/sets from session results.
 6. Extras created during a session are shown in previous-session hints, but do not auto-extend a fresh template-based session unless user selects template overwrite at completion.
 7. Deleting a workout cascades through template exercises/sets and all related sessions/session sets.
-8. Global reset (`clearAllData`) clears all persisted entities including settings and update safety snapshots, and removes the `gymtracker:default-workout-seeded` localStorage flag.
+8. Global reset (`clearAllData`) clears all persisted entities including settings and update safety snapshots; it does not auto-recreate a starter workout.
 9. Previous-session comparison hints must be derived from completed sets only.
 10. On app version change, the app stores one full safety snapshot before users continue normal usage.
 11. Unit switch (`kg/lb`) converts stored template/session weights; no unit relabel-only mode.
@@ -55,12 +55,14 @@
 13. Rest timer can be paused/resumed manually and resets when a newer set completion timestamp appears.
 14. Completed sessions are mutable via history tooling (edit values/check-state or delete whole session with confirmation).
 
-## Default Workout Seeding
-1. `ensureDefaultWorkout` seeds a default full-body workout on first app launch and after `clearAllData`.
-2. A localStorage flag `gymtracker:default-workout-seeded` is set **synchronously** before the async Dexie write to prevent React StrictMode double-invocation from creating two workouts.
-3. The flag is checked at the start of `ensureDefaultWorkout`; if present, the function returns immediately.
-4. `clearAllData` removes the flag so the seed runs again after a full reset.
-5. Manually deleting all workouts does NOT remove the flag — no re-seed occurs.
+## Starter Workout Provisioning
+1. The app does not seed a workout automatically on first launch.
+2. If no workouts exist, the dashboard renders an intro screen with three explicit options:
+- use a starter workout,
+- create a workout manually,
+- import workouts with AI.
+3. `ensureDefaultWorkout` is used as an explicit starter-workout action (dashboard intro CTA), not as startup bootstrap logic.
+4. `ensureDefaultWorkout` returns early when workouts already exist, so repeated clicks or race conditions do not create duplicate starter workouts.
 
 ## Mobile Viewport Behavior
 1. Viewport is locked to app-like scale (manual pinch zoom disabled by design requirement).

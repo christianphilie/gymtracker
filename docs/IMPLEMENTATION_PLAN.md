@@ -1,5 +1,7 @@
 # Implementation Plan
 
+> Historical planning snapshot. Active status and backlog now live in `docs/IMPLEMENTATION_STATUS.md` and `docs/TODO.md`.
+
 ## Phase 1: Foundation
 Status: Completed
 - Vite + React + TypeScript setup
@@ -22,7 +24,7 @@ Status: Completed
 ## Phase 4: Import Differentiator
 Status: Completed
 - LLM prompt copy helper
-- JSON paste + file upload
+- JSON paste/manual import flow
 - Validation + conservative repair + preview
 - Import persistence
 

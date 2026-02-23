@@ -95,7 +95,7 @@
 54. Footer is now localized (DE/EN) and keeps static GitHub attribution + local-data notice.
 55. Header timer switched from circular indicator to aligned progress-bar variant matching set-progress sizing and typography.
 56. Dark mode added: Light / Dark / System color scheme selector in settings; persisted in IndexedDB; applied via `.dark` class on `<html>`.
-57. Default full-body machine workout seeded on first launch and after full data reset; `ensureDefaultWorkout` uses a localStorage flag (`gymtracker:default-workout-seeded`) cleared only by `clearAllData` — prevents re-seed after manual workout deletion and React StrictMode double-invocation.
+57. Default full-body machine workout template exists and can be created via repository helper (`ensureDefaultWorkout`) when explicitly requested by UI.
 58. AI import backend switched from OpenAI to Groq (`llama-3.3-70b-versatile`); requires `GROQ_API_KEY` env var.
 59. Settings page redesigned: page title with Settings icon; Satzpausen-Timer card first; Sprache + Einheit side-by-side at `md:`; "Datenverwaltung" section heading with Database icon; per-card icons (Timer, Globe, Weight, SunMoon).
 60. Update-safety notice is dismissable via X button; dismissal state (snapshot ID) persisted to localStorage (`gymtracker:dismissed-snapshot-id`).
@@ -103,7 +103,12 @@
 62. Session history: title / subtitle swapped; ChartNoAxesCombined icon replaces History icon.
 63. Dashboard: discard confirmation dialog added for active-session trash action; empty state and footer use plain outline buttons; Import button added alongside "Workout hinzufügen".
 64. Non-session header no longer shows Import button; Home + Settings buttons remain.
-65. Legal page (`/legal`) created with full Lucide ISC license text and Apache-2.0 / MIT attribution for all runtime dependencies; linked from global footer and settings version line.
+65. Legal page (`/legal`) created with full Lucide ISC license text and Apache-2.0 / MIT attribution for all runtime dependencies; linked from global footer.
+66. Dashboard empty state now uses an intro chooser with three explicit options: starter workout, manual creation, or AI import.
+67. App startup and full reset no longer auto-seed a default workout; users return to the intro flow when no workouts exist.
+68. Workout editor (edit mode) now exposes a save action in the top header and mirrors session action styling/icons for save/delete controls.
+69. Settings switch/tabs use the same trigger layout as the import view for consistent active-state alignment; export/import icons were swapped to match labels.
+70. Weight-unit conversion switch was hardened against duplicate conversion on concurrent settings updates by reading the current unit inside the DB transaction.
 
 ## Open TODOs (Priority)
 1. P0: Add automated tests (unit + integration) for import repair and session flows.
@@ -112,7 +117,7 @@
 4. P1: Add empty/loading/error states consistently across all screens.
 5. P1: Add optional delete/archive for workouts.
 6. P2: Add migration test fixtures and rollback notes for Dexie schema v2.
-7. P2: Add optional demo seed toggle for local development.
+7. P2: Add optional demo data helper for local development (without auto-seeding on app startup).
 8. P2: Add automated backup restore tests (schema validation + DB integrity checks).
 9. P2: Add tests for update-safety snapshot lifecycle (version change detection, retention cap, restore integrity).
 10. P2: Add integration tests for drag-and-drop reorder and session history rendering.

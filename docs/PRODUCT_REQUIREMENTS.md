@@ -26,6 +26,7 @@ People who already have a training plan (e.g., from coach/PDF) and want fast log
 1. Workout CRUD:
 - Create workout with 1..n exercises.
 - Each exercise has 1..n sets.
+- If no workouts exist, show an intro/empty state with explicit options (starter workout, create manually, AI import).
 
 2. Session tracking:
 - Start session from workout template.
@@ -57,7 +58,8 @@ People who already have a training plan (e.g., from coach/PDF) and want fast log
 - Weight unit: kg/lb.
 - Color scheme: Light / Dark / System.
 - Rest timer duration: 2 / 3 / 5 minutes.
-- Show current app version + link to legal/license page.
+- Show current app version in settings.
+- Keep legal/license page reachable from app navigation/footer.
 - Export/import full app backup (all local entities) with explicit overwrite confirmation.
 - Full data reset with confirmation.
 - Restore update-safety snapshot with confirmation.

@@ -1,5 +1,28 @@
 # Release Notes
 
+## Unreleased
+
+### Added
+1. Dashboard empty state now shows an intro chooser with explicit actions: use starter workout, create a workout, or import workouts with AI.
+
+### Changed
+1. Starter workout is no longer auto-seeded on app launch or after full reset; users return to the empty-state intro flow until they choose an option.
+2. Workout editor (edit view) now exposes a save action in the top header and uses a separator-style footer action area (matching session action placement more closely).
+3. Workout editor save/delete buttons were visually aligned with session actions (including icons); delete remains red.
+4. Settings tabs now use the same trigger layout pattern as the import page for consistent active-state alignment.
+5. Settings page version line no longer includes the legal link (legal page remains reachable from the global footer).
+6. Dashboard/import wording updated to "Workouts mit KI importieren" / "Import workouts with AI".
+
+### Fixed
+1. Weight-unit switching (`kg`/`lb`) was hardened against duplicate conversion when concurrent settings updates occur.
+2. Settings export/import action icons now match their labels (previously swapped).
+
+### Docs
+1. Technical spec, handoff guide, status, and backlog were updated to reflect the explicit intro-based starter-workout flow (no auto-seeding).
+2. `IMPLEMENTATION_PLAN.md` is now marked as a historical planning snapshot; active tracking remains in status/backlog docs.
+
+---
+
 ## 0.5.1 - 2026-02-22
 
 ### Added

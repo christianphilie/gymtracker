@@ -8,10 +8,12 @@
 5. For direct AI import, configure `GROQ_API_KEY` in deployment env for `/api/ai-import` (key from console.groq.com). Model: `llama-3.3-70b-versatile`.
 
 ## Versioning Policy (Must Keep)
-1. No commit without a version bump.
+1. Feature releases must include a version bump before shipping/publishing.
 2. The source of truth is `package.json` (`version`).
-3. Every version bump must be documented in `docs/RELEASE_NOTES.md`.
-4. UI must display the current app version in settings.
+3. Docs-only or internal cleanup commits do not require a version bump.
+4. Every version bump must be documented in `docs/RELEASE_NOTES.md`.
+5. Keep `docs/RELEASE_NOTES.md` current with an `Unreleased` section between releases.
+6. UI must display the current app version in settings.
 
 ## Primary Entrypoints
 1. Router: `src/app/router.tsx`
@@ -40,8 +42,9 @@
 10. Keep only the latest three update safety snapshots.
 11. Safety snapshot restore is replace-mode and must require explicit user confirmation in UI.
 12. Weight unit switches must convert persisted weight values in templates and active/completed session sets.
-13. `ensureDefaultWorkout` uses a localStorage flag (`gymtracker:default-workout-seeded`) to run only on first launch and after `clearAllData`. Set the flag **synchronously** before the async DB write to prevent React StrictMode double-invocation.
-14. `clearAllData` must remove the `gymtracker:default-workout-seeded` localStorage flag so the default workout is re-seeded on the next app load.
+13. The app must not auto-seed a starter workout on launch. If there are no workouts, the dashboard must show an intro with explicit choices (starter workout / create / AI import).
+14. `ensureDefaultWorkout` is an explicit action used by the dashboard intro ("use starter workout"), and must be idempotent when workouts already exist.
+15. `clearAllData` must not silently recreate a starter workout; the user returns to the empty intro flow.
 
 ## Extension Guidelines
 1. Prefer repository-level changes over direct table access in feature pages.
