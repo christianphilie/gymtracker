@@ -20,10 +20,28 @@ function toInputString(value: number, step: number) {
 }
 
 function parseDecimal(raw: string) {
-  const normalized = raw.replace(",", ".").trim();
-  if (!normalized) {
+  const compact = raw.trim();
+  if (!compact) {
     return undefined;
   }
+
+  let normalized = "";
+  let usedDecimalSeparator = false;
+  for (const char of compact) {
+    if (/[0-9]/.test(char)) {
+      normalized += char;
+      continue;
+    }
+    if ((char === "." || char === ",") && !usedDecimalSeparator) {
+      normalized += ".";
+      usedDecimalSeparator = true;
+    }
+  }
+
+  if (!normalized || normalized === ".") {
+    return undefined;
+  }
+
   const value = Number(normalized);
   if (!Number.isFinite(value)) {
     return undefined;
@@ -78,7 +96,7 @@ export function DecimalInput({
       }}
       onChange={(event) => {
         const next = event.currentTarget.value;
-        if (/^[0-9]*([.,][0-9]*)?$/.test(next) || next === "") {
+        if (/^[0-9.,]*$/.test(next) || next === "") {
           setDraft(next);
         }
       }}
@@ -92,7 +110,11 @@ export function DecimalInput({
         const nextValue = Math.max(min, parsed);
         const rounded =
           step < 1
-            ? Math.round(nextValue / step) * step
+            ? (() => {
+                const decimals = Math.max(1, `${step}`.split(".")[1]?.length ?? 1);
+                const factor = 10 ** decimals;
+                return Math.round(nextValue * factor) / factor;
+              })()
             : Math.round(nextValue / Math.max(step, 1)) * Math.max(step, 1);
 
         onCommit(rounded);

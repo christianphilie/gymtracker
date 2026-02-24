@@ -443,20 +443,22 @@ export function WorkoutHistoryPage() {
           <div className="space-y-3">
             <Card>
               <CardContent className="grid gap-3 pt-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
+                <div className="min-w-0 space-y-1.5">
                   <Label htmlFor="edit-session-started-at">{t("sessionStartedAt")}</Label>
                   <Input
                     id="edit-session-started-at"
                     type="datetime-local"
+                    className="block min-w-0 max-w-full"
                     value={editingSessionStartedAtDraft}
                     onChange={(event) => setEditingSessionStartedAtDraft(event.currentTarget.value)}
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className="min-w-0 space-y-1.5">
                   <Label htmlFor="edit-session-finished-at">{t("sessionEndedAt")}</Label>
                   <Input
                     id="edit-session-finished-at"
                     type="datetime-local"
+                    className="block min-w-0 max-w-full"
                     value={editingSessionFinishedAtDraft}
                     onChange={(event) => setEditingSessionFinishedAtDraft(event.currentTarget.value)}
                   />

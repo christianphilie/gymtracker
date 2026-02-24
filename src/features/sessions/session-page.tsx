@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, ChevronDown, Flag, NotebookPen, OctagonX, Plus, Trash2, X } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, Flag, NotebookPen, OctagonX, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
@@ -27,14 +27,17 @@ import {
   discardSession,
   getPreviousSessionSummary,
   getSessionById,
+  reorderSessionExercises,
   removeSessionExercise,
   removeSessionSet,
   updateSessionSet
 } from "@/db/repository";
 import { formatSessionDateLabel } from "@/lib/utils";
 
-const ACTIVE_SESSION_PILL_CLASS = "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500";
-const SUCCESS_CIRCLE_CLASS = "inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-500";
+const ACTIVE_SESSION_PILL_CLASS =
+  "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500 dark:bg-emerald-950 dark:text-emerald-200";
+const SUCCESS_CIRCLE_CLASS =
+  "inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-500 dark:bg-emerald-800 dark:text-emerald-100";
 const SESSION_COLLAPSED_STORAGE_KEY_PREFIX = "gymtracker:session-collapsed:";
 
 function formatInlineValue(value: number) {
@@ -43,6 +46,7 @@ function formatInlineValue(value: number) {
 
 export function SessionPage() {
   const { sessionId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { t, weightUnitLabel, language } = useSettings();
   const numericSessionId = Number(sessionId);
@@ -53,6 +57,9 @@ export function SessionPage() {
   const [collapsedExercises, setCollapsedExercises] = useState<Record<string, boolean>>({});
   const [loadedCollapsedStateSessionId, setLoadedCollapsedStateSessionId] = useState<number | null>(null);
   const [deleteExerciseTarget, setDeleteExerciseTarget] = useState<{ key: string } | null>(null);
+  const exerciseCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const setRowRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const handledResumeJumpLocationKeyRef = useRef<string | null>(null);
 
   const payload = useLiveQuery(async () => {
     if (Number.isNaN(numericSessionId)) {
@@ -145,27 +152,6 @@ export function SessionPage() {
     };
   }, [numericSessionId]);
 
-
-  useEffect(() => {
-    if (!payload) return;
-
-    const grouped = new Map<string, SessionExerciseSet[]>();
-    for (const set of payload.sets) {
-      const current = grouped.get(set.sessionExerciseKey) ?? [];
-      current.push(set);
-      grouped.set(set.sessionExerciseKey, current);
-    }
-
-    setCollapsedExercises((prev) => {
-      const next = { ...prev };
-      for (const [key, sets] of grouped.entries()) {
-        if (sets.length > 0 && sets.every((set) => set.completed)) {
-          next[key] = true;
-        }
-      }
-      return next;
-    });
-  }, [payload]);
   const groupedSets = useMemo(() => {
     const map = new Map<string, SessionExerciseSet[]>();
 
@@ -207,6 +193,206 @@ export function SessionPage() {
   }, [groupedSets, templateExerciseInfoMap]);
 
   const isCompleted = payload?.session.status === "completed";
+  const orderedSets = useMemo(() => sessionExercises.flatMap((exercise) => exercise.sets), [sessionExercises]);
+
+  const scrollToSet = (setId: number, behavior: ScrollBehavior = "auto") => {
+    const element = setRowRefs.current[setId];
+    if (!element) {
+      return;
+    }
+    element.scrollIntoView({ block: "center", behavior });
+  };
+
+  const animateWindowScrollBy = (deltaY: number, durationMs = 220) => {
+    if (Math.abs(deltaY) < 1) {
+      return;
+    }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      window.scrollBy(0, deltaY);
+      return;
+    }
+
+    const startY = window.scrollY;
+    const start = performance.now();
+    const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
+
+    const frame = (now: number) => {
+      const progress = Math.min(1, (now - start) / durationMs);
+      window.scrollTo({ top: startY + deltaY * easeOut(progress), behavior: "auto" });
+      if (progress < 1) {
+        window.requestAnimationFrame(frame);
+      }
+    };
+
+    window.requestAnimationFrame(frame);
+  };
+
+  const animateExerciseReorder = (beforeTops: Map<string, number>) => {
+    if (beforeTops.size === 0 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+
+    const durationMs = 220;
+    const animated = new Set<HTMLElement>();
+    for (const [key, previousTop] of beforeTops.entries()) {
+      const element = exerciseCardRefs.current[key];
+      if (!element) {
+        continue;
+      }
+      const currentTop = element.getBoundingClientRect().top;
+      const deltaY = previousTop - currentTop;
+      if (Math.abs(deltaY) < 1) {
+        continue;
+      }
+
+      animated.add(element);
+      element.style.transition = "none";
+      element.style.transform = `translateY(${deltaY}px)`;
+      element.style.willChange = "transform";
+    }
+
+    if (animated.size === 0) {
+      return;
+    }
+
+    void document.body.offsetHeight;
+
+    window.requestAnimationFrame(() => {
+      for (const element of animated) {
+        element.style.transition = `transform ${durationMs}ms ease-out`;
+        element.style.transform = "translateY(0)";
+      }
+
+      window.setTimeout(() => {
+        for (const element of animated) {
+          element.style.transition = "";
+          element.style.transform = "";
+          element.style.willChange = "";
+        }
+      }, durationMs + 40);
+    });
+  };
+
+  const captureExerciseCardTops = () => {
+    const beforeTops = new Map<string, number>();
+    for (const [key, element] of Object.entries(exerciseCardRefs.current)) {
+      if (!element) {
+        continue;
+      }
+      beforeTops.set(key, element.getBoundingClientRect().top);
+    }
+    return beforeTops;
+  };
+
+  const animateReorderAndKeepExerciseInView = (
+    beforeTops: Map<string, number>,
+    sessionExerciseKey: string,
+    beforeTop: number | null
+  ) => {
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        animateExerciseReorder(beforeTops);
+
+        if (beforeTop === null) {
+          return;
+        }
+        const afterTop = exerciseCardRefs.current[sessionExerciseKey]?.getBoundingClientRect().top;
+        if (typeof afterTop !== "number") {
+          return;
+        }
+        animateWindowScrollBy(afterTop - beforeTop);
+      });
+    });
+  };
+
+  const handleSetCompletedToggle = async (
+    exercise: (typeof sessionExercises)[number],
+    set: SessionExerciseSet,
+    nextCompleted: boolean
+  ) => {
+    if (isCompleted || !set.id) {
+      return;
+    }
+
+    const beforeExerciseTop = exerciseCardRefs.current[exercise.sessionExerciseKey]?.getBoundingClientRect().top ?? null;
+    const shouldCollapseAfterCheck =
+      nextCompleted &&
+      !set.completed &&
+      exercise.sets.every((exerciseSet) => (exerciseSet.id === set.id ? true : exerciseSet.completed));
+
+    await updateSessionSet(set.id, { completed: nextCompleted });
+
+    if (shouldCollapseAfterCheck) {
+      setCollapsedExercises((prev) => ({
+        ...prev,
+        [exercise.sessionExerciseKey]: true
+      }));
+    }
+
+    if (!nextCompleted || set.completed) {
+      return;
+    }
+
+    const firstUnstartedIndex = sessionExercises.findIndex((entry) => {
+      const completedCount = entry.sets.reduce((count, entrySet) => {
+        if (entry.sessionExerciseKey === exercise.sessionExerciseKey && entrySet.id === set.id) {
+          return count + 1;
+        }
+        return count + (entrySet.completed ? 1 : 0);
+      }, 0);
+      return completedCount === 0;
+    });
+    const currentExerciseIndex = sessionExercises.findIndex(
+      (entry) => entry.sessionExerciseKey === exercise.sessionExerciseKey
+    );
+
+    if (firstUnstartedIndex < 0 || currentExerciseIndex < 0 || currentExerciseIndex <= firstUnstartedIndex) {
+      return;
+    }
+
+    const nextOrder = sessionExercises.map((entry) => entry.sessionExerciseKey);
+    const [movedKey] = nextOrder.splice(currentExerciseIndex, 1);
+    if (!movedKey) {
+      return;
+    }
+    nextOrder.splice(firstUnstartedIndex, 0, movedKey);
+
+    const beforeCardTops = captureExerciseCardTops();
+    await reorderSessionExercises(numericSessionId, nextOrder);
+    animateReorderAndKeepExerciseInView(beforeCardTops, exercise.sessionExerciseKey, beforeExerciseTop);
+  };
+
+  const handleReverseExerciseOrder = async () => {
+    if (isCompleted || sessionExercises.length < 2) {
+      return;
+    }
+
+    const nextOrder = sessionExercises.map((entry) => entry.sessionExerciseKey).reverse();
+    await reorderSessionExercises(numericSessionId, nextOrder);
+  };
+
+  useEffect(() => {
+    const navigationState = location.state as { jumpToLastCompletedSet?: boolean } | null;
+    if (!navigationState?.jumpToLastCompletedSet || handledResumeJumpLocationKeyRef.current === location.key) {
+      return;
+    }
+
+    handledResumeJumpLocationKeyRef.current = location.key;
+    const lastCompletedSet = [...orderedSets]
+      .filter((set): set is SessionExerciseSet & { id: number } => set.completed && set.id !== undefined)
+      .sort((a, b) => new Date(b.completedAt ?? 0).getTime() - new Date(a.completedAt ?? 0).getTime())[0];
+
+    if (!lastCompletedSet) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        scrollToSet(lastCompletedSet.id, "auto");
+      });
+    });
+  }, [location.key, location.state, orderedSets, scrollToSet]);
 
   useEffect(() => {
     const onCompleteNextSetRequest = (event: Event) => {
@@ -215,7 +401,6 @@ export function SessionPage() {
         return;
       }
 
-      const orderedSets = sessionExercises.flatMap((exercise) => exercise.sets);
       if (orderedSets.length === 0) {
         return;
       }
@@ -236,14 +421,21 @@ export function SessionPage() {
         return;
       }
 
-      void updateSessionSet(targetSet.id, { completed: true });
+      const targetExercise = sessionExercises.find(
+        (exercise) => exercise.sessionExerciseKey === targetSet.sessionExerciseKey
+      );
+      if (!targetExercise) {
+        return;
+      }
+
+      void handleSetCompletedToggle(targetExercise, targetSet, true);
     };
 
     window.addEventListener("gymtracker:complete-next-session-set", onCompleteNextSetRequest as EventListener);
     return () => {
       window.removeEventListener("gymtracker:complete-next-session-set", onCompleteNextSetRequest as EventListener);
     };
-  }, [isCompleted, numericSessionId, sessionExercises]);
+  }, [handleSetCompletedToggle, isCompleted, numericSessionId, orderedSets, sessionExercises]);
 
   if (!payload) {
     return <p className="text-sm text-muted-foreground">Session not found.</p>;
@@ -274,26 +466,17 @@ export function SessionPage() {
           )}
         </div>
         {!isCompleted && (
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant="secondary"
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              aria-label={t("discardSession")}
-              onClick={() => setIsDiscardDialogOpen(true)}
-            >
-              <OctagonX className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="secondary"
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              aria-label={t("completeSession")}
-              onClick={() => setIsCompleteDialogOpen(true)}
-            >
-              <Flag className="h-4 w-4" />
-            </Button>
-          </div>
+          <Button
+            variant="secondary"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            aria-label={t("reverseSessionExerciseOrder")}
+            title={t("reverseSessionExerciseOrder")}
+            onClick={() => void handleReverseExerciseOrder()}
+            disabled={sessionExercises.length < 2}
+          >
+            <ArrowUpDown className="h-4 w-4" />
+          </Button>
         )}
       </div>
 
@@ -310,7 +493,13 @@ export function SessionPage() {
           .join(" | ");
 
         return (
-          <Card key={exercise.sessionExerciseKey} className={`transition-all duration-200`}>
+          <Card
+            key={exercise.sessionExerciseKey}
+            ref={(node) => {
+              exerciseCardRefs.current[exercise.sessionExerciseKey] = node;
+            }}
+            className="transition-all duration-200"
+          >
             <CardHeader className="space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex flex-1 items-start gap-0.5">
@@ -377,7 +566,15 @@ export function SessionPage() {
                   const showTargetWeightHint = actualWeightValue !== set.targetWeight;
 
                   return (
-                    <div key={set.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 py-1">
+                    <div
+                      key={set.id}
+                      ref={(node) => {
+                        if (set.id !== undefined) {
+                          setRowRefs.current[set.id] = node;
+                        }
+                      }}
+                      className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 py-1"
+                    >
                       <div className="min-w-0">
                         <div className="relative">
                           <DecimalInput
@@ -428,13 +625,13 @@ export function SessionPage() {
                         <Button
                           variant={set.completed ? "default" : "outline"}
                           size="icon"
-                          className={`rounded-md ${set.completed ? "bg-emerald-500 text-white hover:bg-emerald-500/90" : ""}`}
+                          className={`rounded-md ${
+                            set.completed
+                              ? "bg-emerald-500 text-white hover:bg-emerald-500/90 dark:bg-emerald-800 dark:text-emerald-100 dark:hover:bg-emerald-700"
+                              : ""
+                          }`}
                           disabled={isCompleted}
-                          onClick={() => {
-                            void updateSessionSet(set.id!, {
-                              completed: !set.completed
-                            });
-                          }}
+                          onClick={() => void handleSetCompletedToggle(exercise, set, !set.completed)}
                           aria-label={t("done")}
                         >
                           <Check className="h-4 w-4" />

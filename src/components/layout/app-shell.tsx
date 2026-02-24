@@ -70,6 +70,7 @@ interface HeaderProgressBadgeProps {
 
 interface BottomNavItemProps {
   to: string;
+  state?: unknown;
   isActive: boolean;
   label: string;
   icon: ReactNode;
@@ -132,6 +133,7 @@ function HeaderProgressBadge({
 
 function BottomNavItem({
   to,
+  state,
   isActive,
   label,
   icon,
@@ -142,6 +144,7 @@ function BottomNavItem({
     <div className="flex w-[4.8875rem] shrink-0 justify-center">
       <Link
         to={to}
+        state={state}
         aria-label={label}
         title={label}
         className={cn(
@@ -459,10 +462,10 @@ export function AppShell() {
           </div>
         </div>
       </header>
-
-
       <main className="container flex-1 py-4 pb-28 sm:pb-24">
-        <Outlet />
+        <div key={location.key} className="gt-route-enter">
+          <Outlet />
+        </div>
       </main>
       <div className="pointer-events-none fixed inset-x-0 bottom-6 z-30 px-4">
         <div className="relative mx-auto max-w-3xl">
@@ -479,11 +482,12 @@ export function AppShell() {
               {activeSessionNav && (
                 <BottomNavItem
                   to={`/sessions/${activeSessionNav.sessionId}`}
+                  state={{ jumpToLastCompletedSet: true }}
                   isActive={pathname === `/sessions/${activeSessionNav.sessionId}`}
                   label={t("resumeSession")}
                   icon={<Play className="h-[23px] w-[23px]" />}
                   activeClassName="bg-emerald-400 text-emerald-100"
-                  inactiveClassName="text-foreground hover:bg-secondary hover:text-foreground"
+                  inactiveClassName="text-muted-foreground hover:bg-secondary hover:text-foreground"
                 />
               )}
               <BottomNavItem

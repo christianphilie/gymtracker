@@ -1,22 +1,36 @@
-import {
-  APP_VERSION,
-  LAST_SEEN_APP_VERSION_KEY,
-  MAX_UPDATE_SAFETY_SNAPSHOTS
-} from "@/app/version";
 import { db } from "@/db/db";
+import { ensureDefaultSettings } from "@/db/repository-settings";
 import type {
-  ColorScheme,
   Exercise,
   ExerciseTemplateSet,
   PreviousSessionSummary,
   Session,
   SessionExerciseSet,
-  Settings,
-  UpdateSafetySnapshot,
   WeightUnit,
   Workout,
   WorkoutWithRelations
 } from "@/db/types";
+
+export {
+  ensureDefaultSettings,
+  getSettings,
+  updateColorScheme,
+  updateLockerNoteEnabled,
+  updateLockerNumber,
+  updateRestTimerEnabled,
+  updateRestTimerSeconds,
+  updateSettings,
+  updateWeightUnitAndConvert
+} from "@/db/repository-settings";
+export type { AppDataSnapshot } from "@/db/repository-backup";
+export {
+  clearAllData,
+  createUpdateSafetySnapshotIfNeeded,
+  exportAllDataSnapshot,
+  getLatestUpdateSafetySnapshot,
+  importAllDataSnapshot,
+  restoreUpdateSafetySnapshot
+} from "@/db/repository-backup";
 
 interface WorkoutDraft {
   name: string;
@@ -33,147 +47,8 @@ interface WorkoutDraft {
   }>;
 }
 
-export interface AppDataSnapshot {
-  settings: Settings[];
-  workouts: Array<Workout & { id: number }>;
-  exercises: Array<Exercise & { id: number }>;
-  exerciseTemplateSets: Array<ExerciseTemplateSet & { id: number }>;
-  sessions: Array<Session & { id: number }>;
-  sessionExerciseSets: Array<SessionExerciseSet & { id: number }>;
-}
-
-const SETTINGS_ID = 1;
-
-function convertWeightValue(value: number, from: WeightUnit, to: WeightUnit) {
-  if (from === to) {
-    return value;
-  }
-
-  const converted = from === "kg" ? value * 2.2046226218 : value / 2.2046226218;
-  return Math.round(converted * 10) / 10;
-}
-
-function normalizeOptionalPositive(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
-}
-
-function normalizeOptionalPositiveInt(value: unknown) {
-  const normalized = normalizeOptionalPositive(value);
-  if (normalized === undefined) {
-    return undefined;
-  }
-  return Math.max(1, Math.round(normalized));
-}
-
-function isAppDataSnapshot(value: unknown): value is AppDataSnapshot {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const candidate = value as Record<string, unknown>;
-  return (
-    Array.isArray(candidate.settings) &&
-    Array.isArray(candidate.workouts) &&
-    Array.isArray(candidate.exercises) &&
-    Array.isArray(candidate.exerciseTemplateSets) &&
-    Array.isArray(candidate.sessions) &&
-    Array.isArray(candidate.sessionExerciseSets)
-  );
-}
-
-function hasSnapshotData(snapshot: AppDataSnapshot) {
-  return (
-    snapshot.settings.length > 0 ||
-    snapshot.workouts.length > 0 ||
-    snapshot.exercises.length > 0 ||
-    snapshot.exerciseTemplateSets.length > 0 ||
-    snapshot.sessions.length > 0 ||
-    snapshot.sessionExerciseSets.length > 0
-  );
-}
-
-export async function createUpdateSafetySnapshotIfNeeded() {
-  const previousVersion = localStorage.getItem(LAST_SEEN_APP_VERSION_KEY);
-  if (!previousVersion || previousVersion === APP_VERSION) {
-    localStorage.setItem(LAST_SEEN_APP_VERSION_KEY, APP_VERSION);
-    return null;
-  }
-
-  const snapshot = await exportAllDataSnapshot();
-  if (!hasSnapshotData(snapshot)) {
-    localStorage.setItem(LAST_SEEN_APP_VERSION_KEY, APP_VERSION);
-    return null;
-  }
-
-  const record: UpdateSafetySnapshot = {
-    appVersion: APP_VERSION,
-    previousAppVersion: previousVersion,
-    createdAt: nowIso(),
-    snapshotJson: JSON.stringify(snapshot)
-  };
-
-  const id = await db.updateSafetySnapshots.add(record);
-  const oldRecords = await db.updateSafetySnapshots.orderBy("createdAt").toArray();
-  const overflow = oldRecords.slice(0, Math.max(0, oldRecords.length - MAX_UPDATE_SAFETY_SNAPSHOTS));
-
-  if (overflow.length) {
-    const overflowIds = overflow.map((entry) => entry.id).filter((value): value is number => value !== undefined);
-    if (overflowIds.length) {
-      await db.updateSafetySnapshots.bulkDelete(overflowIds);
-    }
-  }
-
-  localStorage.setItem(LAST_SEEN_APP_VERSION_KEY, APP_VERSION);
-
-  return { ...record, id };
-}
-
-export async function getLatestUpdateSafetySnapshot() {
-  return db.updateSafetySnapshots.orderBy("createdAt").last();
-}
-
-export async function restoreUpdateSafetySnapshot(snapshotId: number) {
-  const snapshot = await db.updateSafetySnapshots.get(snapshotId);
-  if (!snapshot) {
-    throw new Error("Safety snapshot not found");
-  }
-
-  let parsedRaw: unknown;
-  try {
-    parsedRaw = JSON.parse(snapshot.snapshotJson);
-  } catch {
-    throw new Error("Safety snapshot payload is corrupted");
-  }
-
-  if (!isAppDataSnapshot(parsedRaw)) {
-    throw new Error("Safety snapshot payload has invalid structure");
-  }
-
-  await importAllDataSnapshot(parsedRaw);
-  return snapshot;
-}
-
 function nowIso() {
   return new Date().toISOString();
-}
-
-function clearGymtrackerLocalStorage() {
-  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
-    return;
-  }
-
-  const keysToRemove: string[] = [];
-  for (let index = 0; index < window.localStorage.length; index += 1) {
-    const key = window.localStorage.key(index);
-    if (!key) continue;
-    if (key.startsWith("gymtracker:")) {
-      keysToRemove.push(key);
-    }
-  }
-
-  for (const key of keysToRemove) {
-    window.localStorage.removeItem(key);
-  }
 }
 
 async function getLatestCompletedSession(workoutId: number, beforeSessionId?: number) {
@@ -213,189 +88,6 @@ async function getAnyActiveSession() {
     (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
   );
   return activeSessions[0] ?? null;
-}
-
-export async function ensureDefaultSettings() {
-  const existing = await db.settings.get(SETTINGS_ID);
-  if (existing) {
-    const patch: Partial<Settings> = {};
-    const hadLegacyNoTimer = existing.restTimerSeconds === 0;
-    if (existing.restTimerSeconds === undefined) {
-      patch.restTimerSeconds = 120;
-    } else if (![60, 120, 180, 300].includes(existing.restTimerSeconds)) {
-      patch.restTimerSeconds = 120;
-    }
-    if (existing.restTimerEnabled === undefined) {
-      patch.restTimerEnabled = hadLegacyNoTimer ? false : true;
-    }
-    if (existing.colorScheme === undefined) {
-      patch.colorScheme = "system";
-    }
-    if (existing.lockerNoteEnabled === undefined) {
-      patch.lockerNoteEnabled = true;
-    }
-    if (existing.lockerNumber === undefined) {
-      patch.lockerNumber = "";
-    }
-    if (existing.lockerNumberUpdatedAt === undefined) {
-      patch.lockerNumberUpdatedAt = "";
-    }
-    if (existing.bodyWeight !== undefined && !Number.isFinite(existing.bodyWeight)) {
-      patch.bodyWeight = undefined;
-    }
-    if (existing.weeklyWeightGoal !== normalizeOptionalPositive(existing.weeklyWeightGoal)) {
-      patch.weeklyWeightGoal = normalizeOptionalPositive(existing.weeklyWeightGoal);
-    }
-    if (existing.weeklyCaloriesGoal !== normalizeOptionalPositive(existing.weeklyCaloriesGoal)) {
-      patch.weeklyCaloriesGoal = normalizeOptionalPositive(existing.weeklyCaloriesGoal);
-    }
-    if (existing.weeklyWorkoutCountGoal !== normalizeOptionalPositiveInt(existing.weeklyWorkoutCountGoal)) {
-      patch.weeklyWorkoutCountGoal = normalizeOptionalPositiveInt(existing.weeklyWorkoutCountGoal);
-    }
-    if (existing.weeklyDurationGoal !== normalizeOptionalPositiveInt(existing.weeklyDurationGoal)) {
-      patch.weeklyDurationGoal = normalizeOptionalPositiveInt(existing.weeklyDurationGoal);
-    }
-    if (Object.keys(patch).length > 0) {
-      const patched: Settings = { ...existing, ...patch, updatedAt: nowIso() };
-      await db.settings.put(patched);
-      return patched;
-    }
-    return existing;
-  }
-
-  const now = nowIso();
-  const defaults: Settings = {
-    id: SETTINGS_ID,
-    language: "de",
-    weightUnit: "kg",
-    restTimerSeconds: 120,
-    restTimerEnabled: true,
-    bodyWeight: undefined,
-    lockerNoteEnabled: true,
-    lockerNumber: "",
-    lockerNumberUpdatedAt: "",
-    colorScheme: "system",
-    createdAt: now,
-    updatedAt: now
-  };
-
-  await db.settings.put(defaults);
-  return defaults;
-}
-
-export async function updateSettings(
-  patch: Partial<
-    Pick<
-      Settings,
-      | "language"
-      | "weightUnit"
-      | "restTimerSeconds"
-      | "restTimerEnabled"
-      | "colorScheme"
-      | "lockerNoteEnabled"
-      | "lockerNumber"
-      | "lockerNumberUpdatedAt"
-      | "bodyWeight"
-      | "weeklyWeightGoal"
-      | "weeklyCaloriesGoal"
-      | "weeklyWorkoutCountGoal"
-      | "weeklyDurationGoal"
-    >
-  >
-) {
-  const current = await ensureDefaultSettings();
-  const next: Settings = {
-    ...current,
-    ...patch,
-    updatedAt: nowIso()
-  };
-  await db.settings.put(next);
-  return next;
-}
-
-export async function updateRestTimerSeconds(seconds: number) {
-  const clamped = seconds <= 60 ? 60 : seconds <= 120 ? 120 : seconds <= 180 ? 180 : 300;
-  return updateSettings({ restTimerSeconds: clamped });
-}
-
-export async function updateRestTimerEnabled(enabled: boolean) {
-  return updateSettings({ restTimerEnabled: enabled });
-}
-
-export async function updateLockerNoteEnabled(enabled: boolean) {
-  return updateSettings({ lockerNoteEnabled: enabled });
-}
-
-export async function updateLockerNumber(lockerNumber: string) {
-  return updateSettings({
-    lockerNumber: lockerNumber.trim(),
-    lockerNumberUpdatedAt: nowIso()
-  });
-}
-
-export async function updateColorScheme(scheme: ColorScheme) {
-  return updateSettings({ colorScheme: scheme });
-}
-
-export async function updateWeightUnitAndConvert(nextUnit: WeightUnit) {
-  await ensureDefaultSettings();
-
-  await db.transaction(
-    "rw",
-    [db.settings, db.exerciseTemplateSets, db.sessionExerciseSets],
-    async () => {
-      const currentSettings = (await db.settings.get(SETTINGS_ID)) ?? (await ensureDefaultSettings());
-      if (currentSettings.weightUnit === nextUnit) {
-        return;
-      }
-
-      const templateSets = await db.exerciseTemplateSets.toArray();
-      for (const set of templateSets) {
-        if (set.id === undefined) {
-          continue;
-        }
-
-        await db.exerciseTemplateSets.update(set.id, {
-          targetWeight: convertWeightValue(set.targetWeight, currentSettings.weightUnit, nextUnit)
-        });
-      }
-
-      const sessionSets = await db.sessionExerciseSets.toArray();
-      for (const set of sessionSets) {
-        if (set.id === undefined) {
-          continue;
-        }
-
-        await db.sessionExerciseSets.update(set.id, {
-          targetWeight: convertWeightValue(set.targetWeight, currentSettings.weightUnit, nextUnit),
-          actualWeight:
-            set.actualWeight === undefined
-              ? undefined
-              : convertWeightValue(set.actualWeight, currentSettings.weightUnit, nextUnit)
-        });
-      }
-
-      await db.settings.put({
-        ...currentSettings,
-        weightUnit: nextUnit,
-        bodyWeight:
-          currentSettings.bodyWeight === undefined
-            ? undefined
-            : convertWeightValue(currentSettings.bodyWeight, currentSettings.weightUnit, nextUnit),
-        weeklyWeightGoal:
-          currentSettings.weeklyWeightGoal === undefined
-            ? undefined
-            : convertWeightValue(currentSettings.weeklyWeightGoal, currentSettings.weightUnit, nextUnit),
-        updatedAt: nowIso()
-      });
-    }
-  );
-
-  return db.settings.get(SETTINGS_ID);
-}
-
-export async function getSettings() {
-  return ensureDefaultSettings();
 }
 
 export async function getWorkouts() {
@@ -712,107 +404,6 @@ export async function ensureDefaultWorkout() {
   });
 }
 
-export async function clearAllData() {
-  await db.transaction(
-    "rw",
-    [db.settings, db.workouts, db.exercises, db.exerciseTemplateSets, db.sessions, db.sessionExerciseSets, db.updateSafetySnapshots],
-    async () => {
-      await db.sessionExerciseSets.clear();
-      await db.sessions.clear();
-      await db.exerciseTemplateSets.clear();
-      await db.exercises.clear();
-      await db.workouts.clear();
-      await db.settings.clear();
-      await db.updateSafetySnapshots.clear();
-    }
-  );
-
-  clearGymtrackerLocalStorage();
-}
-
-export async function exportAllDataSnapshot(): Promise<AppDataSnapshot> {
-  const [settings, workouts, exercises, exerciseTemplateSets, sessions, sessionExerciseSets] =
-    await Promise.all([
-      db.settings.toArray(),
-      db.workouts.toArray(),
-      db.exercises.toArray(),
-      db.exerciseTemplateSets.toArray(),
-      db.sessions.toArray(),
-      db.sessionExerciseSets.toArray()
-    ]);
-
-  const persistedWorkouts = workouts.filter(
-    (workout): workout is Workout & { id: number } => workout.id !== undefined
-  );
-  const persistedExercises = exercises.filter(
-    (exercise): exercise is Exercise & { id: number } => exercise.id !== undefined
-  );
-  const persistedTemplateSets = exerciseTemplateSets.filter(
-    (set): set is ExerciseTemplateSet & { id: number } => set.id !== undefined
-  );
-  const persistedSessions = sessions.filter(
-    (session): session is Session & { id: number } => session.id !== undefined
-  );
-  const persistedSessionSets = sessionExerciseSets.filter(
-    (set): set is SessionExerciseSet & { id: number } => set.id !== undefined
-  );
-
-  if (
-    persistedWorkouts.length !== workouts.length ||
-    persistedExercises.length !== exercises.length ||
-    persistedTemplateSets.length !== exerciseTemplateSets.length ||
-    persistedSessions.length !== sessions.length ||
-    persistedSessionSets.length !== sessionExerciseSets.length
-  ) {
-    throw new Error("Backup export failed: some records are missing primary keys.");
-  }
-
-  return {
-    settings,
-    workouts: persistedWorkouts,
-    exercises: persistedExercises,
-    exerciseTemplateSets: persistedTemplateSets,
-    sessions: persistedSessions,
-    sessionExerciseSets: persistedSessionSets
-  };
-}
-
-export async function importAllDataSnapshot(snapshot: AppDataSnapshot) {
-  await db.transaction(
-    "rw",
-    [db.settings, db.workouts, db.exercises, db.exerciseTemplateSets, db.sessions, db.sessionExerciseSets],
-    async () => {
-      await db.sessionExerciseSets.clear();
-      await db.sessions.clear();
-      await db.exerciseTemplateSets.clear();
-      await db.exercises.clear();
-      await db.workouts.clear();
-      await db.settings.clear();
-
-      if (snapshot.settings.length) {
-        await db.settings.bulkPut(snapshot.settings);
-      }
-      if (snapshot.workouts.length) {
-        await db.workouts.bulkPut(snapshot.workouts);
-      }
-      if (snapshot.exercises.length) {
-        await db.exercises.bulkPut(snapshot.exercises);
-      }
-      if (snapshot.exerciseTemplateSets.length) {
-        await db.exerciseTemplateSets.bulkPut(snapshot.exerciseTemplateSets);
-      }
-      if (snapshot.sessions.length) {
-        await db.sessions.bulkPut(snapshot.sessions);
-      }
-      if (snapshot.sessionExerciseSets.length) {
-        await db.sessionExerciseSets.bulkPut(snapshot.sessionExerciseSets);
-      }
-    }
-  );
-
-  await ensureDefaultSettings();
-}
-
 export async function startSession(workoutId: number) {
   const anyActiveSession = await getAnyActiveSession();
   if (anyActiveSession?.id) {
@@ -915,6 +506,42 @@ export async function updateSessionSet(
   await db.sessionExerciseSets.update(setId, {
     ...patch,
     completedAt: nextCompletedAt
+  });
+}
+
+export async function reorderSessionExercises(sessionId: number, orderedSessionExerciseKeys: string[]) {
+  const session = await db.sessions.get(sessionId);
+  if (!session || session.status !== "active") {
+    throw new Error("Active session not found");
+  }
+
+  await db.transaction("rw", db.sessionExerciseSets, async () => {
+    const sets = await db.sessionExerciseSets.where("sessionId").equals(sessionId).toArray();
+    const existingKeys = Array.from(new Set(sets.map((set) => set.sessionExerciseKey)));
+    const orderedUniqueKeys = Array.from(new Set(orderedSessionExerciseKeys));
+
+    if (existingKeys.length !== orderedUniqueKeys.length) {
+      throw new Error("Session exercise reorder payload is incomplete");
+    }
+
+    const existingKeySet = new Set(existingKeys);
+    if (orderedUniqueKeys.some((key) => !existingKeySet.has(key))) {
+      throw new Error("Session exercise reorder payload contains unknown exercise");
+    }
+
+    const orderByKey = new Map(orderedUniqueKeys.map((key, index) => [key, index]));
+    for (const set of sets) {
+      if (set.id === undefined) {
+        continue;
+      }
+      const nextOrder = orderByKey.get(set.sessionExerciseKey);
+      if (nextOrder === undefined) {
+        continue;
+      }
+      if (set.exerciseOrder !== nextOrder) {
+        await db.sessionExerciseSets.update(set.id, { exerciseOrder: nextOrder });
+      }
+    }
   });
 }
 
