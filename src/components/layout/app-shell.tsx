@@ -117,12 +117,12 @@ function HeaderActions({
         {sessionState.sinceIso && hasRestTimer && (
           <button
             type="button"
-            className="relative m-0 h-9 w-[88px] overflow-hidden rounded-md border border-input bg-background/80 p-0 text-left align-top shadow-sm [appearance:none]"
+            className="relative m-0 h-9 w-[4.5rem] overflow-hidden rounded-md border border-input bg-background/80 p-0 text-left align-top shadow-sm [appearance:none]"
             onClick={onToggleTimer}
             aria-label={timerPaused ? t("resumeSession") : t("pauseTimer")}
           >
             <div className="inline-flex h-full w-full items-start px-2 pt-1.5">
-              <p className="inline-flex h-[16px] w-full items-center justify-start gap-1 text-left text-xs font-medium leading-none">
+              <p className="inline-flex h-[16px] w-full items-center justify-center gap-1 text-center text-xs font-medium leading-none">
                 {timerPaused
                   ? <PlaySolidIcon className="h-4 w-4 shrink-0" />
                   : <PauseSolidIcon className="h-4 w-4 shrink-0" />
@@ -139,9 +139,9 @@ function HeaderActions({
           </button>
         )}
 
-        <div className="relative h-9 w-[88px] overflow-hidden rounded-md border border-input bg-background/80 shadow-sm">
+        <div className="relative h-9 w-[4.5rem] overflow-hidden rounded-md border border-input bg-background/80 shadow-sm">
           <div className="inline-flex h-full w-full items-start px-2 pt-1.5">
-            <p className="inline-flex h-[16px] w-full items-center justify-start text-left text-xs font-medium leading-none">
+            <p className="inline-flex h-[16px] w-full items-center justify-center text-center text-xs font-medium leading-none">
               <Check className="mr-1 h-3.5 w-3.5" />
               {sessionState.completed}/{sessionState.total}
             </p>
