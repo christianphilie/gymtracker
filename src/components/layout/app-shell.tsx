@@ -139,14 +139,14 @@ function BottomNavItem({
   inactiveClassName
 }: BottomNavItemProps) {
   return (
-    <div className="flex w-[4.25rem] shrink-0 justify-center">
+    <div className="flex w-[4.8875rem] shrink-0 justify-center">
       <Link
         to={to}
         aria-label={label}
         title={label}
         className={cn(
-          "inline-flex h-11 items-center justify-center rounded-full transition-[padding,background-color,color] duration-200",
-          isActive ? "px-6" : "px-4",
+          "inline-flex h-[3.1625rem] items-center justify-center rounded-full transition-[padding,background-color,color] duration-200",
+          isActive ? "px-[1.725rem]" : "px-[1.15rem]",
           isActive ? activeClassName : inactiveClassName
         )}
       >
@@ -472,7 +472,7 @@ export function AppShell() {
                 to="/"
                 isActive={isHomeTabRoute}
                 label={t("workouts")}
-                icon={<House className="h-5 w-5" />}
+                icon={<House className="h-[23px] w-[23px]" />}
                 activeClassName="bg-primary text-primary-foreground"
                 inactiveClassName="text-muted-foreground hover:bg-secondary hover:text-foreground"
               />
@@ -481,7 +481,7 @@ export function AppShell() {
                   to={`/sessions/${activeSessionNav.sessionId}`}
                   isActive={pathname === `/sessions/${activeSessionNav.sessionId}`}
                   label={t("resumeSession")}
-                  icon={<Play className="h-5 w-5" />}
+                  icon={<Play className="h-[23px] w-[23px]" />}
                   activeClassName="bg-emerald-400 text-emerald-100"
                   inactiveClassName="text-foreground hover:bg-secondary hover:text-foreground"
                 />
@@ -490,7 +490,7 @@ export function AppShell() {
                 to="/statistics"
                 isActive={isStatisticsTabRoute}
                 label={t("statistics")}
-                icon={<ChartNoAxesCombined className="h-5 w-5" />}
+                icon={<ChartNoAxesCombined className="h-[23px] w-[23px]" />}
                 activeClassName="bg-primary text-primary-foreground"
                 inactiveClassName="text-muted-foreground hover:bg-secondary hover:text-foreground"
               />
@@ -498,7 +498,7 @@ export function AppShell() {
                 to="/settings"
                 isActive={isSettingsTabRoute}
                 label={t("settings")}
-                icon={<Settings className="h-5 w-5" />}
+                icon={<Settings className="h-[23px] w-[23px]" />}
                 activeClassName="bg-primary text-primary-foreground"
                 inactiveClassName="text-muted-foreground hover:bg-secondary hover:text-foreground"
               />
