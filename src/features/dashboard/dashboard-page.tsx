@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ChartNoAxesCombined, Download, Dumbbell, List, OctagonX, PenSquare, Plus, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/info-hint";
 import {
   Dialog,
   DialogContent,
@@ -15,8 +16,14 @@ import {
 } from "@/components/ui/dialog";
 import { db } from "@/db/db";
 import { discardSession, ensureDefaultWorkout, startSession } from "@/db/repository";
+import type { SessionExerciseSet } from "@/db/types";
 import { useSettings } from "@/app/settings-context";
-import { formatSessionDateLabel } from "@/lib/utils";
+import {
+  estimateStrengthTrainingCalories,
+  getSessionDurationMinutes,
+  resolveCaloriesBodyWeightKg
+} from "@/lib/calorie-estimation";
+import { formatNumber, formatSessionDateLabel } from "@/lib/utils";
 
 interface WorkoutListItem {
   id?: number;
@@ -28,7 +35,35 @@ interface WorkoutListItem {
   sortTimestamp: number;
 }
 
+interface WeeklyStatsWorkoutEntry {
+  sessionId: number;
+  workoutId: number;
+  workoutName: string;
+  weekdayLabel: string;
+}
+
+interface WeeklyDashboardStats {
+  workoutCount: number;
+  exerciseCount: number;
+  setCount: number;
+  repsTotal: number;
+  totalWeight: number;
+  caloriesTotal: number | null;
+  usesDefaultBodyWeightForCalories: boolean;
+  completedWorkouts: WeeklyStatsWorkoutEntry[];
+}
+
 const ACTIVE_SESSION_PILL_CLASS = "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700";
+const EMPTY_WEEKLY_STATS: WeeklyDashboardStats = {
+  workoutCount: 0,
+  exerciseCount: 0,
+  setCount: 0,
+  repsTotal: 0,
+  totalWeight: 0,
+  caloriesTotal: null,
+  usesDefaultBodyWeightForCalories: false,
+  completedWorkouts: []
+};
 
 function getWeekStart(date: Date) {
   const target = new Date(date);
@@ -48,7 +83,7 @@ function PlayFilledIcon({ className }: { className?: string }) {
 }
 
 export function DashboardPage() {
-  const { t, language } = useSettings();
+  const { t, language, weightUnit } = useSettings();
   const navigate = useNavigate();
   const weekStart = useMemo(() => getWeekStart(new Date()), []);
   const [discardConfirmSessionId, setDiscardConfirmSessionId] = useState<number | null>(null);
@@ -113,10 +148,96 @@ export function DashboardPage() {
     });
   }, []);
 
-  const completedThisWeek = useLiveQuery(async () => {
-    const sessions = await db.sessions.where("status").equals("completed").toArray();
-    return sessions.filter((session) => new Date(session.finishedAt ?? session.startedAt) >= weekStart).length;
-  }, [weekStart]);
+  const weeklyStats = useLiveQuery<WeeklyDashboardStats>(async () => {
+    const completedSessions = (await db.sessions.where("status").equals("completed").toArray())
+      .filter((session) => new Date(session.finishedAt ?? session.startedAt) >= weekStart)
+      .sort(
+        (a, b) =>
+          new Date(a.finishedAt ?? a.startedAt).getTime() - new Date(b.finishedAt ?? b.startedAt).getTime()
+      );
+
+    if (completedSessions.length === 0) {
+      return EMPTY_WEEKLY_STATS;
+    }
+
+    const sessionIds = completedSessions.map((session) => session.id).filter((id): id is number => id !== undefined);
+    const workoutIds = [...new Set(completedSessions.map((session) => session.workoutId))];
+
+    const [allSets, workoutsForStats, settings] = await Promise.all([
+      sessionIds.length ? db.sessionExerciseSets.where("sessionId").anyOf(sessionIds).toArray() : [],
+      workoutIds.length ? db.workouts.where("id").anyOf(workoutIds).toArray() : [],
+      db.settings.get(1)
+    ]);
+
+    const setsBySessionId = new Map<number, SessionExerciseSet[]>();
+    for (const set of allSets) {
+      const current = setsBySessionId.get(set.sessionId) ?? [];
+      current.push(set);
+      setsBySessionId.set(set.sessionId, current);
+    }
+
+    const workoutNameById = new Map<number, string>();
+    for (const workout of workoutsForStats) {
+      if (workout.id !== undefined) {
+        workoutNameById.set(workout.id, workout.name);
+      }
+    }
+
+    const weekdayFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
+      weekday: "long"
+    });
+
+    let exerciseCount = 0;
+    let setCount = 0;
+    let repsTotal = 0;
+    let totalWeight = 0;
+    let caloriesTotal = 0;
+    const { bodyWeightKg, usesDefaultBodyWeight } = resolveCaloriesBodyWeightKg(settings?.bodyWeight, weightUnit);
+
+    const completedWorkouts = completedSessions.map((session) => {
+      const sessionId = session.id ?? -1;
+      const sessionSets = setsBySessionId.get(sessionId) ?? [];
+      const completedSets = sessionSets.filter((set) => set.completed);
+      const setsForExerciseCount = completedSets.length > 0 ? completedSets : sessionSets;
+      const sessionRepsTotal = completedSets.reduce((sum, set) => sum + (set.actualReps ?? set.targetReps), 0);
+      const sessionTotalWeight = completedSets.reduce(
+        (sum, set) => sum + (set.actualWeight ?? set.targetWeight) * (set.actualReps ?? set.targetReps),
+        0
+      );
+
+      exerciseCount += new Set(setsForExerciseCount.map((set) => set.sessionExerciseKey)).size;
+      setCount += completedSets.length;
+      repsTotal += sessionRepsTotal;
+      totalWeight += sessionTotalWeight;
+
+      const durationMinutes = getSessionDurationMinutes(session.startedAt, session.finishedAt);
+      caloriesTotal += estimateStrengthTrainingCalories({
+        durationMinutes,
+        bodyWeightKg,
+        completedSetCount: completedSets.length,
+        repsTotal: sessionRepsTotal
+      });
+
+      const completedAt = new Date(session.finishedAt ?? session.startedAt);
+      return {
+        sessionId,
+        workoutId: session.workoutId,
+        workoutName: workoutNameById.get(session.workoutId) ?? "-",
+        weekdayLabel: weekdayFormatter.format(completedAt)
+      };
+    });
+
+    return {
+      workoutCount: completedSessions.length,
+      exerciseCount,
+      setCount,
+      repsTotal,
+      totalWeight,
+      caloriesTotal,
+      usesDefaultBodyWeightForCalories: usesDefaultBodyWeight,
+      completedWorkouts
+    };
+  }, [language, weekStart, weightUnit]);
 
   const { activeWorkouts, inactiveWorkouts } = useMemo(() => {
     const active = (workouts ?? [])
@@ -183,40 +304,25 @@ export function DashboardPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex flex-col items-end gap-1 text-right">
             {isActive ? (
               <>
                 <span className={ACTIVE_SESSION_PILL_CLASS}>
                   {t("activeSession")}
                 </span>
-                <button
-                  type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground/70 hover:text-foreground"
-                  aria-label={t("discardSession")}
-                  onClick={() => {
-                    if (workout.activeSessionId) {
-                      setDiscardConfirmSessionId(workout.activeSessionId);
-                    }
-                  }}
-                >
-                  <OctagonX className="h-4 w-4" />
-                </button>
+                <p className="pr-2 text-xs text-muted-foreground">
+                  {t("since")}{" "}
+                  {workout.activeSessionStartedAt ? formatSessionDateLabel(workout.activeSessionStartedAt, language) : "-"}
+                </p>
               </>
             ) : (
-              <div className="text-right text-xs text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 <p>{t("lastSession")}</p>
                 <p>{workout.lastSessionAt ? formatSessionDateLabel(workout.lastSessionAt, language) : "-"}</p>
               </div>
             )}
           </div>
         </CardHeader>
-
-        {isActive && (
-          <CardContent className="pt-0 text-xs text-muted-foreground">
-            {t("sessionStartedAt")}:{" "}
-            {workout.activeSessionStartedAt ? formatSessionDateLabel(workout.activeSessionStartedAt, language) : "-"}
-          </CardContent>
-        )}
 
         <CardFooter className="justify-between">
           <div className="flex items-center gap-1">
@@ -239,13 +345,29 @@ export function DashboardPage() {
               </Button>
             )}
           </div>
-          <Button
-            className={isActive ? "bg-emerald-600 text-white hover:bg-emerald-700" : undefined}
-            onClick={() => handleStartSession(workout.id!)}
-          >
-            <PlayFilledIcon className={`mr-2 ${isActive ? "h-5 w-5" : "h-4 w-4"}`} />
-            {isActive ? t("resumeSession") : t("startSession")}
-          </Button>
+          <div className="flex items-center gap-2">
+            {isActive && (
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label={t("discardSession")}
+                onClick={() => {
+                  if (workout.activeSessionId) {
+                    setDiscardConfirmSessionId(workout.activeSessionId);
+                  }
+                }}
+              >
+                <OctagonX className="h-4 w-4" />
+              </Button>
+            )}
+            <Button
+              className={isActive ? "bg-emerald-600 text-white hover:bg-emerald-700" : undefined}
+              onClick={() => handleStartSession(workout.id!)}
+            >
+              <PlayFilledIcon className={`mr-2 shrink-0 ${isActive ? "h-[1.375rem] w-[1.375rem]" : "h-[1.125rem] w-[1.125rem]"}`} />
+              {isActive ? t("resumeSession") : t("startSession")}
+            </Button>
+          </div>
         </CardFooter>
       </Card>
     );
@@ -253,16 +375,11 @@ export function DashboardPage() {
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-2">
         <h1 className="inline-flex items-center gap-2 text-base font-semibold">
           <List className="h-4 w-4" />
           {t("workouts")}
         </h1>
-        {hasWorkouts && (
-          <p className="text-xs text-muted-foreground">
-            {t("completedThisWeek")}: {completedThisWeek ?? 0}
-          </p>
-        )}
       </div>
 
       {!hasWorkouts && (
@@ -344,17 +461,85 @@ export function DashboardPage() {
 
       {hasWorkouts && (
         <>
+          <Button
+            variant="secondary"
+            className="w-full justify-start gap-2"
+            onClick={() => navigate("/workouts/add")}
+          >
+            <Plus className="h-4 w-4" />
+            {t("addWorkout")}
+          </Button>
           <div className="h-px bg-border" />
-          <div className="space-y-2">
-            <Button variant="secondary" className="w-full justify-start gap-2" onClick={() => navigate("/workouts/new")}>
-              <Plus className="h-4 w-4" />
-              {t("addWorkout")}
-            </Button>
-            <Button variant="secondary" className="w-full justify-start gap-2" onClick={() => navigate("/import")}>
-              <Sparkles className="h-4 w-4" />
-              {t("aiGenerate")}
-            </Button>
-          </div>
+          <section className="space-y-3">
+            <h2 className="inline-flex items-center gap-2 text-base font-semibold">
+              <ChartNoAxesCombined className="h-4 w-4" />
+              {t("statistics")}
+            </h2>
+
+            <Card>
+              <CardContent className="space-y-4 pt-4">
+                <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+                  <div className="rounded-lg border bg-card px-3 py-2">
+                    <p className="text-xs text-muted-foreground">{t("workoutsThisWeek")}</p>
+                    <p className="text-base font-semibold">{weeklyStats?.workoutCount ?? 0}</p>
+                  </div>
+                  <div className="rounded-lg border bg-card px-3 py-2">
+                    <p className="text-xs text-muted-foreground">{t("exercises")}</p>
+                    <p className="text-base font-semibold">{weeklyStats?.exerciseCount ?? 0}</p>
+                  </div>
+                  <div className="rounded-lg border bg-card px-3 py-2">
+                    <p className="text-xs text-muted-foreground">{t("sets")}</p>
+                    <p className="text-base font-semibold">{weeklyStats?.setCount ?? 0}</p>
+                  </div>
+                  <div className="rounded-lg border bg-card px-3 py-2">
+                    <p className="text-xs text-muted-foreground">{t("repsTotal")}</p>
+                    <p className="text-base font-semibold">{weeklyStats?.repsTotal ?? 0}</p>
+                  </div>
+                  <div className="rounded-lg border bg-card px-3 py-2">
+                    <p className="text-xs text-muted-foreground">{t("totalWeight")}</p>
+                    <p className="text-base font-semibold">
+                      {formatNumber(weeklyStats?.totalWeight ?? 0, 0)} {weightUnit}
+                    </p>
+                  </div>
+                  <div className="relative rounded-lg border bg-card px-3 py-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">{t("calories")}</p>
+                      {weeklyStats?.usesDefaultBodyWeightForCalories && (
+                        <InfoHint
+                          ariaLabel={t("calories")}
+                          text={t("caloriesEstimateAverageHint")}
+                          className="-mr-1 -mt-0.5 shrink-0"
+                        />
+                      )}
+                    </div>
+                    <p className="text-base font-semibold">
+                      {formatNumber(weeklyStats?.caloriesTotal ?? 0, 0)} kcal
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">{t("completedWorkoutsThisWeek")}</p>
+                  {(weeklyStats?.completedWorkouts.length ?? 0) > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {weeklyStats?.completedWorkouts.map((item) => (
+                        <Link
+                          key={item.sessionId}
+                          to={`/workouts/${item.workoutId}/history#session-${item.sessionId}`}
+                          className="rounded-xl border bg-background px-3 py-2 transition-colors hover:bg-secondary"
+                        >
+                          <p className="text-sm font-medium leading-none">{item.workoutName}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{item.weekdayLabel}</p>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{t("noWorkoutsThisWeek")}</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </section>
         </>
       )}
 

@@ -177,17 +177,29 @@ export async function ensureDefaultSettings() {
   const existing = await db.settings.get(SETTINGS_ID);
   if (existing) {
     const patch: Partial<Settings> = {};
+    const hadLegacyNoTimer = existing.restTimerSeconds === 0;
     if (existing.restTimerSeconds === undefined) {
       patch.restTimerSeconds = 120;
+    } else if (![60, 120, 180, 300].includes(existing.restTimerSeconds)) {
+      patch.restTimerSeconds = 120;
+    }
+    if (existing.restTimerEnabled === undefined) {
+      patch.restTimerEnabled = hadLegacyNoTimer ? false : true;
     }
     if (existing.colorScheme === undefined) {
       patch.colorScheme = "system";
+    }
+    if (existing.lockerNoteEnabled === undefined) {
+      patch.lockerNoteEnabled = true;
     }
     if (existing.lockerNumber === undefined) {
       patch.lockerNumber = "";
     }
     if (existing.lockerNumberUpdatedAt === undefined) {
       patch.lockerNumberUpdatedAt = "";
+    }
+    if (existing.bodyWeight !== undefined && !Number.isFinite(existing.bodyWeight)) {
+      patch.bodyWeight = undefined;
     }
     if (Object.keys(patch).length > 0) {
       const patched: Settings = { ...existing, ...patch, updatedAt: nowIso() };
@@ -203,6 +215,9 @@ export async function ensureDefaultSettings() {
     language: "de",
     weightUnit: "kg",
     restTimerSeconds: 120,
+    restTimerEnabled: true,
+    bodyWeight: undefined,
+    lockerNoteEnabled: true,
     lockerNumber: "",
     lockerNumberUpdatedAt: "",
     colorScheme: "system",
@@ -215,7 +230,20 @@ export async function ensureDefaultSettings() {
 }
 
 export async function updateSettings(
-  patch: Partial<Pick<Settings, "language" | "weightUnit" | "restTimerSeconds" | "colorScheme" | "lockerNumber" | "lockerNumberUpdatedAt">>
+  patch: Partial<
+    Pick<
+      Settings,
+      | "language"
+      | "weightUnit"
+      | "restTimerSeconds"
+      | "restTimerEnabled"
+      | "colorScheme"
+      | "lockerNoteEnabled"
+      | "lockerNumber"
+      | "lockerNumberUpdatedAt"
+      | "bodyWeight"
+    >
+  >
 ) {
   const current = await ensureDefaultSettings();
   const next: Settings = {
@@ -228,8 +256,16 @@ export async function updateSettings(
 }
 
 export async function updateRestTimerSeconds(seconds: number) {
-  const clamped = seconds <= 0 ? 0 : seconds <= 120 ? 120 : seconds <= 180 ? 180 : 300;
+  const clamped = seconds <= 60 ? 60 : seconds <= 120 ? 120 : seconds <= 180 ? 180 : 300;
   return updateSettings({ restTimerSeconds: clamped });
+}
+
+export async function updateRestTimerEnabled(enabled: boolean) {
+  return updateSettings({ restTimerEnabled: enabled });
+}
+
+export async function updateLockerNoteEnabled(enabled: boolean) {
+  return updateSettings({ lockerNoteEnabled: enabled });
 }
 
 export async function updateLockerNumber(lockerNumber: string) {
@@ -284,6 +320,10 @@ export async function updateWeightUnitAndConvert(nextUnit: WeightUnit) {
       await db.settings.put({
         ...currentSettings,
         weightUnit: nextUnit,
+        bodyWeight:
+          currentSettings.bodyWeight === undefined
+            ? undefined
+            : convertWeightValue(currentSettings.bodyWeight, currentSettings.weightUnit, nextUnit),
         updatedAt: nowIso()
       });
     }

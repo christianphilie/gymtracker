@@ -185,6 +185,35 @@ class GymTrackerDB extends Dexie {
         });
       });
 
+    this.version(8)
+      .stores({
+        settings: "id, language, weightUnit",
+        workouts: "++id, name, createdAt, updatedAt",
+        exercises: "++id, workoutId, name, order, isTemplate",
+        exerciseTemplateSets: "++id, exerciseId, order",
+        sessions: "++id, workoutId, status, startedAt, finishedAt",
+        sessionExerciseSets:
+          "++id, sessionId, templateExerciseId, sessionExerciseKey, isTemplateExercise, completed",
+        updateSafetySnapshots: "++id, createdAt, appVersion, previousAppVersion"
+      })
+      .upgrade(async (tx) => {
+        await tx.table("settings").toCollection().modify((settings: Record<string, unknown>) => {
+          const legacyRestTimerSeconds = typeof settings.restTimerSeconds === "number" ? settings.restTimerSeconds : undefined;
+          if (settings.restTimerEnabled === undefined) {
+            settings.restTimerEnabled = legacyRestTimerSeconds === 0 ? false : true;
+          }
+          if (legacyRestTimerSeconds === 0) {
+            settings.restTimerSeconds = 120;
+          }
+          if (typeof settings.restTimerSeconds !== "number" || ![60, 120, 180, 300].includes(settings.restTimerSeconds as number)) {
+            settings.restTimerSeconds = 120;
+          }
+          if (settings.lockerNoteEnabled === undefined) {
+            settings.lockerNoteEnabled = true;
+          }
+        });
+      });
+
   }
 }
 

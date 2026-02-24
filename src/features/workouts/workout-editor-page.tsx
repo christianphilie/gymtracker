@@ -160,18 +160,6 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
       return;
     }
 
-    window.dispatchEvent(
-      new CustomEvent("gymtracker:workout-editor-save-state", {
-        detail: { disabled: !isValid || isSaving || isDeleting }
-      })
-    );
-  }, [mode, isDeleting, isSaving, isValid]);
-
-  useEffect(() => {
-    if (mode !== "edit") {
-      return;
-    }
-
     const onSaveRequest = () => {
       void handleSave();
     };
@@ -179,11 +167,6 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
     window.addEventListener("gymtracker:save-workout-editor", onSaveRequest);
     return () => {
       window.removeEventListener("gymtracker:save-workout-editor", onSaveRequest);
-      window.dispatchEvent(
-        new CustomEvent("gymtracker:workout-editor-save-state", {
-          detail: { disabled: true }
-        })
-      );
     };
   }, [mode, handleSave]);
 
@@ -311,40 +294,44 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                   {exercise.sets.map((set, setIndex) => (
                     <div key={`set-${setIndex}`} className="grid grid-cols-[1fr_1fr] items-center gap-2 py-1">
                       <div className="min-w-0">
-                        <DecimalInput
-                          value={set.targetReps}
-                          min={1}
-                          step={1}
-                          className="pr-10"
-                          onCommit={(value) => {
-                            setDraft((prev) => {
-                              const next = structuredClone(prev);
-                              next.exercises[exerciseIndex].sets[setIndex].targetReps = value;
-                              return next;
-                            });
-                          }}
-                        />
-                        <div className="pointer-events-none -mt-7 mr-2 flex justify-end text-base text-muted-foreground">
-                          ×
+                        <div className="relative">
+                          <DecimalInput
+                            value={set.targetReps}
+                            min={1}
+                            step={1}
+                            className="pr-10"
+                            onCommit={(value) => {
+                              setDraft((prev) => {
+                                const next = structuredClone(prev);
+                                next.exercises[exerciseIndex].sets[setIndex].targetReps = value;
+                                return next;
+                              });
+                            }}
+                          />
+                          <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">
+                            ×
+                          </div>
                         </div>
                       </div>
 
                       <div className="min-w-0">
-                        <DecimalInput
-                          value={set.targetWeight}
-                          min={0}
-                          step={0.5}
-                          className="pr-10"
-                          onCommit={(value) => {
-                            setDraft((prev) => {
-                              const next = structuredClone(prev);
-                              next.exercises[exerciseIndex].sets[setIndex].targetWeight = value;
-                              return next;
-                            });
-                          }}
-                        />
-                        <div className="pointer-events-none -mt-7 mr-2 flex justify-end text-base text-muted-foreground">
-                          {weightUnitLabel}
+                        <div className="relative">
+                          <DecimalInput
+                            value={set.targetWeight}
+                            min={0}
+                            step={0.5}
+                            className="pr-12"
+                            onCommit={(value) => {
+                              setDraft((prev) => {
+                                const next = structuredClone(prev);
+                                next.exercises[exerciseIndex].sets[setIndex].targetWeight = value;
+                                return next;
+                              });
+                            }}
+                          />
+                          <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">
+                            {weightUnitLabel}
+                          </div>
                         </div>
                       </div>
                     </div>

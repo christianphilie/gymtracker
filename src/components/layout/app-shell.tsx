@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, Dumbbell, Flag, DoorClosedLocked, Pause, Play, Save, Settings } from "lucide-react";
+import { Check, Dumbbell, Flag, Pause, Play, Save, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { LockerNoteInput } from "@/components/forms/locker-note-input";
 import { useSettings } from "@/app/settings-context";
 import { db } from "@/db/db";
 import { formatDurationClock } from "@/lib/utils";
-import { updateLockerNumber } from "@/db/repository";
 
 // iOS homescreen hint (temporarily disabled; keep for later re-enable)
 // const IOS_WEBAPP_HINT_DISMISSED_KEY = "gymtracker:ios-webapp-hint-dismissed";
@@ -38,20 +37,20 @@ interface SessionHeaderState {
 interface HeaderActionsProps {
   sessionState: SessionHeaderState | null;
   restTimerSeconds: number;
+  restTimerEnabled: boolean;
   timerPaused: boolean;
   onToggleTimer: () => void;
   showEditorSave: boolean;
-  editorSaveDisabled: boolean;
   onEditorSave: () => void;
 }
 
 function HeaderActions({
   sessionState,
   restTimerSeconds,
+  restTimerEnabled,
   timerPaused,
   onToggleTimer,
   showEditorSave,
-  editorSaveDisabled,
   onEditorSave
 }: HeaderActionsProps) {
   const { t } = useSettings();
@@ -76,7 +75,7 @@ function HeaderActions({
 
   if (sessionState) {
     const donePercent = sessionState.total > 0 ? Math.round((sessionState.completed / sessionState.total) * 100) : 0;
-    const hasRestTimer = restTimerSeconds > 0;
+    const hasRestTimer = restTimerEnabled && restTimerSeconds > 0;
     const timerProgress = hasRestTimer ? Math.min(sessionState.elapsedSeconds, restTimerSeconds) / restTimerSeconds : 0;
     const timerExceeded = hasRestTimer && sessionState.elapsedSeconds >= restTimerSeconds;
     const timerBarColor = timerExceeded ? "#f59e0b" : "#059669";
@@ -121,7 +120,7 @@ function HeaderActions({
 
   if (showEditorSave) {
     return (
-      <Button size="sm" disabled={editorSaveDisabled} onClick={onEditorSave}>
+      <Button size="sm" onClick={onEditorSave}>
         <Save className="mr-2 h-4 w-4" />
         {t("save")}
       </Button>
@@ -140,7 +139,7 @@ function HeaderActions({
 }
 
 export function AppShell() {
-  const { t, restTimerSeconds } = useSettings();
+  const { t, restTimerSeconds, restTimerEnabled, lockerNoteEnabled } = useSettings();
   const location = useLocation();
   const sessionMatch = location.pathname.match(/^\/sessions\/(\d+)$/);
   const workoutEditMatch = location.pathname.match(/^\/workouts\/(\d+)\/edit$/);
@@ -175,13 +174,10 @@ export function AppShell() {
   }, [activeSessionId]);
 
 
-  const appSettings = useLiveQuery(async () => db.settings.get(1), []);
   const [now, setNow] = useState(() => Date.now());
   const [timerPaused, setTimerPaused] = useState(false);
   const [timerPausedTotalMs, setTimerPausedTotalMs] = useState(0);
   const [timerPauseStartedAt, setTimerPauseStartedAt] = useState<number | null>(null);
-  const [editorSaveDisabled, setEditorSaveDisabled] = useState(true);
-  const [lockerDraft, setLockerDraft] = useState("");
   // const [showIosWebAppHint, setShowIosWebAppHint] = useState(false);
   //
   // useEffect(() => {
@@ -191,23 +187,6 @@ export function AppShell() {
   //   }
   //   setShowIosWebAppHint(true);
   // }, []);
-
-  useEffect(() => {
-    if (!isWorkoutEditRoute) {
-      setEditorSaveDisabled(true);
-      return;
-    }
-
-    const onSaveState = (event: Event) => {
-      const customEvent = event as CustomEvent<{ disabled?: boolean }>;
-      setEditorSaveDisabled(customEvent.detail?.disabled ?? true);
-    };
-
-    window.addEventListener("gymtracker:workout-editor-save-state", onSaveState as EventListener);
-    return () => {
-      window.removeEventListener("gymtracker:workout-editor-save-state", onSaveState as EventListener);
-    };
-  }, [isWorkoutEditRoute]);
 
   useEffect(() => {
     if (!sessionMeta) {
@@ -224,32 +203,6 @@ export function AppShell() {
     setTimerPauseStartedAt(null);
   }, [sessionMeta?.sessionId, sessionMeta?.sinceIso]);
 
-
-  useEffect(() => {
-    setLockerDraft(appSettings?.lockerNumber ?? "");
-  }, [appSettings?.lockerNumber]);
-
-  useEffect(() => {
-    const maybeResetLocker = async () => {
-      const settings = await db.settings.get(1);
-      if (!settings?.lockerNumber) return;
-
-      const updatedDate = settings.lockerNumberUpdatedAt
-        ? new Date(settings.lockerNumberUpdatedAt).toLocaleDateString("sv-SE")
-        : "";
-
-      if (updatedDate !== new Date().toLocaleDateString("sv-SE")) {
-        await updateLockerNumber("");
-      }
-    };
-
-    void maybeResetLocker();
-    const interval = window.setInterval(() => {
-      void maybeResetLocker();
-    }, 60_000);
-
-    return () => window.clearInterval(interval);
-  }, []);
   const sessionState = useMemo<SessionHeaderState | null>(() => {
     if (!sessionMeta) {
       return null;
@@ -272,7 +225,7 @@ export function AppShell() {
       doneAndReady: sessionMeta.total > 0 && sessionMeta.completed === sessionMeta.total
     };
   }, [sessionMeta, now, timerPaused, timerPauseStartedAt, timerPausedTotalMs]);
-
+  const showLockerNote = lockerNoteEnabled && !sessionState && !isWorkoutEditRoute;
   const handleToggleTimer = () => {
     if (!sessionState?.sinceIso) {
       return;
@@ -295,12 +248,6 @@ export function AppShell() {
     window.dispatchEvent(new CustomEvent("gymtracker:save-workout-editor"));
   };
 
-  const handleLockerDraftCommit = () => {
-    const normalized = lockerDraft.replace(/\D/g, "").slice(0, 3);
-    setLockerDraft(normalized);
-    void updateLockerNumber(normalized);
-  };
-
   // const dismissIosWebAppHint = () => {
   //   localStorage.setItem(IOS_WEBAPP_HINT_DISMISSED_KEY, "true");
   //   setShowIosWebAppHint(false);
@@ -310,45 +257,24 @@ export function AppShell() {
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col bg-background">
       <header className="sticky top-0 z-20 border-x-0 border-b border-t-0 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="container flex h-14 items-center justify-between">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 rounded-full border border-input bg-card px-4 py-2 text-base font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-colors hover:bg-secondary"
-          >
-            <Dumbbell className="h-4 w-4" />
-            {t("appName")}
-          </Link>
           <div className="flex items-center gap-2">
-            {location.pathname === "/" && (
-              <label className={`inline-flex h-9 items-center rounded-md border border-input bg-background text-sm shadow-sm transition-all duration-200 overflow-hidden ${lockerDraft ? "w-[4.5rem] gap-1 px-2" : "w-9 gap-0 px-2 focus-within:w-[4.5rem] focus-within:gap-1"}`}>
-                <DoorClosedLocked className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <Input
-                  aria-label={t("lockerNumber")}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={3}
-                  value={lockerDraft}
-                  onChange={(event) => {
-                    const next = event.currentTarget.value.replace(/\D/g, "").slice(0, 3);
-                    setLockerDraft(next);
-                  }}
-                  onBlur={handleLockerDraftCommit}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.currentTarget.blur();
-                    }
-                  }}
-                  placeholder=" # "
-                  className="h-7 w-10 min-w-0 border-0 bg-transparent p-0 text-center text-sm font-medium tabular-nums shadow-none focus-visible:ring-0"
-                />
-              </label>
-            )}
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 rounded-full border border-input bg-card px-4 py-2 text-base font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-colors hover:bg-emerald-100 hover:text-emerald-700"
+            >
+              <Dumbbell className="h-4 w-4 text-emerald-600" />
+              {t("appName")}
+            </Link>
+          </div>
+          <div className="flex items-center gap-2">
+            {showLockerNote && <LockerNoteInput />}
             <HeaderActions
               sessionState={sessionState}
               restTimerSeconds={restTimerSeconds}
+              restTimerEnabled={restTimerEnabled}
               timerPaused={timerPaused}
               onToggleTimer={handleToggleTimer}
               showEditorSave={isWorkoutEditRoute}
-              editorSaveDisabled={editorSaveDisabled}
               onEditorSave={handleEditorSave}
             />
           </div>

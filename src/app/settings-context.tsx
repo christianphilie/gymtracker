@@ -5,6 +5,8 @@ import {
   createUpdateSafetySnapshotIfNeeded,
   ensureDefaultSettings,
   updateColorScheme,
+  updateLockerNoteEnabled,
+  updateRestTimerEnabled,
   updateRestTimerSeconds,
   updateWeightUnitAndConvert,
   updateSettings
@@ -18,11 +20,15 @@ interface SettingsContextValue {
   weightUnit: WeightUnit;
   weightUnitLabel: string;
   restTimerSeconds: number;
+  restTimerEnabled: boolean;
+  lockerNoteEnabled: boolean;
   colorScheme: ColorScheme;
   t: (key: TranslationKey) => string;
   setLanguage: (language: AppLanguage) => Promise<void>;
   setWeightUnit: (unit: WeightUnit) => Promise<void>;
+  setRestTimerEnabled: (enabled: boolean) => Promise<void>;
   setRestTimerSeconds: (seconds: number) => Promise<void>;
+  setLockerNoteEnabled: (enabled: boolean) => Promise<void>;
   setColorScheme: (scheme: ColorScheme) => Promise<void>;
 }
 
@@ -72,6 +78,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const language = settings?.language ?? "de";
     const weightUnit = settings?.weightUnit ?? "kg";
     const restTimerSeconds = settings?.restTimerSeconds ?? 120;
+    const restTimerEnabled = settings?.restTimerEnabled ?? true;
+    const lockerNoteEnabled = settings?.lockerNoteEnabled ?? true;
     const currentColorScheme = settings?.colorScheme ?? "system";
 
     return {
@@ -79,6 +87,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       weightUnit,
       weightUnitLabel: weightUnit === "lb" ? "lbs" : "kg",
       restTimerSeconds,
+      restTimerEnabled,
+      lockerNoteEnabled,
       colorScheme: currentColorScheme,
       t: (key) => messages[language][key] ?? key,
       setLanguage: async (nextLanguage) => {
@@ -87,14 +97,27 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setWeightUnit: async (nextUnit) => {
         await updateWeightUnitAndConvert(nextUnit);
       },
+      setRestTimerEnabled: async (enabled) => {
+        await updateRestTimerEnabled(enabled);
+      },
       setRestTimerSeconds: async (seconds) => {
         await updateRestTimerSeconds(seconds);
+      },
+      setLockerNoteEnabled: async (enabled) => {
+        await updateLockerNoteEnabled(enabled);
       },
       setColorScheme: async (scheme) => {
         await updateColorScheme(scheme);
       }
     };
-  }, [settings?.language, settings?.weightUnit, settings?.restTimerSeconds, settings?.colorScheme]);
+  }, [
+    settings?.language,
+    settings?.weightUnit,
+    settings?.restTimerSeconds,
+    settings?.restTimerEnabled,
+    settings?.lockerNoteEnabled,
+    settings?.colorScheme
+  ]);
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }

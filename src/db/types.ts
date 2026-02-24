@@ -7,6 +7,9 @@ export interface Settings {
   language: AppLanguage;
   weightUnit: WeightUnit;
   restTimerSeconds?: number;
+  restTimerEnabled?: boolean;
+  bodyWeight?: number;
+  lockerNoteEnabled?: boolean;
   lockerNumber?: string;
   lockerNumberUpdatedAt?: string;
   colorScheme?: ColorScheme;
