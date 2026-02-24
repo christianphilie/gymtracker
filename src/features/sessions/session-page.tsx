@@ -30,8 +30,8 @@ import {
 } from "@/db/repository";
 import { formatSessionDateLabel } from "@/lib/utils";
 
-const ACTIVE_SESSION_PILL_CLASS = "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700";
-const SUCCESS_CIRCLE_CLASS = "inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700";
+const ACTIVE_SESSION_PILL_CLASS = "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500";
+const SUCCESS_CIRCLE_CLASS = "inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-500";
 const SESSION_COLLAPSED_STORAGE_KEY_PREFIX = "gymtracker:session-collapsed:";
 
 function ExerciseSearchLink({ exerciseName }: { exerciseName: string }) {
@@ -349,7 +349,7 @@ export function SessionPage() {
                         <Button
                           variant={set.completed ? "default" : "outline"}
                           size="icon"
-                          className="rounded-md"
+                          className={`rounded-md ${set.completed ? "bg-emerald-500 text-white hover:bg-emerald-500/90" : ""}`}
                           disabled={isCompleted}
                           onClick={() => {
                             void updateSessionSet(set.id!, {

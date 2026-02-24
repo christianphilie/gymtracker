@@ -53,7 +53,7 @@ interface WeeklyDashboardStats {
   completedWorkouts: WeeklyStatsWorkoutEntry[];
 }
 
-const ACTIVE_SESSION_PILL_CLASS = "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700";
+const ACTIVE_SESSION_PILL_CLASS = "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500";
 const EMPTY_WEEKLY_STATS: WeeklyDashboardStats = {
   workoutCount: 0,
   exerciseCount: 0,
@@ -386,7 +386,7 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
               </Button>
             )}
             <Button
-              className={isActive ? "bg-emerald-600 text-white hover:bg-emerald-700" : undefined}
+              className={isActive ? "bg-emerald-500 text-white hover:bg-emerald-500/90" : undefined}
               disabled={disableStartBecauseOtherActive}
               onClick={() => handleStartSession(workout.id!)}
             >
@@ -402,7 +402,7 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
   return (
     <section className="space-y-4">
       <p className="text-base font-semibold leading-tight text-foreground/75">
-        {showWorkoutsSection ? t("workouts") : t("statisticsThisWeekSubtitle")}
+        {showWorkoutsSection ? t("workoutsSubtitle") : t("statisticsThisWeekSubtitle")}
       </p>
 
       {showWorkoutsSection && !hasWorkouts && (

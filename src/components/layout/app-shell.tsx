@@ -110,7 +110,7 @@ function HeaderActions({
     const hasRestTimer = restTimerEnabled && restTimerSeconds > 0;
     const timerProgress = hasRestTimer ? Math.min(sessionState.elapsedSeconds, restTimerSeconds) / restTimerSeconds : 0;
     const timerExceeded = hasRestTimer && sessionState.elapsedSeconds >= restTimerSeconds;
-    const timerBarColor = timerExceeded ? "#f59e0b" : "#059669";
+    const timerBarColor = timerExceeded ? "#f59e0b" : "#10b981";
 
     return (
       <div className="flex items-center gap-2">
@@ -122,7 +122,7 @@ function HeaderActions({
             aria-label={timerPaused ? t("resumeSession") : t("pauseTimer")}
           >
             <div className="inline-flex h-full w-full items-start px-2 pt-1.5">
-              <p className="inline-flex h-[16px] w-full items-center justify-center gap-1 text-center text-xs font-medium leading-none">
+              <p className="inline-flex h-[16px] w-full items-center justify-center gap-1 text-center text-xs font-medium leading-none tabular-nums">
                 {timerPaused
                   ? <PlaySolidIcon className="h-4 w-4 shrink-0" />
                   : <PauseSolidIcon className="h-4 w-4 shrink-0" />
@@ -141,7 +141,7 @@ function HeaderActions({
 
         <div className="relative h-9 w-[4.5rem] overflow-hidden rounded-md border border-input bg-background/80 shadow-sm">
           <div className="inline-flex h-full w-full items-start px-2 pt-1.5">
-            <p className="inline-flex h-[16px] w-full items-center justify-center text-center text-xs font-medium leading-none">
+            <p className="inline-flex h-[16px] w-full items-center justify-center text-center text-xs font-medium leading-none tabular-nums">
               <Check className="mr-1 h-3.5 w-3.5" />
               {sessionState.completed}/{sessionState.total}
             </p>
@@ -183,8 +183,8 @@ export function AppShell() {
     if (location.pathname === "/") {
       title = t("appName");
       Icon = Dumbbell;
-      iconClassName = "text-emerald-700";
-      titleClassName = "text-emerald-700";
+      iconClassName = "text-emerald-500";
+      titleClassName = "text-emerald-500";
       containerClassName = "rounded-full bg-emerald-100 px-3.5 py-1.5";
     } else if (location.pathname === "/statistics") {
       title = t("statistics");
@@ -369,13 +369,13 @@ export function AppShell() {
       <div className="pointer-events-none fixed inset-x-0 bottom-6 z-30 px-4">
         <div className="relative mx-auto max-w-3xl">
           <nav className="pointer-events-auto flex justify-center" aria-label="Primary">
-            <div className="flex items-center gap-0 rounded-2xl border border-white/50 bg-background/80 p-0.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08),0_22px_52px_rgba(15,23,42,0.14)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
+            <div className="flex items-center gap-0 rounded-full border border-white/50 bg-background/80 p-0.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08),0_22px_52px_rgba(15,23,42,0.14)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
               <div className="flex w-[4.25rem] shrink-0 justify-center">
                 <Link
                   to="/"
                   aria-label={t("workouts")}
                   title={t("workouts")}
-                  className={`inline-flex h-11 items-center justify-center rounded-xl transition-[padding,background-color,color] duration-200 ${
+                  className={`inline-flex h-11 items-center justify-center rounded-full transition-[padding,background-color,color] duration-200 ${
                     location.pathname === "/"
                       ? "bg-primary px-6 text-primary-foreground"
                       : "px-4 text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -390,9 +390,9 @@ export function AppShell() {
                     to={`/sessions/${activeSessionNav.sessionId}`}
                     aria-label={t("resumeSession")}
                     title={t("resumeSession")}
-                    className={`inline-flex h-11 items-center justify-center rounded-xl transition-[padding,background-color,color] duration-200 ${
+                    className={`inline-flex h-11 items-center justify-center rounded-full transition-[padding,background-color,color] duration-200 ${
                       location.pathname === `/sessions/${activeSessionNav.sessionId}`
-                        ? "bg-emerald-100 px-6 text-emerald-700"
+                        ? "bg-emerald-100 px-6 text-emerald-500"
                         : "px-4 text-foreground hover:bg-secondary hover:text-foreground"
                     }`}
                   >
@@ -405,7 +405,7 @@ export function AppShell() {
                   to="/statistics"
                   aria-label={t("statistics")}
                   title={t("statistics")}
-                  className={`inline-flex h-11 items-center justify-center rounded-xl transition-[padding,background-color,color] duration-200 ${
+                  className={`inline-flex h-11 items-center justify-center rounded-full transition-[padding,background-color,color] duration-200 ${
                     location.pathname === "/statistics"
                       ? "bg-primary px-6 text-primary-foreground"
                       : "px-4 text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -419,7 +419,7 @@ export function AppShell() {
                   to="/settings"
                   aria-label={t("settings")}
                   title={t("settings")}
-                  className={`inline-flex h-11 items-center justify-center rounded-xl transition-[padding,background-color,color] duration-200 ${
+                  className={`inline-flex h-11 items-center justify-center rounded-full transition-[padding,background-color,color] duration-200 ${
                     location.pathname === "/settings"
                       ? "bg-primary px-6 text-primary-foreground"
                       : "px-4 text-muted-foreground hover:bg-secondary hover:text-foreground"
