@@ -9,6 +9,8 @@
 4. Completed session history editing now supports changing session start and end date/time after the fact.
 5. Exercise info enrichment via Groq: per-exercise target-muscle weighting + execution/coaching tips with reusable info popups in workout editor, active session, and history views.
 6. Weekly Data view now includes a muscle-group radar visualization (Reps/Sets/Weight modes) plus a radio-style weekly session timeline (Mon-Sun axis with clickable session markers).
+7. Home workout cards now show an estimated workout duration (based on template sets/reps plus configured rest-timer duration) and can highlight a recommended next workout when no workout was tracked today and no session is active.
+8. Home view now includes a compact "My Weekly Goal" section with a dropdown to choose one weekly goal progress card.
 
 ### Changed
 1. Settings UX was refactored and polished with reusable card/title patterns, additional icons, and animated reveal/hide behavior for timer duration and weekly-goal inputs.
@@ -22,11 +24,15 @@
 9. Statistics screen was retitled to "Wochendaten" / "Weekly Data" and reorganized into cleaner sections (summary tiles, Sessions, Weekly Goals, Muscle Groups) with separator lines and less nested card chrome.
 10. Active session screen now has compact top-right discard/complete icon actions and a smaller inline "Add exercise" button.
 11. Session header set-progress badge is now tappable and marks the next set below the lowest already-completed set (instead of the first unchecked set globally).
+12. Dashboard routing now uses feature-specific entry files (`HomePage`, `WeeklyDataPage`) and shared weekly-statistics helpers were extracted from the dashboard page into `weekly-data-utils`.
+13. Settings app tab order now shows the locker-note toggle before the rest-timer card; weekly-goal inputs were cleaned up (no placeholders, workout-goal unit suffix), and the backup import hint text was simplified.
+14. Session-edit dialog now uses a compact save action in the header (top-right) instead of the default close icon.
 
 ### Fixed
 1. Local `npm run dev` now serves in-repo `/api/ai-import` and `/api/exercise-info` handlers through Vite middleware, so AI features work during development with `.env` keys.
 2. Exercise-info loading no longer shows a false error toast when data was successfully fetched and merged; the loader now skips exercises that already have stored info.
 3. Weekly muscle-group stats now resolve exercise AI info more robustly for historical sessions by falling back to current template data via `(workoutId + exerciseName)` when template IDs changed after edits.
+4. Backup export/import schema now preserves `x2Enabled` on template exercises and session exercise sets.
 
 ### Docs
 1. Agent notes were consolidated into `docs/AGENTS.md` (root `AGENTS.md` kept as a small shim).

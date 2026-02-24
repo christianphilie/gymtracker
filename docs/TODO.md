@@ -19,6 +19,17 @@
 2. Richer history filters (date ranges, PR highlights, volume rollups).
 3. Optional cloud/login phase (V2+): consider Vercel serverless functions + Supabase (Postgres + Row-Level Security) for a lightweight backend that requires zero infrastructure management. Auth via Supabase Auth (magic link / Google OAuth). All existing Dexie data would migrate on first login.
 4. Revisit optional "x2" exercise/set concept (likely as a clearer multiplier/intensity/tag model with explicit UX and history semantics).
+5. Home page enhancement ideas (future):
+   - Today card (active session, last workout, suggested next workout)
+   - Quick actions (add workout, AI import, resume session, adopt previous values)
+   - Recently used workouts/sessions shortcuts
+   - Compact weekly progress summary on home
+   - Streak / training rhythm indicators
+   - Recommended next workout (longest time since last completion)
+   - Unfinished items / active drafts overview
+   - Weekly mini bests / highlights
+   - Muscle balance short hint (e.g. undertrained groups this week)
+   - Optional notes / reminders for today's training
 
 ## Done
 1. App scaffold and architecture.
