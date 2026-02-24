@@ -12,6 +12,7 @@ import {
   updateSettings
 } from "@/db/repository";
 import type { AppLanguage, ColorScheme, WeightUnit } from "@/db/types";
+import { runExerciseAiCatalogBackfillIfNeeded } from "@/lib/exercise-ai-catalog-backfill";
 import { messages, type TranslationKey } from "@/i18n/translations";
 import { toast } from "sonner";
 
@@ -73,6 +74,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       return () => mediaQuery.removeEventListener("change", applyTheme);
     }
   }, [colorScheme]);
+
+  useEffect(() => {
+    if (!settings?.language) {
+      return;
+    }
+
+    void runExerciseAiCatalogBackfillIfNeeded(settings.language);
+  }, [settings?.language]);
 
   const value = useMemo<SettingsContextValue>(() => {
     const language = settings?.language ?? "de";

@@ -9,6 +9,11 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import type { ExerciseAiInfo } from "@/db/types";
+import {
+  getCanonicalMuscleDetailLabel,
+  getCanonicalMuscleMiddleLabel,
+  isCanonicalMuscleKey
+} from "@/lib/muscle-taxonomy";
 
 interface ExerciseInfoDialogButtonProps {
   exerciseName: string;
@@ -31,12 +36,26 @@ function formatMuscleLabel(label: string) {
     .trim();
 }
 
+function getDisplayMuscleLabel(label: string, muscleKey: unknown, locale: "de" | "en") {
+  if (isCanonicalMuscleKey(muscleKey)) {
+    return getCanonicalMuscleMiddleLabel(muscleKey, locale);
+  }
+  return formatMuscleLabel(label);
+}
+
+function getDisplayMuscleDetailLabel(label: string, muscleKey: unknown, locale: "de" | "en") {
+  if (isCanonicalMuscleKey(muscleKey)) {
+    return getCanonicalMuscleDetailLabel(muscleKey, locale);
+  }
+  return null;
+}
+
 export function ExerciseInfoDialogButton({
   exerciseName,
   aiInfo,
   className
 }: ExerciseInfoDialogButtonProps) {
-  const { t } = useSettings();
+  const { t, language } = useSettings();
   const [open, setOpen] = useState(false);
   const titleRef = useRef<HTMLHeadingElement | null>(null);
 
@@ -48,6 +67,8 @@ export function ExerciseInfoDialogButton({
   if (!aiInfo || sortedMuscles.length === 0) {
     return null;
   }
+
+  const matchedDisplayName = aiInfo.matchedExerciseName?.trim() || exerciseName.trim() || "-";
 
   return (
     <>
@@ -74,7 +95,7 @@ export function ExerciseInfoDialogButton({
         >
           <DialogHeader>
             <DialogTitle ref={titleRef} tabIndex={-1} className="pr-8 text-lg leading-tight">
-              {exerciseName}
+              {matchedDisplayName}
             </DialogTitle>
           </DialogHeader>
 
@@ -82,20 +103,40 @@ export function ExerciseInfoDialogButton({
             <section className="space-y-2">
               <h3 className="text-sm font-medium">{t("targetMuscles")}</h3>
               <div className="space-y-2">
-                {sortedMuscles.map((muscle) => (
-                  <div key={`${muscle.muscle}-${muscle.involvementPercent}`} className="space-y-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-foreground">{formatMuscleLabel(muscle.muscle)}</p>
-                      <p className="text-xs font-medium tabular-nums text-muted-foreground">
-                        {muscle.involvementPercent}%
-                      </p>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{ width: `${Math.max(0, Math.min(100, muscle.involvementPercent))}%` }}
-                      />
-                    </div>
+                {sortedMuscles.map((muscle, index) => (
+                  <div
+                    key={`${String(muscle.muscleKey ?? muscle.muscle)}-${muscle.involvementPercent}-${index}`}
+                    className="space-y-1"
+                  >
+                    {(() => {
+                      const middleLabel = getDisplayMuscleLabel(muscle.muscle, muscle.muscleKey, language);
+                      const detailLabel = getDisplayMuscleDetailLabel(muscle.muscle, muscle.muscleKey, language);
+                      const showDetail = !!detailLabel && detailLabel !== middleLabel;
+
+                      return (
+                        <>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="min-w-0 text-xs font-medium text-foreground">
+                              <span>{middleLabel}</span>
+                              {showDetail && (
+                                <span className="ml-1 text-[10px] font-normal text-muted-foreground/60">
+                                  {detailLabel}
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs font-medium tabular-nums text-muted-foreground">
+                              {muscle.involvementPercent}%
+                            </p>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+                            <div
+                              className="h-full rounded-full bg-primary"
+                              style={{ width: `${Math.max(0, Math.min(100, muscle.involvementPercent))}%` }}
+                            />
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>

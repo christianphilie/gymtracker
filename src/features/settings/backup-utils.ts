@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { APP_DATA_EXPORT_VERSION, DB_SCHEMA_VERSION } from "@/app/version";
 import type { AppDataSnapshot } from "@/db/repository";
+import { isCanonicalMuscleKey, type CanonicalMuscleKey } from "@/lib/muscle-taxonomy";
+
+const muscleKeySchema = z.custom<CanonicalMuscleKey>((value) => isCanonicalMuscleKey(value));
 
 const settingsSchema = z.object({
   id: z.number().int(),
@@ -38,6 +41,7 @@ const exerciseSchema = z.object({
     .object({
       targetMuscles: z.array(
         z.object({
+          muscleKey: muscleKeySchema,
           muscle: z.string().min(1),
           involvementPercent: z.number().int().min(0).max(100)
         })
@@ -46,7 +50,10 @@ const exerciseSchema = z.object({
       coachingTips: z.array(z.string().min(1)),
       generatedAt: z.string().min(1),
       sourceProvider: z.string().optional(),
-      sourceModel: z.string().optional()
+      sourceModel: z.string().optional(),
+      matchedExerciseName: z.string().min(1).optional(),
+      matchStrategy: z.enum(["exact", "compact", "fuzzy"]).optional(),
+      matchScore: z.number().min(0).max(1).optional()
     })
     .optional(),
   order: z.number().int(),
@@ -84,6 +91,7 @@ const sessionExerciseSetSchema = z.object({
     .object({
       targetMuscles: z.array(
         z.object({
+          muscleKey: muscleKeySchema,
           muscle: z.string().min(1),
           involvementPercent: z.number().int().min(0).max(100)
         })
@@ -92,7 +100,10 @@ const sessionExerciseSetSchema = z.object({
       coachingTips: z.array(z.string().min(1)),
       generatedAt: z.string().min(1),
       sourceProvider: z.string().optional(),
-      sourceModel: z.string().optional()
+      sourceModel: z.string().optional(),
+      matchedExerciseName: z.string().min(1).optional(),
+      matchStrategy: z.enum(["exact", "compact", "fuzzy"]).optional(),
+      matchScore: z.number().min(0).max(1).optional()
     })
     .optional(),
   exerciseOrder: z.number().int(),

@@ -1,4 +1,5 @@
 import type { ExerciseAiInfo, SessionExerciseSet } from "@/db/types";
+import { getCanonicalMuscleGroup, isCanonicalMuscleKey } from "@/lib/muscle-taxonomy";
 import { formatNumber, getSetStatsMultiplier } from "@/lib/utils";
 
 export interface WeeklyStatsWorkoutEntry {
@@ -115,40 +116,6 @@ export function normalizeExerciseLookupName(value: string) {
   return value.trim().toLowerCase();
 }
 
-function normalizeMuscleName(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/muskulatur/g, "")
-    .replace(/musculature/g, "")
-    .trim();
-}
-
-function resolveMuscleGroup(muscleName: string): MuscleGroupKey | null {
-  const name = normalizeMuscleName(muscleName);
-  if (!name) return null;
-
-  if (/(bizeps|biceps|trizeps|triceps|unterarm|forearm|brachialis|brachioradialis)/.test(name)) {
-    return "arms";
-  }
-  if (/(brust|chest|pec|pectoral)/.test(name)) {
-    return "chest";
-  }
-  if (/(schulter|shoulder|deltoid|delt|rotatorenmanschette|rotator cuff|supraspinatus|infraspinatus)/.test(name)) {
-    return "shoulders";
-  }
-  if (/(rücken|back|lat|lats|latissimus|rhomboid|trapez|trapezius|trap|teres|erector spinae|spinal erector)/.test(name)) {
-    return "back";
-  }
-  if (/(bauch|core|abs|abdom|oblique|obliques|transversus|serratus)/.test(name)) {
-    return "core";
-  }
-  if (/(bein|leg|quad|quadriceps|hamstring|glute|gluteus|adductor|abductor|calf|calves|wade)/.test(name)) {
-    return "legs";
-  }
-
-  return null;
-}
-
 function getSetAiInfo(
   set: SessionExerciseSet,
   templateAiInfoById: Map<number, ExerciseAiInfo>,
@@ -186,8 +153,8 @@ export function addMuscleContributionFromSet(
 
   const groupPercentByKey = new Map<MuscleGroupKey, number>();
   for (const target of aiInfo.targetMuscles) {
-    const group = resolveMuscleGroup(target.muscle);
-    if (!group) continue;
+    if (!isCanonicalMuscleKey(target.muscleKey)) continue;
+    const group = getCanonicalMuscleGroup(target.muscleKey);
     const percent = clampPercent(Number(target.involvementPercent));
     if (!Number.isFinite(percent) || percent <= 0) continue;
     groupPercentByKey.set(group, (groupPercentByKey.get(group) ?? 0) + percent);

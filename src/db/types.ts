@@ -1,3 +1,5 @@
+import type { CanonicalMuscleKey } from "../lib/muscle-taxonomy";
+
 export type AppLanguage = "de" | "en";
 export type WeightUnit = "kg" | "lb";
 export type ColorScheme = "light" | "dark" | "system";
@@ -30,6 +32,7 @@ export interface Workout {
 }
 
 export interface ExerciseAiTargetMuscle {
+  muscleKey: CanonicalMuscleKey;
   muscle: string;
   involvementPercent: number;
 }
@@ -41,6 +44,9 @@ export interface ExerciseAiInfo {
   generatedAt: string;
   sourceProvider?: string;
   sourceModel?: string;
+  matchedExerciseName?: string;
+  matchStrategy?: "exact" | "compact" | "fuzzy";
+  matchScore?: number;
 }
 
 export interface Exercise {

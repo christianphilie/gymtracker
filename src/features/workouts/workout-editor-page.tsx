@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronDown, GripVertical, Loader2, NotebookPen, Plus, Save, Sparkles, Trash2, X } from "lucide-react";
+import { ChevronDown, GripVertical, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
@@ -26,6 +26,13 @@ import {
 } from "@/db/repository";
 import type { ExerciseAiInfo } from "@/db/types";
 import { useSettings } from "@/app/settings-context";
+import { getCachedExerciseAiInfo, setCachedExerciseAiInfoBatch } from "@/lib/exercise-ai-info-cache";
+import {
+  buildExerciseInfoForMatch,
+  getExerciseCatalogSuggestions,
+  matchExerciseCatalogEntry
+} from "@/lib/exercise-catalog";
+import { isCanonicalMuscleKey } from "@/lib/muscle-taxonomy";
 
 interface WorkoutEditorPageProps {
   mode: "create" | "edit";
@@ -33,13 +40,17 @@ interface WorkoutEditorPageProps {
 
 interface ExerciseInfoApiItem {
   inputName: string;
-  targetMuscles: Array<{ muscle: string; involvementPercent: number }>;
+  targetMuscles: Array<{ muscleKey: string; muscle: string; involvementPercent: number }>;
   executionGuide: string;
   coachingTips: string[];
+  matchedExerciseName?: string;
+  matchStrategy?: "exact" | "compact" | "fuzzy";
+  matchScore?: number;
 }
 
 interface GenerateExerciseInfoOptions {
   forceRefresh?: boolean;
+  silent?: boolean;
 }
 
 function createEmptyDraft(): WorkoutDraft {
@@ -94,6 +105,95 @@ function hasExerciseAiInfo(info: ExerciseAiInfo | undefined): info is ExerciseAi
   );
 }
 
+function needsCatalogMatchMetadataBackfill(info: ExerciseAiInfo | undefined) {
+  return hasExerciseAiInfo(info) && info.sourceProvider === "local-catalog" && !info.matchedExerciseName?.trim();
+}
+
+function getExerciseNameSuggestions(exerciseName: string, language: "de" | "en") {
+  const normalizedCurrentName = normalizeExerciseName(exerciseName);
+  if (normalizedCurrentName.length < 3) {
+    return [];
+  }
+
+  const primaryMatch = matchExerciseCatalogEntry(exerciseName);
+  if (primaryMatch && (primaryMatch.strategy === "exact" || primaryMatch.strategy === "compact")) {
+    return [];
+  }
+
+  const ranked = getExerciseCatalogSuggestions(exerciseName, language, { limit: 10, minScore: 0.46 });
+  const topScore = ranked[0]?.score ?? 0;
+  const minAllowedScore = Math.max(0.52, topScore - 0.16);
+
+  return ranked
+    .filter((item) => item.score >= minAllowedScore)
+    .slice(0, 6)
+    .map((item) => item.label.trim())
+    .filter(Boolean)
+    .filter((label, index, list) => list.indexOf(label) === index)
+    .filter((label) => normalizeExerciseName(label) !== normalizedCurrentName);
+}
+
+function mergeExerciseInfosByExerciseName(
+  currentDraft: WorkoutDraft,
+  infosByNormalizedExerciseName: Map<string, ExerciseAiInfo>,
+  options: { forceRefresh?: boolean } = {}
+) {
+  const forceRefresh = options.forceRefresh === true;
+  const next = structuredClone(currentDraft);
+
+  for (const exercise of next.exercises) {
+    const key = normalizeExerciseName(exercise.name);
+    if (!key) {
+      continue;
+    }
+
+    if (!forceRefresh && hasExerciseAiInfo(exercise.aiInfo) && !needsCatalogMatchMetadataBackfill(exercise.aiInfo)) {
+      continue;
+    }
+
+    const info = infosByNormalizedExerciseName.get(key);
+    if (!info) {
+      continue;
+    }
+    exercise.aiInfo = info;
+  }
+
+  return next;
+}
+
+function buildLocalExerciseInfoApiItems(language: "de" | "en", exerciseNames: string[]): ExerciseInfoApiItem[] {
+  return exerciseNames.flatMap((inputName) => {
+    const match = matchExerciseCatalogEntry(inputName);
+    if (!match) {
+      return [];
+    }
+    const item = buildExerciseInfoForMatch(match, language, inputName);
+    return [
+      {
+        inputName: item.inputName,
+        targetMuscles: item.targetMuscles,
+        executionGuide: item.executionGuide,
+        coachingTips: item.coachingTips,
+        matchedExerciseName: item.matchedExerciseName,
+        matchStrategy: item.matchStrategy,
+        matchScore: item.matchScore
+      }
+    ];
+  });
+}
+
+function markAutoAttempts(
+  attemptedKeysRef: { current: Set<string> },
+  language: "de" | "en",
+  exerciseNames: string[]
+) {
+  for (const name of exerciseNames) {
+    const key = normalizeExerciseName(name);
+    if (!key) continue;
+    attemptedKeysRef.current.add(`${language}::${key}`);
+  }
+}
+
 export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const { workoutId } = useParams();
   const navigate = useNavigate();
@@ -108,7 +208,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const [newExerciseName, setNewExerciseName] = useState("");
   const [deleteExerciseIndex, setDeleteExerciseIndex] = useState<number | null>(null);
   const [isGeneratingExerciseInfo, setIsGeneratingExerciseInfo] = useState(false);
-  const [isExerciseInfoReloadDialogOpen, setIsExerciseInfoReloadDialogOpen] = useState(false);
+  const attemptedAutoExerciseInfoKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (mode !== "edit" || !workoutId) {
@@ -161,17 +261,15 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
     );
   }, [draft]);
 
-  const namedExerciseCount = useMemo(
-    () => draft.exercises.filter((exercise) => exercise.name.trim().length > 0).length,
-    [draft.exercises]
-  );
-
   const handleGenerateExerciseInfo = useCallback(async (options: GenerateExerciseInfoOptions = {}) => {
     const forceRefresh = options.forceRefresh === true;
+    const silent = options.silent === true;
     const baseDraft = structuredClone(draft);
 
     if (baseDraft.exercises.every((exercise) => !exercise.name.trim())) {
-      toast.error(t("exerciseInfoGenerateNoExercises"));
+      if (!silent) {
+        toast.error(t("exerciseInfoGenerateNoExercises"));
+      }
       return;
     }
 
@@ -196,7 +294,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
       }
 
       for (const exercise of baseDraft.exercises) {
-        if (hasExerciseAiInfo(exercise.aiInfo)) {
+        if (hasExerciseAiInfo(exercise.aiInfo) && !needsCatalogMatchMetadataBackfill(exercise.aiInfo)) {
           continue;
         }
         const key = normalizeExerciseName(exercise.name);
@@ -212,68 +310,153 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
       }
     }
 
+    let cacheFilledCount = 0;
+    if (!forceRefresh) {
+      for (const exercise of baseDraft.exercises) {
+        if (hasExerciseAiInfo(exercise.aiInfo) && !needsCatalogMatchMetadataBackfill(exercise.aiInfo)) {
+          continue;
+        }
+        const cachedInfo = getCachedExerciseAiInfo(language, exercise.name);
+        if (!hasExerciseAiInfo(cachedInfo)) {
+          continue;
+        }
+        exercise.aiInfo = cachedInfo;
+        cacheFilledCount += 1;
+      }
+    }
+
     const missingNames = Array.from(
       new Set(
         baseDraft.exercises
-          .filter((exercise) => !hasExerciseAiInfo(exercise.aiInfo))
+          .filter((exercise) => !hasExerciseAiInfo(exercise.aiInfo) || needsCatalogMatchMetadataBackfill(exercise.aiInfo))
           .map((exercise) => exercise.name.trim())
           .filter(Boolean)
       )
     );
 
-    if (missingNames.length === 0) {
-      if (locallyFilledCount > 0) {
-        setDraft(baseDraft);
-        toast.success(t("exerciseInfoGenerateSuccess").replace("{count}", String(locallyFilledCount)));
-      } else {
-        setIsExerciseInfoReloadDialogOpen(true);
+    const requestNames = silent
+      ? missingNames.filter(
+          (name) => !attemptedAutoExerciseInfoKeysRef.current.has(`${language}::${normalizeExerciseName(name)}`)
+        )
+      : missingNames;
+
+    if (missingNames.length === 0 || requestNames.length === 0) {
+      const totalReusedCount = locallyFilledCount + cacheFilledCount;
+      if (totalReusedCount > 0) {
+        const reusableInfoByName = new Map<string, ExerciseAiInfo>();
+        for (const exercise of baseDraft.exercises) {
+          if (!hasExerciseAiInfo(exercise.aiInfo)) {
+            continue;
+          }
+          const key = normalizeExerciseName(exercise.name);
+          if (!key) continue;
+          reusableInfoByName.set(key, exercise.aiInfo);
+        }
+
+        setDraft((prev) => mergeExerciseInfosByExerciseName(prev, reusableInfoByName, { forceRefresh }));
+        const reusableInfos = baseDraft.exercises.flatMap((exercise) =>
+          hasExerciseAiInfo(exercise.aiInfo) ? [{ exerciseName: exercise.name, info: exercise.aiInfo }] : []
+        );
+        if (reusableInfos.length > 0) {
+          setCachedExerciseAiInfoBatch(language, reusableInfos);
+        }
+        if (!silent) {
+          toast.success(t("exerciseInfoGenerateSuccess").replace("{count}", String(totalReusedCount)));
+        }
       }
       return;
     }
 
     setIsGeneratingExerciseInfo(true);
     try {
-      const response = await fetch("/api/exercise-info", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          locale: language,
-          exerciseNames: missingNames
-        })
-      });
-
-      if (!response.ok) {
-        let errorCode = "";
-        let errorDetail = "";
-        try {
-          const errorPayload = (await response.json()) as { error?: string; detail?: string };
-          errorCode = typeof errorPayload.error === "string" ? errorPayload.error : "";
-          errorDetail = typeof errorPayload.detail === "string" ? errorPayload.detail : "";
-        } catch {
-          // ignore parse errors and fall back to generic message
-        }
-
-        if (response.status === 404) {
-          toast.error(t("exerciseInfoEndpointUnavailable"));
-          return;
-        }
-        if (errorCode.includes("GROQ_API_KEY") || errorDetail.includes("GROQ_API_KEY")) {
-          toast.error(t("exerciseInfoProviderNotConfigured"));
-          return;
-        }
-
-        toast.error(t("exerciseInfoGenerateFailed"));
-        return;
-      }
-
-      const payload = (await response.json()) as {
+      let payload: {
         exercises?: unknown;
         sourceProvider?: string;
         sourceModel?: string;
-      };
+      } = {};
+
+      let usedLocalFallback = false;
+      try {
+        const response = await fetch("/api/exercise-info", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            locale: language,
+            exerciseNames: requestNames
+          })
+        });
+
+        if (!response.ok) {
+          let errorCode = "";
+          let errorDetail = "";
+          try {
+            const errorPayload = (await response.json()) as { error?: string; detail?: string };
+            errorCode = typeof errorPayload.error === "string" ? errorPayload.error : "";
+            errorDetail = typeof errorPayload.detail === "string" ? errorPayload.detail : "";
+          } catch {
+            // ignore parse errors and fall back below
+          }
+
+          // In local dev / API outages, fall back to local matching in the frontend.
+          payload = {
+            exercises: buildLocalExerciseInfoApiItems(language, requestNames),
+            sourceProvider: "local-catalog",
+            sourceModel: "exercise-catalog-v1"
+          };
+          usedLocalFallback = true;
+
+          if (Array.isArray(payload.exercises) && payload.exercises.length > 0) {
+            // continue with parsed fallback payload below
+          } else if (response.status === 404) {
+            if (silent) {
+              markAutoAttempts(attemptedAutoExerciseInfoKeysRef, language, requestNames);
+            } else {
+              toast.error(t("exerciseInfoEndpointUnavailable"));
+            }
+            return;
+          } else if (errorCode.includes("GROQ_API_KEY") || errorDetail.includes("GROQ_API_KEY")) {
+            if (silent) {
+              markAutoAttempts(attemptedAutoExerciseInfoKeysRef, language, requestNames);
+            } else {
+              toast.error(t("exerciseInfoProviderNotConfigured"));
+            }
+            return;
+          } else if (!silent) {
+            toast.error(t("exerciseInfoGenerateFailed"));
+            return;
+          }
+        } else {
+          payload = (await response.json()) as {
+            exercises?: unknown;
+            sourceProvider?: string;
+            sourceModel?: string;
+          };
+        }
+      } catch {
+        payload = {
+          exercises: buildLocalExerciseInfoApiItems(language, requestNames),
+          sourceProvider: "local-catalog",
+          sourceModel: "exercise-catalog-v1"
+        };
+        usedLocalFallback = true;
+      }
+
+      if (silent) {
+        markAutoAttempts(attemptedAutoExerciseInfoKeysRef, language, requestNames);
+      }
+
+      if (!usedLocalFallback && !Array.isArray(payload.exercises)) {
+        if (!silent) {
+          toast.error(t("exerciseInfoGenerateFailed"));
+        }
+        return;
+      }
+
       const items = Array.isArray(payload.exercises) ? payload.exercises.filter(isExerciseInfoApiItem) : [];
       if (items.length === 0) {
-        toast.error(t("exerciseInfoGenerateFailed"));
+        if (!silent) {
+          toast.error(t("exerciseInfoGenerateFailed"));
+        }
         return;
       }
 
@@ -284,10 +467,19 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         if (!key) continue;
 
         const targetMuscles = item.targetMuscles
-          .map((muscle) => ({
-            muscle: typeof muscle.muscle === "string" ? muscle.muscle.trim() : "",
-            involvementPercent: Math.max(0, Math.min(100, Math.round(Number(muscle.involvementPercent) || 0)))
-          }))
+          .flatMap((muscle) => {
+            if (!isCanonicalMuscleKey(muscle.muscleKey)) {
+              return [];
+            }
+
+            return [
+              {
+                muscleKey: muscle.muscleKey,
+                muscle: typeof muscle.muscle === "string" ? muscle.muscle.trim() : "",
+                involvementPercent: Math.max(0, Math.min(100, Math.round(Number(muscle.involvementPercent) || 0)))
+              }
+            ];
+          })
           .filter((muscle) => muscle.muscle);
         const coachingTips = item.coachingTips.map((tip) => tip.trim()).filter(Boolean);
         const executionGuide = item.executionGuide.trim();
@@ -301,14 +493,24 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
           coachingTips,
           executionGuide,
           generatedAt,
-          sourceProvider: typeof payload.sourceProvider === "string" ? payload.sourceProvider : "groq",
-          sourceModel: typeof payload.sourceModel === "string" ? payload.sourceModel : undefined
+          sourceProvider: typeof payload.sourceProvider === "string" ? payload.sourceProvider : "local-catalog",
+          sourceModel: typeof payload.sourceModel === "string" ? payload.sourceModel : undefined,
+          matchedExerciseName: typeof item.matchedExerciseName === "string" ? item.matchedExerciseName.trim() : undefined,
+          matchStrategy:
+            item.matchStrategy === "exact" || item.matchStrategy === "compact" || item.matchStrategy === "fuzzy"
+              ? item.matchStrategy
+              : undefined,
+          matchScore:
+            typeof item.matchScore === "number" && Number.isFinite(item.matchScore)
+              ? Math.max(0, Math.min(1, item.matchScore))
+              : undefined
         });
       }
 
+      const cacheEntriesToPersist: Array<{ exerciseName: string; info: ExerciseAiInfo }> = [];
       let apiUpdatedCount = 0;
       for (const exercise of baseDraft.exercises) {
-        if (!forceRefresh && hasExerciseAiInfo(exercise.aiInfo)) {
+        if (!forceRefresh && hasExerciseAiInfo(exercise.aiInfo) && !needsCatalogMatchMetadataBackfill(exercise.aiInfo)) {
           continue;
         }
         const info = infoByName.get(normalizeExerciseName(exercise.name));
@@ -316,23 +518,61 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
           continue;
         }
         exercise.aiInfo = info;
+        cacheEntriesToPersist.push({ exerciseName: exercise.name, info });
         apiUpdatedCount += 1;
       }
 
-      const totalUpdatedCount = locallyFilledCount + apiUpdatedCount;
+      if (cacheEntriesToPersist.length > 0) {
+        setCachedExerciseAiInfoBatch(language, cacheEntriesToPersist);
+      }
+
+      const totalUpdatedCount = locallyFilledCount + cacheFilledCount + apiUpdatedCount;
       if (totalUpdatedCount <= 0) {
-        toast.error(t("exerciseInfoGenerateFailed"));
+        if (!silent) {
+          toast.error(t("exerciseInfoGenerateFailed"));
+        }
         return;
       }
 
-      setDraft(baseDraft);
-      toast.success(t("exerciseInfoGenerateSuccess").replace("{count}", String(totalUpdatedCount)));
+      setDraft((prev) => mergeExerciseInfosByExerciseName(prev, infoByName, { forceRefresh }));
+      if (!silent) {
+        toast.success(t("exerciseInfoGenerateSuccess").replace("{count}", String(totalUpdatedCount)));
+      }
     } catch {
-      toast.error(t("exerciseInfoGenerateFailed"));
+      if (!silent) {
+        toast.error(t("exerciseInfoGenerateFailed"));
+      }
     } finally {
       setIsGeneratingExerciseInfo(false);
     }
   }, [draft, language, t]);
+
+  useEffect(() => {
+    if (isGeneratingExerciseInfo) {
+      return;
+    }
+
+    const hasMissingNamedExercises = draft.exercises.some(
+      (exercise) =>
+        exercise.name.trim().length >= 3 &&
+        (!hasExerciseAiInfo(exercise.aiInfo) || needsCatalogMatchMetadataBackfill(exercise.aiInfo))
+    );
+    if (!hasMissingNamedExercises) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void handleGenerateExerciseInfo({ silent: true });
+    }, 700);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [draft.exercises, handleGenerateExerciseInfo, isGeneratingExerciseInfo]);
+
+  useEffect(() => {
+    attemptedAutoExerciseInfoKeysRef.current.clear();
+  }, [language]);
 
   const handleSave = useCallback(async () => {
     if (!isValid) {
@@ -479,18 +719,51 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                       const value = event.target.value;
                       setDraft((prev) => {
                         const next = structuredClone(prev);
+                        const previousName = next.exercises[exerciseIndex].name;
                         next.exercises[exerciseIndex].name = value;
+                        if (normalizeExerciseName(previousName) !== normalizeExerciseName(value)) {
+                          next.exercises[exerciseIndex].aiInfo = undefined;
+                        }
                         return next;
                       });
                     }}
                     placeholder={t("exerciseNamePlaceholder")}
                   />
+                  {(() => {
+                    const suggestions = getExerciseNameSuggestions(exercise.name, language);
+                    if (suggestions.length === 0) {
+                      return null;
+                    }
+
+                    return (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {suggestions.map((suggestedName) => (
+                          <button
+                            key={suggestedName}
+                            type="button"
+                            className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-secondary/80 hover:text-foreground"
+                            onClick={() => {
+                              setDraft((prev) => {
+                                const next = structuredClone(prev);
+                                const currentExercise = next.exercises[exerciseIndex];
+                                if (!currentExercise) {
+                                  return prev;
+                                }
+                                currentExercise.name = suggestedName;
+                                currentExercise.aiInfo = undefined;
+                                return next;
+                              });
+                            }}
+                          >
+                            {suggestedName}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
 
                   <div className="space-y-2">
-                    <label className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                      <NotebookPen className="h-3.5 w-3.5" />
-                      {t("notes")}
-                    </label>
+                    <label className="text-xs text-muted-foreground">{t("notes")}</label>
                     <Textarea
                       rows={1}
                       value={exercise.notes ?? ""}
@@ -699,29 +972,8 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
 
       <div className="h-px bg-border" />
 
-      <Card>
-        <CardContent className="space-y-3 pt-4">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">{t("exerciseInfoGenerateSectionTitle")}</p>
-            <p className="text-xs text-muted-foreground">{t("exerciseInfoGenerateSectionDescription")}</p>
-          </div>
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-full gap-1.5"
-            disabled={isGeneratingExerciseInfo || namedExerciseCount === 0}
-            onClick={() => void handleGenerateExerciseInfo()}
-          >
-            {isGeneratingExerciseInfo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {isGeneratingExerciseInfo ? t("exerciseInfoGenerating") : t("exerciseInfoGenerate")}
-          </Button>
-        </CardContent>
-      </Card>
-
-      <div className="h-px bg-border" />
-
       <div className="space-y-2">
-        <Button className="w-full" disabled={!isValid || isSaving || isDeleting} onClick={handleSave}>
+        <Button className="w-full" disabled={!isValid || isSaving || isDeleting || isGeneratingExerciseInfo} onClick={handleSave}>
           <Save className="mr-2 h-4 w-4" />
           {t("save")}
         </Button>
@@ -767,33 +1019,6 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
               }}
             >
               {t("removeExercise")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isExerciseInfoReloadDialogOpen} onOpenChange={setIsExerciseInfoReloadDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("exerciseInfoReloadConfirmTitle")}</DialogTitle>
-            <DialogDescription>{t("exerciseInfoReloadConfirmDescription")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsExerciseInfoReloadDialogOpen(false)}
-              disabled={isGeneratingExerciseInfo}
-            >
-              {t("cancel")}
-            </Button>
-            <Button
-              onClick={() => {
-                setIsExerciseInfoReloadDialogOpen(false);
-                void handleGenerateExerciseInfo({ forceRefresh: true });
-              }}
-              disabled={isGeneratingExerciseInfo}
-            >
-              {t("exerciseInfoReloadConfirmAction")}
             </Button>
           </DialogFooter>
         </DialogContent>

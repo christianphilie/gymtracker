@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "composite": true,
+    "target": "ES2021",
     "lib": ["ES2021", "WebWorker"],
     "module": "ESNext",
     "moduleResolution": "bundler",
@@ -10,5 +11,11 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "api/**/*.ts"]
+  "include": [
+    "vite.config.ts",
+    "api/**/*.ts",
+    "src/db/types.ts",
+    "src/lib/muscle-taxonomy.ts",
+    "src/lib/exercise-catalog.ts"
+  ]
 }

@@ -156,6 +156,25 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function clearGymtrackerLocalStorage() {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return;
+  }
+
+  const keysToRemove: string[] = [];
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+    if (!key) continue;
+    if (key.startsWith("gymtracker:")) {
+      keysToRemove.push(key);
+    }
+  }
+
+  for (const key of keysToRemove) {
+    window.localStorage.removeItem(key);
+  }
+}
+
 async function getLatestCompletedSession(workoutId: number, beforeSessionId?: number) {
   const completedSessions = await db.sessions
     .where("workoutId")
@@ -702,6 +721,8 @@ export async function clearAllData() {
       await db.updateSafetySnapshots.clear();
     }
   );
+
+  clearGymtrackerLocalStorage();
 }
 
 export async function exportAllDataSnapshot(): Promise<AppDataSnapshot> {
