@@ -57,3 +57,6 @@
 34. Exercise info assistant added: Groq-backed target-muscle + coaching-tip enrichment, stored in templates/session snapshots, with reusable info popups in editor/session/history.
 35. Local Vite dev server now proxies in-repo `/api/*` handlers (`/api/ai-import`, `/api/exercise-info`) so Groq-backed features work during `npm run dev`.
 36. Import screen wording/UX was simplified: clearer text-only Gymtracker-KI path vs. "Aus Datei erstellen" with own AI prompt/JSON flow.
+37. Weekly Data view was expanded with muscle-group radar stats (Reps/Sets/Weight modes) and a clickable Mon-Sun session timeline visualization.
+38. Weekly stats UI was reorganized (Wochendaten title, cleaner section separators/cards) and weekly muscle metrics now support historical fallback matching by workout + exercise name.
+39. Active session UX polish: top-right discard/complete icon actions, smaller add-exercise button, and header progress tap now completes the next set in order.

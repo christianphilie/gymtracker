@@ -8,6 +8,7 @@
 3. Weekly statistics now include total workout duration, plus an optional weekly duration goal in personal settings and stats progress cards.
 4. Completed session history editing now supports changing session start and end date/time after the fact.
 5. Exercise info enrichment via Groq: per-exercise target-muscle weighting + execution/coaching tips with reusable info popups in workout editor, active session, and history views.
+6. Weekly Data view now includes a muscle-group radar visualization (Reps/Sets/Weight modes) plus a radio-style weekly session timeline (Mon-Sun axis with clickable session markers).
 
 ### Changed
 1. Settings UX was refactored and polished with reusable card/title patterns, additional icons, and animated reveal/hide behavior for timer duration and weekly-goal inputs.
@@ -18,10 +19,14 @@
 6. Import screen wording and layout were simplified: clearer "text-only" Gymtracker-KI path vs. "Aus Datei erstellen" (own AI + prompt + JSON paste flow), with renamed JSON-processing action text.
 7. Dashboard "Meine Workouts" now places the add-workout action as a compact secondary button in the section header instead of a full-width button at the bottom.
 8. Exercise info popup typography and action placement were refined (smaller, denser content; cleaner icon placement in exercise cards).
+9. Statistics screen was retitled to "Wochendaten" / "Weekly Data" and reorganized into cleaner sections (summary tiles, Sessions, Weekly Goals, Muscle Groups) with separator lines and less nested card chrome.
+10. Active session screen now has compact top-right discard/complete icon actions and a smaller inline "Add exercise" button.
+11. Session header set-progress badge is now tappable and marks the next set below the lowest already-completed set (instead of the first unchecked set globally).
 
 ### Fixed
 1. Local `npm run dev` now serves in-repo `/api/ai-import` and `/api/exercise-info` handlers through Vite middleware, so AI features work during development with `.env` keys.
 2. Exercise-info loading no longer shows a false error toast when data was successfully fetched and merged; the loader now skips exercises that already have stored info.
+3. Weekly muscle-group stats now resolve exercise AI info more robustly for historical sessions by falling back to current template data via `(workoutId + exerciseName)` when template IDs changed after edits.
 
 ### Docs
 1. Agent notes were consolidated into `docs/AGENTS.md` (root `AGENTS.md` kept as a small shim).
