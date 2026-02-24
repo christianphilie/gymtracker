@@ -95,7 +95,7 @@ export function ExerciseInfoDialogButton({
         >
           <DialogHeader>
             <DialogTitle ref={titleRef} tabIndex={-1} className="pr-8 text-lg leading-tight">
-              {matchedDisplayName}
+              {exerciseName}
             </DialogTitle>
           </DialogHeader>
 
@@ -162,7 +162,7 @@ export function ExerciseInfoDialogButton({
             <div className="flex items-center justify-between gap-2 border-t pt-3">
               <p className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/60">
                 <Sparkles className="h-3.5 w-3.5 text-muted-foreground/60" />
-                {t("exerciseInfoAiDisclaimerShort")}
+                {t("exerciseInfoAiDisclaimerWithMatch").replace("{name}", matchedDisplayName)}
               </p>
               <Button asChild variant="secondary" size="sm" className="h-7 gap-1 px-2 text-xs">
                 <a href={exerciseSearchUrl(exerciseName)} target="_blank" rel="noreferrer">

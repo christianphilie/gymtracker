@@ -1,4 +1,5 @@
 import type { ExerciseAiInfo, SessionExerciseSet } from "@/db/types";
+import { buildExerciseAiInfoForCatalogMatch, matchExerciseCatalogEntry } from "@/lib/exercise-catalog";
 import { getCanonicalMuscleGroup, isCanonicalMuscleKey } from "@/lib/muscle-taxonomy";
 import { formatNumber, getSetStatsMultiplier } from "@/lib/utils";
 
@@ -116,6 +117,8 @@ export function normalizeExerciseLookupName(value: string) {
   return value.trim().toLowerCase();
 }
 
+const catalogStatsAiInfoByExerciseName = new Map<string, ExerciseAiInfo | null>();
+
 function getSetAiInfo(
   set: SessionExerciseSet,
   templateAiInfoById: Map<number, ExerciseAiInfo>,
@@ -134,9 +137,29 @@ function getSetAiInfo(
   const workoutId = sessionWorkoutIdBySessionId.get(set.sessionId);
   const exerciseNameKey = normalizeExerciseLookupName(set.exerciseName);
   if (workoutId === undefined || !exerciseNameKey) {
+    if (!exerciseNameKey) {
+      return undefined;
+    }
+  } else {
+    const byWorkoutAndName = templateAiInfoByWorkoutAndName.get(`${workoutId}::${exerciseNameKey}`);
+    if (byWorkoutAndName) {
+      return byWorkoutAndName;
+    }
+  }
+
+  if (catalogStatsAiInfoByExerciseName.has(exerciseNameKey)) {
+    return catalogStatsAiInfoByExerciseName.get(exerciseNameKey) ?? undefined;
+  }
+
+  const catalogMatch = matchExerciseCatalogEntry(set.exerciseName);
+  if (!catalogMatch) {
+    catalogStatsAiInfoByExerciseName.set(exerciseNameKey, null);
     return undefined;
   }
-  return templateAiInfoByWorkoutAndName.get(`${workoutId}::${exerciseNameKey}`);
+
+  const fallbackAiInfo = buildExerciseAiInfoForCatalogMatch(catalogMatch, "en");
+  catalogStatsAiInfoByExerciseName.set(exerciseNameKey, fallbackAiInfo);
+  return fallbackAiInfo;
 }
 
 export function addMuscleContributionFromSet(

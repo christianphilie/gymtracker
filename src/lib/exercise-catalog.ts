@@ -370,6 +370,16 @@ function buildExerciseInfo(entry: ExerciseCatalogEntry, locale: AppLanguage): Ex
   };
 }
 
+export function buildExerciseAiInfoForCatalogMatch(match: ExerciseCatalogMatch, locale: AppLanguage): ExerciseAiInfo {
+  const info = buildExerciseInfo(match.entry, locale);
+  return {
+    ...info,
+    matchedExerciseName: match.entry.names[locale],
+    matchStrategy: match.strategy,
+    matchScore: match.score
+  };
+}
+
 // Target presets
 const TARGETS = {
   benchFlat: [tm("mid_chest", 55), tm("anterior_delts", 20), tm("triceps_lateral_head", 15), tm("triceps_long_head", 10)],
@@ -423,14 +433,14 @@ const catalog: ExerciseCatalogEntry[] = [
   ex("smith_bench_press", "Bankdrücken (Smith Machine)", "Smith Machine Bench Press", "horizontal_press", [...TARGETS.benchFlat], ["smith bench"]),
   ex("machine_chest_press", "Brustpresse (Maschine)", "Machine Chest Press", "horizontal_press", [...TARGETS.benchFlat], ["chest press machine"]),
   ex("incline_barbell_bench_press", "Schrägbankdrücken (Langhantel)", "Incline Barbell Bench Press", "incline_press", [...TARGETS.benchIncline], ["incline bench"]),
-  ex("incline_dumbbell_bench_press", "Schrägbankdrücken (Kurzhantel)", "Incline Dumbbell Bench Press", "incline_press", [...TARGETS.benchIncline], ["incline db bench"]),
+  ex("incline_dumbbell_bench_press", "Schrägbankdrücken (Kurzhantel)", "Incline Dumbbell Bench Press", "incline_press", [...TARGETS.benchIncline], ["incline db bench", "incline dumbbell press"]),
   ex("incline_machine_chest_press", "Schrägbank Brustpresse (Maschine)", "Incline Machine Chest Press", "incline_press", [...TARGETS.benchIncline]),
   ex("decline_bench_press", "Negativbankdrücken", "Decline Bench Press", "decline_press", [...TARGETS.benchDecline]),
   ex("push_up", "Liegestütz", "Push-Up", "push_up", [...TARGETS.pushUp], ["pushup"]),
   ex("weighted_push_up", "Liegestütz (mit Gewicht)", "Weighted Push-Up", "push_up", [...TARGETS.pushUp]),
   ex("assisted_push_up", "Liegestütz (erhöht/assistiert)", "Assisted Push-Up", "push_up", [...TARGETS.pushUp], ["incline push up", "incline push-up"]),
   ex("chest_dips", "Dips (Brustfokus)", "Chest Dips", "dip_chest", [...TARGETS.dipChest], ["forward lean dips"]),
-  ex("pec_deck_fly", "Butterfly (Pec Deck)", "Pec Deck Fly", "chest_fly", [...TARGETS.flyChest], ["pec deck", "butterfly machine"]),
+  ex("pec_deck_fly", "Butterfly (Pec Deck)", "Pec Deck Fly", "chest_fly", [...TARGETS.flyChest], ["pec deck", "butterfly machine", "machine fly (pec deck)", "machine fly (pec dec)"]),
   ex("cable_fly_mid", "Cable Fly (mittlere Brust)", "Cable Fly (Mid Chest)", "chest_fly", [...TARGETS.flyChest]),
   ex("cable_fly_high_to_low", "Cable Fly (oben nach unten)", "Cable Fly (High to Low)", "chest_fly", [tm("lower_chest", 45), tm("mid_chest", 25), tm("serratus_anterior", 15), tm("anterior_delts", 15)]),
   ex("cable_fly_low_to_high", "Cable Fly (unten nach oben)", "Cable Fly (Low to High)", "chest_fly", [tm("upper_chest", 45), tm("mid_chest", 25), tm("serratus_anterior", 15), tm("anterior_delts", 15)]),
@@ -441,14 +451,14 @@ const catalog: ExerciseCatalogEntry[] = [
   ex("lat_pulldown_wide", "Latzug (breit)", "Wide-Grip Lat Pulldown", "vertical_pull", [...TARGETS.latPull], ["lat pulldown", "wide lat pulldown", "lat pull down"]),
   ex("lat_pulldown_close", "Latzug (eng)", "Close-Grip Lat Pulldown", "vertical_pull", [...TARGETS.latPull], ["close lat pulldown"]),
   ex("lat_pulldown_neutral", "Latzug (Neutralgriff)", "Neutral-Grip Lat Pulldown", "vertical_pull", [...TARGETS.latPull]),
-  ex("pull_up", "Klimmzug", "Pull-Up", "vertical_pull", [...TARGETS.latPull], ["pullup"]),
+  ex("pull_up", "Klimmzug", "Pull-Up", "vertical_pull", [...TARGETS.latPull], ["pullup", "pull ups"]),
   ex("chin_up", "Chin-Up", "Chin-Up", "vertical_pull", [tm("latissimus_dorsi", 45), tm("biceps_brachii", 25), tm("brachialis", 15), tm("teres_major", 10), tm("mid_traps", 5)], ["chinup"]),
-  ex("assisted_pull_up", "Klimmzug (assistiert)", "Assisted Pull-Up", "vertical_pull", [...TARGETS.latPull], ["assisted pullup"]),
+  ex("assisted_pull_up", "Klimmzug (assistiert)", "Assisted Pull-Up", "vertical_pull", [...TARGETS.latPull], ["assisted pullup", "machine assisted pull-up"]),
   ex("seated_cable_row", "Sitzendes Kabelrudern", "Seated Cable Row", "horizontal_row", [...TARGETS.row], ["cable row", "seated row"]),
   ex("machine_row", "Rudern (Maschine)", "Machine Row", "horizontal_row", [...TARGETS.row], ["row machine"]),
   ex("chest_supported_row", "Chest-Supported Row", "Chest-Supported Row", "horizontal_row", [...TARGETS.row], ["seal row machine"]),
-  ex("one_arm_dumbbell_row", "Einarmiges Kurzhantelrudern", "One-Arm Dumbbell Row", "horizontal_row", [...TARGETS.row], ["1 arm dumbbell row"]),
-  ex("barbell_row", "Langhantelrudern", "Barbell Row", "horizontal_row", [...TARGETS.row], ["bent over row", "barbell bent-over row"]),
+  ex("one_arm_dumbbell_row", "Einarmiges Kurzhantelrudern", "One-Arm Dumbbell Row", "horizontal_row", [...TARGETS.row], ["1 arm dumbbell row", "dumbbell row", "dumbbell rows"]),
+  ex("barbell_row", "Langhantelrudern", "Barbell Row", "horizontal_row", [...TARGETS.row], ["bent over row", "barbell bent-over row", "barbell rows"]),
   ex("t_bar_row", "T-Bar Rudern", "T-Bar Row", "horizontal_row", [...TARGETS.row]),
   ex("high_row_machine", "High Row (Maschine)", "High Row Machine", "horizontal_row", [tm("latissimus_dorsi", 30), tm("teres_major", 15), tm("mid_traps", 25), tm("rear_delts", 15), tm("biceps_brachii", 15)]),
   ex("straight_arm_pulldown", "Überzüge am Kabel (gerade Arme)", "Straight-Arm Pulldown", "straight_arm_pull", [...TARGETS.straightArmPull], ["cable pullover"]),
@@ -460,11 +470,11 @@ const catalog: ExerciseCatalogEntry[] = [
   ex("rack_pull", "Rack Pull", "Rack Pull", "hip_hinge", [tm("erector_spinae", 30), tm("upper_traps", 25), tm("mid_traps", 15), tm("gluteus_maximus", 15), tm("biceps_femoris", 10), tm("forearm_flexors", 5)]),
 
   // Shoulders (18)
-  ex("barbell_overhead_press", "Schulterdrücken (Langhantel)", "Barbell Overhead Press", "shoulder_press", [...TARGETS.shoulderPress], ["military press", "ohp"]),
+  ex("barbell_overhead_press", "Schulterdrücken (Langhantel)", "Barbell Overhead Press", "shoulder_press", [...TARGETS.shoulderPress], ["military press", "ohp", "overhead shoulder press", "shoulder press"]),
   ex("dumbbell_shoulder_press", "Schulterdrücken (Kurzhantel)", "Dumbbell Shoulder Press", "shoulder_press", [...TARGETS.shoulderPress], ["db shoulder press"]),
   ex("machine_shoulder_press", "Schulterpresse (Maschine)", "Machine Shoulder Press", "shoulder_press", [...TARGETS.shoulderPress]),
   ex("arnold_press", "Arnold Press", "Arnold Press", "shoulder_press", [tm("anterior_delts", 40), tm("medial_delts", 30), tm("triceps_long_head", 15), tm("triceps_lateral_head", 10), tm("rotator_cuff", 5)]),
-  ex("dumbbell_lateral_raise", "Seitheben (Kurzhantel)", "Dumbbell Lateral Raise", "lateral_raise", [...TARGETS.lateralRaise], ["lateral raise", "side lateral raise"]),
+  ex("dumbbell_lateral_raise", "Seitheben (Kurzhantel)", "Dumbbell Lateral Raise", "lateral_raise", [...TARGETS.lateralRaise], ["lateral raise", "side lateral raise", "lateral raises"]),
   ex("cable_lateral_raise", "Seitheben (Kabel)", "Cable Lateral Raise", "lateral_raise", [...TARGETS.lateralRaise]),
   ex("machine_lateral_raise", "Seitheben (Maschine)", "Machine Lateral Raise", "lateral_raise", [...TARGETS.lateralRaise]),
   ex("lean_away_cable_lateral_raise", "Seitheben Kabel (lean-away)", "Lean-Away Cable Lateral Raise", "lateral_raise", [tm("medial_delts", 75), tm("anterior_delts", 10), tm("upper_traps", 15)]),
@@ -480,7 +490,7 @@ const catalog: ExerciseCatalogEntry[] = [
   ex("cuban_press", "Cuban Press", "Cuban Press", "shoulder_press", [tm("rotator_cuff", 35), tm("medial_delts", 25), tm("rear_delts", 20), tm("anterior_delts", 20)]),
 
   // Arms (20)
-  ex("barbell_curl", "Bizepscurls (Langhantel)", "Barbell Curl", "curl", [...TARGETS.curl], ["biceps curl"]),
+  ex("barbell_curl", "Bizepscurls (Langhantel)", "Barbell Curl", "curl", [...TARGETS.curl], ["biceps curl", "bicep curl", "barbell bicep curl"]),
   ex("ez_bar_curl", "Bizepscurls (EZ-Stange)", "EZ-Bar Curl", "curl", [...TARGETS.curl], ["ez curl"]),
   ex("dumbbell_curl", "Bizepscurls (Kurzhantel)", "Dumbbell Curl", "curl", [...TARGETS.curl], ["db curl"]),
   ex("alternating_dumbbell_curl", "Alternierende Bizepscurls", "Alternating Dumbbell Curl", "curl", [...TARGETS.curl]),
@@ -491,7 +501,7 @@ const catalog: ExerciseCatalogEntry[] = [
   ex("cable_curl", "Bizepscurls (Kabel)", "Cable Curl", "curl", [...TARGETS.curl]),
   ex("hammer_curl_dumbbell", "Hammer Curls (Kurzhantel)", "Dumbbell Hammer Curl", "hammer_curl", [...TARGETS.hammerCurl], ["hammer curls"]),
   ex("hammer_curl_rope", "Hammer Curls (Seil am Kabel)", "Rope Hammer Curl", "hammer_curl", [...TARGETS.hammerCurl], ["rope hammer curl"]),
-  ex("triceps_pushdown_bar", "Trizepsdrücken (Stange)", "Bar Triceps Pushdown", "triceps_pushdown", [...TARGETS.tricepsPushdown], ["triceps pushdown"]),
+  ex("triceps_pushdown_bar", "Trizepsdrücken (Stange)", "Bar Triceps Pushdown", "triceps_pushdown", [...TARGETS.tricepsPushdown], ["triceps pushdown", "triceps cable pushdown"]),
   ex("triceps_pushdown_rope", "Trizepsdrücken (Seil)", "Rope Triceps Pushdown", "triceps_pushdown", [...TARGETS.tricepsPushdown], ["rope pushdown"]),
   ex("overhead_triceps_extension_cable", "Überkopf Trizepsstrecken (Kabel)", "Overhead Cable Triceps Extension", "overhead_triceps", [...TARGETS.overheadTriceps]),
   ex("overhead_triceps_extension_db", "Überkopf Trizepsstrecken (Kurzhantel)", "Dumbbell Overhead Triceps Extension", "overhead_triceps", [...TARGETS.overheadTriceps]),
@@ -499,7 +509,7 @@ const catalog: ExerciseCatalogEntry[] = [
   ex("lying_triceps_extension_db", "Liegendes Trizepsstrecken (Kurzhantel)", "Dumbbell Lying Triceps Extension", "skullcrusher", [...TARGETS.skullcrusher]),
   ex("close_grip_bench_press", "Enges Bankdrücken", "Close-Grip Bench Press", "horizontal_press", [tm("triceps_lateral_head", 30), tm("triceps_long_head", 25), tm("triceps_medial_head", 20), tm("mid_chest", 15), tm("anterior_delts", 10)]),
   ex("triceps_dips", "Dips (Trizepsfokus)", "Triceps Dips", "dip_triceps", [...TARGETS.dipTriceps], ["bench dips", "upright dips"]),
-  ex("wrist_curl", "Handgelenkcurl", "Wrist Curl", "curl", [tm("forearm_flexors", 75), tm("forearm_extensors", 10), tm("brachioradialis", 15)], ["forearm curl"]),
+  ex("wrist_curl", "Handgelenkcurl", "Wrist Curl", "curl", [tm("forearm_flexors", 75), tm("forearm_extensors", 10), tm("brachioradialis", 15)], ["forearm curl", "dumbbell forearm curl"]),
 
   // Legs (24)
   ex("back_squat", "Kniebeuge (Langhantel)", "Barbell Back Squat", "squat", [...TARGETS.squat], ["barbell squat"]),
@@ -507,28 +517,28 @@ const catalog: ExerciseCatalogEntry[] = [
   ex("goblet_squat", "Goblet Squat", "Goblet Squat", "squat", [...TARGETS.frontSquat]),
   ex("smith_squat", "Kniebeuge (Smith Machine)", "Smith Machine Squat", "squat", [...TARGETS.squat], ["smith squat"]),
   ex("hack_squat", "Hack Squat", "Hack Squat", "squat", [tm("rectus_femoris", 30), tm("vastus_lateralis", 25), tm("vastus_medialis", 20), tm("vastus_intermedius", 15), tm("gluteus_maximus", 10)]),
-  ex("leg_press", "Beinpresse", "Leg Press", "leg_press", [...TARGETS.legPress]),
+  ex("leg_press", "Beinpresse", "Leg Press", "leg_press", [...TARGETS.legPress], ["machine leg press", "leg press machine"]),
   ex("bulgarian_split_squat", "Bulgarian Split Squat", "Bulgarian Split Squat", "lunge", [...TARGETS.lunge]),
   ex("reverse_lunge", "Reverse Lunge", "Reverse Lunge", "lunge", [...TARGETS.lunge]),
   ex("walking_lunge", "Walking Lunge", "Walking Lunge", "lunge", [...TARGETS.lunge]),
   ex("step_up", "Step-Up", "Step-Up", "lunge", [tm("gluteus_maximus", 25), tm("rectus_femoris", 20), tm("vastus_lateralis", 20), tm("vastus_medialis", 15), tm("gluteus_medius", 10), tm("biceps_femoris", 10)]),
   ex("romanian_deadlift", "Rumänisches Kreuzheben", "Romanian Deadlift", "hip_hinge", [...TARGETS.hinge], ["rdl"]),
   ex("stiff_leg_deadlift", "Steifbein-Kreuzheben", "Stiff-Leg Deadlift", "hip_hinge", [...TARGETS.hinge]),
-  ex("deadlift", "Kreuzheben", "Deadlift", "hip_hinge", [tm("gluteus_maximus", 25), tm("biceps_femoris", 15), tm("semitendinosus", 10), tm("semimembranosus", 10), tm("erector_spinae", 20), tm("upper_traps", 10), tm("mid_traps", 5), tm("forearm_flexors", 5)]),
+  ex("deadlift", "Kreuzheben", "Deadlift", "hip_hinge", [tm("gluteus_maximus", 25), tm("biceps_femoris", 15), tm("semitendinosus", 10), tm("semimembranosus", 10), tm("erector_spinae", 20), tm("upper_traps", 10), tm("mid_traps", 5), tm("forearm_flexors", 5)], ["deadlifts"]),
   ex("sumo_deadlift", "Sumo-Kreuzheben", "Sumo Deadlift", "hip_hinge", [tm("gluteus_maximus", 25), tm("adductors", 20), tm("rectus_femoris", 15), tm("vastus_lateralis", 10), tm("biceps_femoris", 10), tm("erector_spinae", 15), tm("forearm_flexors", 5)]),
   ex("good_morning", "Good Morning", "Good Morning", "hip_hinge", [tm("erector_spinae", 30), tm("gluteus_maximus", 25), tm("biceps_femoris", 20), tm("semitendinosus", 15), tm("semimembranosus", 10)]),
-  ex("leg_extension", "Beinstrecker", "Leg Extension", "leg_extension", [...TARGETS.legExtension]),
-  ex("lying_leg_curl", "Beinbeuger liegend", "Lying Leg Curl", "leg_curl", [...TARGETS.legCurl]),
+  ex("leg_extension", "Beinstrecker", "Leg Extension", "leg_extension", [...TARGETS.legExtension], ["machine leg extension", "leg extension machine"]),
+  ex("lying_leg_curl", "Beinbeuger liegend", "Lying Leg Curl", "leg_curl", [...TARGETS.legCurl], ["machine leg / hamstring curl prone", "prone leg curl", "leg curls"]),
   ex("seated_leg_curl", "Beinbeuger sitzend", "Seated Leg Curl", "leg_curl", [...TARGETS.legCurl]),
   ex("standing_leg_curl", "Beinbeuger stehend", "Standing Leg Curl", "leg_curl", [...TARGETS.legCurl]),
   ex("hip_thrust", "Hip Thrust", "Hip Thrust", "hip_thrust", [...TARGETS.hipThrust]),
   ex("glute_bridge", "Glute Bridge", "Glute Bridge", "hip_thrust", [...TARGETS.hipThrust]),
   ex("cable_glute_kickback", "Glute Kickback (Kabel)", "Cable Glute Kickback", "glute_kickback", [...TARGETS.gluteKickback], ["glute kickback"]),
-  ex("hip_abduction_machine", "Abduktion (Maschine)", "Hip Abduction Machine", "abduction", [...TARGETS.abduction]),
-  ex("hip_adduction_machine", "Adduktion (Maschine)", "Hip Adduction Machine", "adduction", [...TARGETS.adduction]),
+  ex("hip_abduction_machine", "Abduktion (Maschine)", "Hip Abduction Machine", "abduction", [...TARGETS.abduction], ["machine hip abduction", "hip abduction"]),
+  ex("hip_adduction_machine", "Adduktion (Maschine)", "Hip Adduction Machine", "adduction", [...TARGETS.adduction], ["machine hip adduction", "hip adduction"]),
 
   // Lower legs + tibialis (6)
-  ex("standing_calf_raise", "Wadenheben stehend", "Standing Calf Raise", "calf_raise", [...TARGETS.calfRaise]),
+  ex("standing_calf_raise", "Wadenheben stehend", "Standing Calf Raise", "calf_raise", [...TARGETS.calfRaise], ["machine standing calf raise", "calf raises"]),
   ex("seated_calf_raise", "Wadenheben sitzend", "Seated Calf Raise", "calf_raise", [...TARGETS.seatedCalfRaise]),
   ex("leg_press_calf_raise", "Wadenheben an der Beinpresse", "Leg Press Calf Raise", "calf_raise", [...TARGETS.calfRaise]),
   ex("smith_calf_raise", "Wadenheben (Smith Machine)", "Smith Machine Calf Raise", "calf_raise", [...TARGETS.calfRaise]),
@@ -537,7 +547,7 @@ const catalog: ExerciseCatalogEntry[] = [
 
   // Core / lower back (14)
   ex("back_extension", "Hyperextensions / Rückenstrecker", "Back Extension", "back_extension", [...TARGETS.backExtension], ["hyperextension", "roman chair back extension"]),
-  ex("machine_crunch", "Bauchmaschine Crunch", "Machine Crunch", "crunch", [...TARGETS.crunch], ["ab crunch machine"]),
+  ex("machine_crunch", "Bauchmaschine Crunch", "Machine Crunch", "crunch", [...TARGETS.crunch], ["ab crunch machine", "machine ab crunch"]),
   ex("cable_crunch", "Cable Crunch", "Cable Crunch", "crunch", [...TARGETS.crunch]),
   ex("floor_crunch", "Crunch", "Crunch", "crunch", [...TARGETS.crunch]),
   ex("reverse_crunch", "Reverse Crunch", "Reverse Crunch", "crunch", [tm("rectus_abdominis", 45), tm("transversus_abdominis", 20), tm("external_obliques", 15), tm("internal_obliques", 10), tm("iliopsoas", 10)]),
@@ -558,10 +568,10 @@ const EXTRA_VARIANTS: ExerciseCatalogEntry[] = [
   ex("crossover_press", "Kabel Brustpresse (stehend)", "Standing Cable Chest Press", "horizontal_press", [...TARGETS.benchFlat]),
   ex("underhand_lat_pulldown", "Latzug (Untergriff)", "Underhand Lat Pulldown", "vertical_pull", [...TARGETS.latPull]),
   ex("single_arm_lat_pulldown", "Einarmiger Latzug", "Single-Arm Lat Pulldown", "vertical_pull", [...TARGETS.latPull]),
-  ex("single_arm_cable_row", "Einarmiges Kabelrudern", "Single-Arm Cable Row", "horizontal_row", [...TARGETS.row]),
+  ex("single_arm_cable_row", "Einarmiges Kabelrudern", "Single-Arm Cable Row", "horizontal_row", [...TARGETS.row], ["cable single-arm row"]),
   ex("meadows_row", "Meadows Row", "Meadows Row", "horizontal_row", [...TARGETS.row]),
   ex("dumbbell_shoulder_press_seated", "Schulterdrücken sitzend (Kurzhantel)", "Seated Dumbbell Shoulder Press", "shoulder_press", [...TARGETS.shoulderPress]),
-  ex("machine_rear_delt_fly", "Rear Delt Fly (Maschine)", "Machine Rear Delt Fly", "rear_delt_raise", [...TARGETS.rearDeltRaise]),
+  ex("machine_rear_delt_fly", "Rear Delt Fly (Maschine)", "Machine Rear Delt Fly", "rear_delt_raise", [...TARGETS.rearDeltRaise], ["machine rear delt (reverse) fly", "machine reverse fly"]),
   ex("cable_front_raise_single", "Einarmiges Frontheben (Kabel)", "Single-Arm Cable Front Raise", "front_raise", [...TARGETS.frontRaise]),
   ex("reverse_grip_curl", "Reverse Curl", "Reverse Curl", "hammer_curl", [tm("brachioradialis", 40), tm("forearm_extensors", 35), tm("biceps_brachii", 15), tm("brachialis", 10)]),
   ex("cable_preacher_curl", "Preacher Curl (Kabel)", "Cable Preacher Curl", "preacher_curl", [...TARGETS.preacherCurl]),
@@ -580,7 +590,7 @@ const EXTRA_VARIANTS: ExerciseCatalogEntry[] = [
 const EXTRA_VARIANTS_2: ExerciseCatalogEntry[] = [
   // Chest
   ex("plate_loaded_chest_press", "Brustpresse (plate-loaded)", "Plate-Loaded Chest Press", "horizontal_press", [...TARGETS.benchFlat], ["iso lateral chest press", "converging chest press"]),
-  ex("seated_chest_press_machine", "Brustpresse sitzend (Maschine)", "Seated Chest Press Machine", "horizontal_press", [...TARGETS.benchFlat]),
+  ex("seated_chest_press_machine", "Brustpresse sitzend (Maschine)", "Seated Chest Press Machine", "horizontal_press", [...TARGETS.benchFlat], ["machine seated chest press"]),
   ex("hammer_strength_chest_press", "Brustpresse (Hammer Strength)", "Hammer Strength Chest Press", "horizontal_press", [...TARGETS.benchFlat], ["hs chest press"]),
   ex("incline_plate_loaded_chest_press", "Schrägbank Brustpresse (plate-loaded)", "Incline Plate-Loaded Chest Press", "incline_press", [...TARGETS.benchIncline]),
   ex("incline_smith_close_grip_press", "Schrägbankdrücken eng (Smith Machine)", "Incline Close-Grip Smith Press", "incline_press", [...TARGETS.benchIncline]),
@@ -608,7 +618,7 @@ const EXTRA_VARIANTS_2: ExerciseCatalogEntry[] = [
   ex("kneeling_single_arm_lat_pulldown", "Einarmiger Latzug kniend (Kabel)", "Kneeling Single-Arm Lat Pulldown", "vertical_pull", [...TARGETS.latPull]),
   ex("lat_prayer", "Lat Prayer (Kabel)", "Cable Lat Prayer", "straight_arm_pull", [...TARGETS.straightArmPull], ["lat prayers"]),
   ex("machine_pullover", "Pullover (Maschine)", "Machine Pullover", "straight_arm_pull", [...TARGETS.straightArmPull], ["nautilus pullover"]),
-  ex("assisted_chin_up", "Chin-Up (assistiert)", "Assisted Chin-Up", "vertical_pull", [tm("latissimus_dorsi", 45), tm("biceps_brachii", 25), tm("brachialis", 15), tm("teres_major", 10), tm("mid_traps", 5)]),
+  ex("assisted_chin_up", "Chin-Up (assistiert)", "Assisted Chin-Up", "vertical_pull", [tm("latissimus_dorsi", 45), tm("biceps_brachii", 25), tm("brachialis", 15), tm("teres_major", 10), tm("mid_traps", 5)], ["machine assisted chin-up"]),
   ex("scapular_pull_up", "Scapula Pull-Up", "Scapular Pull-Up", "vertical_pull", [tm("lower_traps", 35), tm("latissimus_dorsi", 30), tm("mid_traps", 20), tm("serratus_anterior", 15)]),
   ex("inverted_row", "Inverted Row", "Inverted Row", "horizontal_row", [...TARGETS.row], ["bodyweight row"]),
   ex("cable_shrug", "Shrugs (Kabel)", "Cable Shrug", "shrug", [...TARGETS.shrug]),
@@ -644,7 +654,7 @@ const EXTRA_VARIANTS_2: ExerciseCatalogEntry[] = [
   ex("cross_body_hammer_curl", "Cross-Body Hammer Curl", "Cross-Body Hammer Curl", "hammer_curl", [...TARGETS.hammerCurl]),
   ex("pinwheel_curl", "Pinwheel Curl", "Pinwheel Curl", "hammer_curl", [...TARGETS.hammerCurl]),
   ex("reverse_ez_curl", "Reverse Curl (EZ-Stange)", "EZ-Bar Reverse Curl", "hammer_curl", [tm("brachioradialis", 40), tm("forearm_extensors", 35), tm("biceps_brachii", 15), tm("brachialis", 10)]),
-  ex("reverse_wrist_curl", "Reverse Wrist Curl", "Reverse Wrist Curl", "curl", [tm("forearm_extensors", 75), tm("forearm_flexors", 10), tm("brachioradialis", 15)]),
+  ex("reverse_wrist_curl", "Reverse Wrist Curl", "Reverse Wrist Curl", "curl", [tm("forearm_extensors", 75), tm("forearm_flexors", 10), tm("brachioradialis", 15)], ["dumbbell reverse-grip forearm curl"]),
   ex("standing_wrist_curl_behind_back", "Handgelenkcurl hinter dem Rücken", "Behind-the-Back Wrist Curl", "curl", [tm("forearm_flexors", 80), tm("brachioradialis", 10), tm("forearm_extensors", 10)]),
   ex("v_bar_triceps_pushdown", "Trizepsdrücken (V-Griff)", "V-Bar Triceps Pushdown", "triceps_pushdown", [...TARGETS.tricepsPushdown]),
   ex("straight_bar_triceps_pushdown", "Trizepsdrücken (gerade Stange)", "Straight-Bar Triceps Pushdown", "triceps_pushdown", [...TARGETS.tricepsPushdown]),
@@ -655,7 +665,7 @@ const EXTRA_VARIANTS_2: ExerciseCatalogEntry[] = [
   ex("triceps_kickback_cable", "Trizeps Kickback (Kabel)", "Cable Triceps Kickback", "triceps_pushdown", [tm("triceps_lateral_head", 35), tm("triceps_long_head", 35), tm("triceps_medial_head", 20), tm("rear_delts", 10)]),
   ex("jm_press", "JM Press", "JM Press", "skullcrusher", [tm("triceps_long_head", 35), tm("triceps_lateral_head", 30), tm("triceps_medial_head", 20), tm("mid_chest", 10), tm("anterior_delts", 5)]),
   ex("tate_press", "Tate Press", "Tate Press", "overhead_triceps", [tm("triceps_long_head", 40), tm("triceps_lateral_head", 30), tm("triceps_medial_head", 20), tm("anterior_delts", 10)]),
-  ex("assisted_triceps_dips", "Dips (Trizepsfokus, assistiert)", "Assisted Triceps Dips", "dip_triceps", [...TARGETS.dipTriceps]),
+  ex("assisted_triceps_dips", "Dips (Trizepsfokus, assistiert)", "Assisted Triceps Dips", "dip_triceps", [...TARGETS.dipTriceps], ["machine assisted dip"]),
 
   // Legs / Glutes / Hinge
   ex("safety_bar_squat", "Safety Bar Squat", "Safety Bar Squat", "squat", [...TARGETS.squat]),
@@ -716,7 +726,42 @@ const EXTRA_VARIANTS_2: ExerciseCatalogEntry[] = [
   ex("reverse_hyperextension", "Reverse Hyperextension", "Reverse Hyperextension", "back_extension", [tm("gluteus_maximus", 35), tm("erector_spinae", 30), tm("biceps_femoris", 20), tm("gluteus_medius", 15)])
 ];
 
-export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [...catalog, ...EXTRA_VARIANTS, ...EXTRA_VARIANTS_2];
+const EXTRA_VARIANTS_3: ExerciseCatalogEntry[] = [
+  ex(
+    "machine_seated_back_extension",
+    "Rückenstrecker sitzend (Maschine)",
+    "Machine Seated Back Extension",
+    "back_extension",
+    [...TARGETS.backExtension],
+    ["seated back extension machine", "machine back extension seated"]
+  ),
+  ex(
+    "machine_torso_rotation",
+    "Torso Rotation (Maschine)",
+    "Machine Torso Rotation",
+    "rotation_core",
+    [tm("external_obliques", 35), tm("internal_obliques", 30), tm("rectus_abdominis", 20), tm("transversus_abdominis", 15)],
+    ["torso rotation machine", "machine seated torso rotation", "rotary torso machine"]
+  ),
+  ex(
+    "machine_alternate_arm_curl",
+    "Alternierende Bizepscurls (Maschine)",
+    "Machine Alternate Arm Curl",
+    "curl",
+    [...TARGETS.curl],
+    ["alternate arm curl machine"]
+  ),
+  ex(
+    "machine_glute_kickback",
+    "Glute Kickback (Maschine)",
+    "Machine Glute Kickback",
+    "glute_kickback",
+    [...TARGETS.gluteKickback],
+    ["glute kickback machine"]
+  )
+];
+
+export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [...catalog, ...EXTRA_VARIANTS, ...EXTRA_VARIANTS_2, ...EXTRA_VARIANTS_3];
 
 const exactAliasIndex = new Map<string, ExerciseCatalogEntry>();
 const compactAliasIndex = new Map<string, ExerciseCatalogEntry>();
@@ -843,15 +888,15 @@ export function getExerciseCatalogSuggestions(
 }
 
 export function buildExerciseInfoForMatch(match: ExerciseCatalogMatch, locale: AppLanguage, inputName: string) {
-  const info = buildExerciseInfo(match.entry, locale);
+  const info = buildExerciseAiInfoForCatalogMatch(match, locale);
   return {
     inputName,
     targetMuscles: info.targetMuscles,
     executionGuide: info.executionGuide,
     coachingTips: info.coachingTips,
-    matchedExerciseName: match.entry.names[locale],
+    matchedExerciseName: info.matchedExerciseName,
     matchedExerciseKey: match.entry.key,
-    matchScore: match.score,
-    matchStrategy: match.strategy
+    matchScore: info.matchScore,
+    matchStrategy: info.matchStrategy
   };
 }
