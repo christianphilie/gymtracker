@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Database, DoorClosedLocked, Download, Globe, Settings, SunMoon, Timer, Upload, User, Weight, X } from "lucide-react";
 import { useSettings } from "@/app/settings-context";
@@ -50,6 +50,10 @@ export function SettingsPage() {
     setColorScheme
   } = useSettings();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<"app" | "personal" | "data">(() =>
+    location.hash === "#data-import" ? "data" : "app"
+  );
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<AppBackupFile | null>(null);
@@ -76,6 +80,16 @@ export function SettingsPage() {
     }
     setBodyWeightDraft(`${value}`.replace(/\.0+$/, ""));
   }, [settingsRecord?.bodyWeight]);
+
+  useEffect(() => {
+    if (location.hash === "#data-import") {
+      setActiveTab("data");
+      window.requestAnimationFrame(() => {
+        const target = document.getElementById("data-import");
+        target?.scrollIntoView({ block: "start", behavior: "smooth" });
+      });
+    }
+  }, [location.hash]);
 
   const handleDismissSnapshot = () => {
     if (latestUpdateSnapshot?.id) {
@@ -220,7 +234,7 @@ export function SettingsPage() {
 
   return (
     <section className="space-y-4">
-      <Tabs defaultValue="app" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "app" | "personal" | "data")} className="space-y-4">
         <TabsList className="grid h-auto w-full grid-cols-3">
           <TabsTrigger value="app" className="flex gap-2">
             <Settings className="h-4 w-4" />
@@ -427,7 +441,7 @@ export function SettingsPage() {
             </div>
           )}
 
-          <Card>
+          <Card id="data-import" className="scroll-mt-20">
             <CardHeader>
               <CardTitle>{t("dataExportImport")}</CardTitle>
             </CardHeader>

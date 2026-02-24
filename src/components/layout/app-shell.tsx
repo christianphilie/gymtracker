@@ -366,7 +366,7 @@ export function AppShell() {
       <main className="container flex-1 py-4 pb-28 sm:pb-24">
         <Outlet />
       </main>
-      <div className="pointer-events-none fixed inset-x-0 bottom-3 z-30 px-4">
+      <div className="pointer-events-none fixed inset-x-0 bottom-6 z-30 px-4">
         <div className="relative mx-auto max-w-3xl">
           <nav className="pointer-events-auto flex justify-center" aria-label="Primary">
             <div className="flex items-center gap-0 rounded-2xl border border-white/50 bg-background/80 p-0.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08),0_22px_52px_rgba(15,23,42,0.14)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">

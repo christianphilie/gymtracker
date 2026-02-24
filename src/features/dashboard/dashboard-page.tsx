@@ -455,7 +455,7 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
             variant="secondary"
             size="sm"
             className="w-full justify-start gap-2"
-            onClick={() => navigate("/settings")}
+            onClick={() => navigate("/settings#data-import")}
           >
             <Download className="h-4 w-4" />
             {t("dashboardImportExistingData")}
