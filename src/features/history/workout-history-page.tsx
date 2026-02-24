@@ -1,13 +1,16 @@
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, Pencil, Trash2 } from "lucide-react";
+import { Check, Pencil, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
+import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoHint } from "@/components/ui/info-hint";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   deleteCompletedSession,
   getWorkoutById,
@@ -24,6 +27,7 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { db } from "@/db/db";
+import type { ExerciseAiInfo } from "@/db/types";
 import {
   estimateStrengthTrainingCalories,
   getSessionDurationMinutes,
@@ -35,6 +39,7 @@ interface EditableSessionSet {
   id: number;
   sessionExerciseKey: string;
   exerciseName: string;
+  exerciseAiInfo?: ExerciseAiInfo;
   exerciseOrder: number;
   templateSetOrder: number;
   x2Enabled: boolean;
@@ -96,6 +101,31 @@ function formatClock(value: Date | string, language: "de" | "en") {
   }).format(date);
 }
 
+function toDateTimeLocalValue(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function fromDateTimeLocalValue(value: string) {
+  if (!value.trim()) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toISOString();
+}
+
 export function WorkoutHistoryPage() {
   const { workoutId } = useParams();
   const { t, weightUnit, language } = useSettings();
@@ -103,6 +133,8 @@ export function WorkoutHistoryPage() {
   const [deleteSessionId, setDeleteSessionId] = useState<number | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
   const [editingSets, setEditingSets] = useState<EditableSessionSet[]>([]);
+  const [editingSessionStartedAtDraft, setEditingSessionStartedAtDraft] = useState("");
+  const [editingSessionFinishedAtDraft, setEditingSessionFinishedAtDraft] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const payload = useLiveQuery(async () => {
@@ -118,6 +150,25 @@ export function WorkoutHistoryPage() {
     return { workout, history };
   }, [numericWorkoutId]);
   const settings = useLiveQuery(async () => db.settings.get(1), []);
+  const templateExerciseInfoMap = useLiveQuery(async () => {
+    const templateIds = Array.from(
+      new Set(
+        (payload?.history ?? [])
+          .flatMap((entry) => entry.sets)
+          .map((set) => set.templateExerciseId)
+          .filter((id): id is number => id !== undefined)
+      )
+    );
+    if (templateIds.length === 0) {
+      return new Map<number, ExerciseAiInfo>();
+    }
+    const exercises = await db.exercises.where("id").anyOf(templateIds).toArray();
+    return new Map(
+      exercises
+        .filter((exercise): exercise is typeof exercise & { id: number } => exercise.id !== undefined && !!exercise.aiInfo)
+        .map((exercise) => [exercise.id, exercise.aiInfo!])
+    );
+  }, [payload?.history]);
 
   const groupedHistory = useMemo(() => {
     return (payload?.history ?? []).map((entry) => {
@@ -171,6 +222,14 @@ export function WorkoutHistoryPage() {
       return date >= weekStart;
     }).length;
   }, [payload?.history]);
+
+  const closeEditDialog = () => {
+    setEditingSessionId(null);
+    setEditingSets([]);
+    setEditingSessionStartedAtDraft("");
+    setEditingSessionFinishedAtDraft("");
+  };
+
   const startEditSession = (entry: WorkoutSessionHistoryItem) => {
     const editable = entry.sets
       .filter((set): set is typeof set & { id: number } => set.id !== undefined)
@@ -182,6 +241,9 @@ export function WorkoutHistoryPage() {
         id: set.id,
         sessionExerciseKey: set.sessionExerciseKey,
         exerciseName: set.exerciseName,
+        exerciseAiInfo:
+          set.exerciseAiInfo ??
+          (set.templateExerciseId !== undefined ? templateExerciseInfoMap?.get(set.templateExerciseId) : undefined),
         exerciseOrder: set.exerciseOrder,
         templateSetOrder: set.templateSetOrder,
         x2Enabled: set.x2Enabled ?? false,
@@ -192,6 +254,8 @@ export function WorkoutHistoryPage() {
 
     setEditingSessionId(entry.session.id);
     setEditingSets(editable);
+    setEditingSessionStartedAtDraft(toDateTimeLocalValue(entry.session.startedAt));
+    setEditingSessionFinishedAtDraft(toDateTimeLocalValue(entry.session.finishedAt ?? entry.session.startedAt));
   };
 
   const groupedEditingSets = useMemo(() => {
@@ -210,6 +274,13 @@ export function WorkoutHistoryPage() {
   const handleSaveSessionEdit = async () => {
     if (!editingSessionId) return;
 
+    const startedAt = fromDateTimeLocalValue(editingSessionStartedAtDraft);
+    const finishedAt = fromDateTimeLocalValue(editingSessionFinishedAtDraft);
+    if (!startedAt || !finishedAt || new Date(finishedAt).getTime() < new Date(startedAt).getTime()) {
+      toast.error(t("sessionTimeRangeInvalid"));
+      return;
+    }
+
     setIsSavingEdit(true);
     try {
       await updateCompletedSessionSets(
@@ -219,11 +290,11 @@ export function WorkoutHistoryPage() {
           actualReps: set.actualReps,
           actualWeight: set.actualWeight,
           completed: set.completed
-        }))
+        })),
+        { startedAt, finishedAt }
       );
       toast.success(t("sessionUpdated"));
-      setEditingSessionId(null);
-      setEditingSets([]);
+      closeEditDialog();
     } catch {
       toast.error("Action failed");
     } finally {
@@ -296,6 +367,16 @@ export function WorkoutHistoryPage() {
                           ×2
                         </span>
                       )}
+                      <ExerciseInfoDialogButton
+                        exerciseName={firstSet.exerciseName}
+                        aiInfo={
+                          firstSet.exerciseAiInfo ??
+                          (firstSet.templateExerciseId !== undefined
+                            ? templateExerciseInfoMap?.get(firstSet.templateExerciseId)
+                            : undefined)
+                        }
+                        className="mt-0.5 h-5 w-5"
+                      />
                     </div>
                     <div className="mt-1 space-y-1">
                       {sets.map((set, index) => (
@@ -347,12 +428,34 @@ export function WorkoutHistoryPage() {
         </Card>
       ))}
 
-      <Dialog open={editingSessionId !== null} onOpenChange={(nextOpen) => !nextOpen && setEditingSessionId(null)}>
+      <Dialog open={editingSessionId !== null} onOpenChange={(nextOpen) => !nextOpen && closeEditDialog()}>
         <DialogContent className="max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("editSession")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            <Card>
+              <CardContent className="grid gap-3 pt-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-session-started-at">{t("sessionStartedAt")}</Label>
+                  <Input
+                    id="edit-session-started-at"
+                    type="datetime-local"
+                    value={editingSessionStartedAtDraft}
+                    onChange={(event) => setEditingSessionStartedAtDraft(event.currentTarget.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-session-finished-at">{t("sessionEndedAt")}</Label>
+                  <Input
+                    id="edit-session-finished-at"
+                    type="datetime-local"
+                    value={editingSessionFinishedAtDraft}
+                    onChange={(event) => setEditingSessionFinishedAtDraft(event.currentTarget.value)}
+                  />
+                </div>
+              </CardContent>
+            </Card>
             {groupedEditingSets.map((sets) => {
               const firstSet = sets[0];
               return (
@@ -365,6 +468,7 @@ export function WorkoutHistoryPage() {
                           ×2
                         </span>
                       )}
+                      <ExerciseInfoDialogButton exerciseName={firstSet.exerciseName} aiInfo={firstSet.exerciseAiInfo} />
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2">
@@ -418,9 +522,12 @@ export function WorkoutHistoryPage() {
               );
             })}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingSessionId(null)}>{t("cancel")}</Button>
-            <Button disabled={isSavingEdit} onClick={() => void handleSaveSessionEdit()}>{t("save")}</Button>
+          <DialogFooter className="pt-2 sm:pt-3">
+            <Button variant="outline" onClick={closeEditDialog}>{t("cancel")}</Button>
+            <Button className="gap-1.5" disabled={isSavingEdit} onClick={() => void handleSaveSessionEdit()}>
+              <Save className="h-4 w-4" />
+              {t("save")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -12,6 +12,7 @@ const settingsSchema = z.object({
   weeklyWeightGoal: z.number().positive().optional(),
   weeklyCaloriesGoal: z.number().positive().optional(),
   weeklyWorkoutCountGoal: z.number().int().positive().optional(),
+  weeklyDurationGoal: z.number().int().positive().optional(),
   lockerNoteEnabled: z.boolean().optional(),
   lockerNumber: z.string().optional(),
   lockerNumberUpdatedAt: z.string().optional(),
@@ -33,6 +34,21 @@ const exerciseSchema = z.object({
   workoutId: z.number().int(),
   name: z.string().min(1),
   notes: z.string().optional(),
+  aiInfo: z
+    .object({
+      targetMuscles: z.array(
+        z.object({
+          muscle: z.string().min(1),
+          involvementPercent: z.number().int().min(0).max(100)
+        })
+      ),
+      executionGuide: z.string().min(1),
+      coachingTips: z.array(z.string().min(1)),
+      generatedAt: z.string().min(1),
+      sourceProvider: z.string().optional(),
+      sourceModel: z.string().optional()
+    })
+    .optional(),
   order: z.number().int(),
   isTemplate: z.boolean().optional(),
   createdAt: z.string().min(1),
@@ -63,6 +79,21 @@ const sessionExerciseSetSchema = z.object({
   sessionExerciseKey: z.string().min(1),
   exerciseName: z.string().min(1),
   exerciseNotes: z.string().optional(),
+  exerciseAiInfo: z
+    .object({
+      targetMuscles: z.array(
+        z.object({
+          muscle: z.string().min(1),
+          involvementPercent: z.number().int().min(0).max(100)
+        })
+      ),
+      executionGuide: z.string().min(1),
+      coachingTips: z.array(z.string().min(1)),
+      generatedAt: z.string().min(1),
+      sourceProvider: z.string().optional(),
+      sourceModel: z.string().optional()
+    })
+    .optional(),
   exerciseOrder: z.number().int(),
   isTemplateExercise: z.boolean(),
   templateSetOrder: z.number().int(),

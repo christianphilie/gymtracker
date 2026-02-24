@@ -23,6 +23,7 @@ interface WorkoutDraft {
   exercises: Array<{
     name: string;
     notes?: string;
+    aiInfo?: Exercise["aiInfo"];
     x2Enabled?: boolean;
     sets: Array<{
       targetReps: number;
@@ -231,6 +232,9 @@ export async function ensureDefaultSettings() {
     if (existing.weeklyWorkoutCountGoal !== normalizeOptionalPositiveInt(existing.weeklyWorkoutCountGoal)) {
       patch.weeklyWorkoutCountGoal = normalizeOptionalPositiveInt(existing.weeklyWorkoutCountGoal);
     }
+    if (existing.weeklyDurationGoal !== normalizeOptionalPositiveInt(existing.weeklyDurationGoal)) {
+      patch.weeklyDurationGoal = normalizeOptionalPositiveInt(existing.weeklyDurationGoal);
+    }
     if (Object.keys(patch).length > 0) {
       const patched: Settings = { ...existing, ...patch, updatedAt: nowIso() };
       await db.settings.put(patched);
@@ -275,6 +279,7 @@ export async function updateSettings(
       | "weeklyWeightGoal"
       | "weeklyCaloriesGoal"
       | "weeklyWorkoutCountGoal"
+      | "weeklyDurationGoal"
     >
   >
 ) {
@@ -429,6 +434,7 @@ async function createWorkoutRecord(draft: WorkoutDraft) {
       workoutId,
       name: exerciseDraft.name.trim(),
       notes: exerciseDraft.notes?.trim(),
+      aiInfo: exerciseDraft.aiInfo,
       order: exerciseIndex,
       isTemplate: true,
       x2Enabled: exerciseDraft.x2Enabled ?? false,
@@ -502,6 +508,7 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
           workoutId,
           name: exerciseDraft.name.trim(),
           notes: exerciseDraft.notes?.trim(),
+          aiInfo: exerciseDraft.aiInfo,
           order: exerciseIndex,
           isTemplate: true,
           x2Enabled: exerciseDraft.x2Enabled ?? false,
@@ -822,6 +829,7 @@ export async function startSession(workoutId: number) {
             sessionExerciseKey: `template-${templateExerciseId}`,
             exerciseName: exerciseBlock.exercise.name,
             exerciseNotes: exerciseBlock.exercise.notes,
+            exerciseAiInfo: exerciseBlock.exercise.aiInfo,
             exerciseOrder: exerciseBlock.exercise.order,
             isTemplateExercise: true,
             x2Enabled: exerciseBlock.exercise.x2Enabled ?? false,
@@ -913,6 +921,7 @@ export async function addSessionSet(sessionId: number, sessionExerciseKey: strin
     sessionExerciseKey,
     exerciseName: firstSet.exerciseName,
     exerciseNotes: firstSet.exerciseNotes,
+    exerciseAiInfo: firstSet.exerciseAiInfo,
     exerciseOrder: firstSet.exerciseOrder,
     isTemplateExercise: firstSet.isTemplateExercise,
     x2Enabled: firstSet.x2Enabled ?? false,
@@ -957,6 +966,7 @@ export async function addSessionExercise(sessionId: number, name: string) {
     sessionExerciseKey,
     exerciseName: finalName,
     exerciseNotes: "",
+    exerciseAiInfo: undefined,
     exerciseOrder: maxOrder + 1,
     isTemplateExercise: false,
     x2Enabled: false,
@@ -1043,6 +1053,7 @@ async function applySessionAsTemplate(sessionId: number) {
         workoutId: session.workoutId,
         name: firstSet.exerciseName,
         notes: firstSet.exerciseNotes,
+        aiInfo: firstSet.exerciseAiInfo,
         order: exerciseIndex,
         isTemplate: true,
         x2Enabled: firstSet.x2Enabled ?? false,
@@ -1163,6 +1174,11 @@ export interface SessionSetUpdateDraft {
   completed: boolean;
 }
 
+interface CompletedSessionTimingUpdate {
+  startedAt: string;
+  finishedAt: string;
+}
+
 export async function getWorkoutSessionHistory(workoutId: number): Promise<WorkoutSessionHistoryItem[]> {
   const sessions = await db.sessions
     .where("workoutId")
@@ -1207,13 +1223,32 @@ export async function deleteCompletedSession(sessionId: number) {
   });
 }
 
-export async function updateCompletedSessionSets(sessionId: number, updates: SessionSetUpdateDraft[]) {
+export async function updateCompletedSessionSets(
+  sessionId: number,
+  updates: SessionSetUpdateDraft[],
+  timingUpdate?: CompletedSessionTimingUpdate
+) {
   const session = await db.sessions.get(sessionId);
   if (!session || session.status !== "completed") {
     throw new Error("Completed session not found");
   }
 
-  await db.transaction("rw", db.sessionExerciseSets, async () => {
+  if (timingUpdate) {
+    const startedMs = new Date(timingUpdate.startedAt).getTime();
+    const finishedMs = new Date(timingUpdate.finishedAt).getTime();
+    if (!Number.isFinite(startedMs) || !Number.isFinite(finishedMs) || finishedMs < startedMs) {
+      throw new Error("Invalid completed session timing");
+    }
+  }
+
+  await db.transaction("rw", db.sessions, db.sessionExerciseSets, async () => {
+    if (timingUpdate) {
+      await db.sessions.update(sessionId, {
+        startedAt: timingUpdate.startedAt,
+        finishedAt: timingUpdate.finishedAt
+      });
+    }
+
     for (const draft of updates) {
       const current = await db.sessionExerciseSets.get(draft.id);
       if (!current || current.sessionId !== sessionId) {

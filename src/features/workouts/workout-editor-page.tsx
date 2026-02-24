@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { BookSearch, ChevronDown, GripVertical, NotebookPen, Plus, Save, Trash2, X } from "lucide-react";
+import { ChevronDown, GripVertical, Loader2, NotebookPen, Plus, Save, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { DecimalInput } from "@/components/forms/decimal-input";
+import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -23,10 +24,18 @@ import {
   updateWorkout,
   type WorkoutDraft
 } from "@/db/repository";
+import type { ExerciseAiInfo } from "@/db/types";
 import { useSettings } from "@/app/settings-context";
 
 interface WorkoutEditorPageProps {
   mode: "create" | "edit";
+}
+
+interface ExerciseInfoApiItem {
+  inputName: string;
+  targetMuscles: Array<{ muscle: string; involvementPercent: number }>;
+  executionGuide: string;
+  coachingTips: string[];
 }
 
 function createEmptyDraft(): WorkoutDraft {
@@ -54,14 +63,37 @@ function reorderExercises(draft: WorkoutDraft, fromIndex: number, toIndex: numbe
   return next;
 }
 
-function exerciseSearchUrl(name: string) {
-  return `https://www.google.com/search?q=${encodeURIComponent(`${name} exercise database`)}`;
+function normalizeExerciseName(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function isExerciseInfoApiItem(value: unknown): value is ExerciseInfoApiItem {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.inputName === "string" &&
+    typeof item.executionGuide === "string" &&
+    Array.isArray(item.coachingTips) &&
+    Array.isArray(item.targetMuscles)
+  );
+}
+
+function hasExerciseAiInfo(info: ExerciseAiInfo | undefined): info is ExerciseAiInfo {
+  return !!(
+    info &&
+    Array.isArray(info.targetMuscles) &&
+    info.targetMuscles.length > 0 &&
+    typeof info.executionGuide === "string" &&
+    info.executionGuide.trim() &&
+    Array.isArray(info.coachingTips) &&
+    info.coachingTips.length > 0
+  );
 }
 
 export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const { workoutId } = useParams();
   const navigate = useNavigate();
-  const { t, weightUnitLabel } = useSettings();
+  const { t, weightUnitLabel, language } = useSettings();
   const [draft, setDraft] = useState<WorkoutDraft>(createEmptyDraft());
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -71,6 +103,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const [isAddExerciseExpanded, setIsAddExerciseExpanded] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState("");
   const [deleteExerciseIndex, setDeleteExerciseIndex] = useState<number | null>(null);
+  const [isGeneratingExerciseInfo, setIsGeneratingExerciseInfo] = useState(false);
 
   useEffect(() => {
     if (mode !== "edit" || !workoutId) {
@@ -95,6 +128,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         exercises: existing.exercises.map((item) => ({
           name: item.exercise.name,
           notes: item.exercise.notes ?? "",
+          aiInfo: item.exercise.aiInfo,
           x2Enabled: item.exercise.x2Enabled ?? false,
           sets: item.sets.map((set) => ({
             targetReps: set.targetReps,
@@ -121,6 +155,167 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         exercise.sets.every((set) => set.targetReps > 0 && set.targetWeight >= 0)
     );
   }, [draft]);
+
+  const namedExerciseCount = useMemo(
+    () => draft.exercises.filter((exercise) => exercise.name.trim().length > 0).length,
+    [draft.exercises]
+  );
+
+  const handleGenerateExerciseInfo = useCallback(async () => {
+    const baseDraft = structuredClone(draft);
+
+    const existingInfoByName = new Map<string, ExerciseAiInfo>();
+    for (const exercise of baseDraft.exercises) {
+      const key = normalizeExerciseName(exercise.name);
+      if (!key || !hasExerciseAiInfo(exercise.aiInfo) || existingInfoByName.has(key)) {
+        continue;
+      }
+      existingInfoByName.set(key, exercise.aiInfo);
+    }
+
+    let locallyFilledCount = 0;
+    for (const exercise of baseDraft.exercises) {
+      if (hasExerciseAiInfo(exercise.aiInfo)) {
+        continue;
+      }
+      const key = normalizeExerciseName(exercise.name);
+      if (!key) {
+        continue;
+      }
+      const localInfo = existingInfoByName.get(key);
+      if (!localInfo) {
+        continue;
+      }
+      exercise.aiInfo = localInfo;
+      locallyFilledCount += 1;
+    }
+
+    const missingNames = Array.from(
+      new Set(
+        baseDraft.exercises
+          .filter((exercise) => !hasExerciseAiInfo(exercise.aiInfo))
+          .map((exercise) => exercise.name.trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (baseDraft.exercises.every((exercise) => !exercise.name.trim())) {
+      toast.error(t("exerciseInfoGenerateNoExercises"));
+      return;
+    }
+
+    if (missingNames.length === 0) {
+      if (locallyFilledCount > 0) {
+        setDraft(baseDraft);
+        toast.success(t("exerciseInfoGenerateSuccess").replace("{count}", String(locallyFilledCount)));
+      } else {
+        toast.success(t("exerciseInfoAlreadyLoaded"));
+      }
+      return;
+    }
+
+    setIsGeneratingExerciseInfo(true);
+    try {
+      const response = await fetch("/api/exercise-info", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          locale: language,
+          exerciseNames: missingNames
+        })
+      });
+
+      if (!response.ok) {
+        let errorCode = "";
+        let errorDetail = "";
+        try {
+          const errorPayload = (await response.json()) as { error?: string; detail?: string };
+          errorCode = typeof errorPayload.error === "string" ? errorPayload.error : "";
+          errorDetail = typeof errorPayload.detail === "string" ? errorPayload.detail : "";
+        } catch {
+          // ignore parse errors and fall back to generic message
+        }
+
+        if (response.status === 404) {
+          toast.error(t("exerciseInfoEndpointUnavailable"));
+          return;
+        }
+        if (errorCode.includes("GROQ_API_KEY") || errorDetail.includes("GROQ_API_KEY")) {
+          toast.error(t("exerciseInfoProviderNotConfigured"));
+          return;
+        }
+
+        toast.error(t("exerciseInfoGenerateFailed"));
+        return;
+      }
+
+      const payload = (await response.json()) as {
+        exercises?: unknown;
+        sourceProvider?: string;
+        sourceModel?: string;
+      };
+      const items = Array.isArray(payload.exercises) ? payload.exercises.filter(isExerciseInfoApiItem) : [];
+      if (items.length === 0) {
+        toast.error(t("exerciseInfoGenerateFailed"));
+        return;
+      }
+
+      const generatedAt = new Date().toISOString();
+      const infoByName = new Map<string, ExerciseAiInfo>();
+      for (const item of items) {
+        const key = normalizeExerciseName(item.inputName);
+        if (!key) continue;
+
+        const targetMuscles = item.targetMuscles
+          .map((muscle) => ({
+            muscle: typeof muscle.muscle === "string" ? muscle.muscle.trim() : "",
+            involvementPercent: Math.max(0, Math.min(100, Math.round(Number(muscle.involvementPercent) || 0)))
+          }))
+          .filter((muscle) => muscle.muscle);
+        const coachingTips = item.coachingTips.map((tip) => tip.trim()).filter(Boolean);
+        const executionGuide = item.executionGuide.trim();
+
+        if (targetMuscles.length === 0 || coachingTips.length === 0 || !executionGuide) {
+          continue;
+        }
+
+        infoByName.set(key, {
+          targetMuscles,
+          coachingTips,
+          executionGuide,
+          generatedAt,
+          sourceProvider: typeof payload.sourceProvider === "string" ? payload.sourceProvider : "groq",
+          sourceModel: typeof payload.sourceModel === "string" ? payload.sourceModel : undefined
+        });
+      }
+
+      let apiUpdatedCount = 0;
+      for (const exercise of baseDraft.exercises) {
+        if (hasExerciseAiInfo(exercise.aiInfo)) {
+          continue;
+        }
+        const info = infoByName.get(normalizeExerciseName(exercise.name));
+        if (!info) {
+          continue;
+        }
+        exercise.aiInfo = info;
+        apiUpdatedCount += 1;
+      }
+
+      const totalUpdatedCount = locallyFilledCount + apiUpdatedCount;
+      if (totalUpdatedCount <= 0) {
+        toast.error(t("exerciseInfoGenerateFailed"));
+        return;
+      }
+
+      setDraft(baseDraft);
+      toast.success(t("exerciseInfoGenerateSuccess").replace("{count}", String(totalUpdatedCount)));
+    } catch {
+      toast.error(t("exerciseInfoGenerateFailed"));
+    } finally {
+      setIsGeneratingExerciseInfo(false);
+    }
+  }, [draft, language, t]);
 
   const handleSave = useCallback(async () => {
     if (!isValid) {
@@ -358,15 +553,11 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                   ))}
 
                   <div className="flex items-center gap-2 border-t pt-2">
-                    <a
-                      href={exerciseSearchUrl(exercise.name.trim() || title)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
-                      aria-label={t("exerciseHelp")}
-                    >
-                      <BookSearch className="h-4 w-4" />
-                    </a>
+                    <ExerciseInfoDialogButton
+                      exerciseName={exercise.name.trim() || title}
+                      aiInfo={exercise.aiInfo}
+                      className="h-8 w-8 rounded-md text-muted-foreground/70"
+                    />
                     <div className="flex-1" />
                     <button
                       type="button"
@@ -488,6 +679,27 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
           </CardContent>
         </Card>
       )}
+
+      <div className="h-px bg-border" />
+
+      <Card>
+        <CardContent className="space-y-3 pt-4">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">{t("exerciseInfoGenerateSectionTitle")}</p>
+            <p className="text-xs text-muted-foreground">{t("exerciseInfoGenerateSectionDescription")}</p>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full gap-1.5"
+            disabled={isGeneratingExerciseInfo || namedExerciseCount === 0}
+            onClick={() => void handleGenerateExerciseInfo()}
+          >
+            {isGeneratingExerciseInfo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {isGeneratingExerciseInfo ? t("exerciseInfoGenerating") : t("exerciseInfoGenerate")}
+          </Button>
+        </CardContent>
+      </Card>
 
       <div className="h-px bg-border" />
 

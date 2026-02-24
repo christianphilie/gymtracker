@@ -3,9 +3,12 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   type LucideIcon,
+  Clock3,
   Database,
   DoorClosedLocked,
   Download,
+  Dumbbell,
+  Flame,
   Globe,
   RotateCcw,
   Settings,
@@ -48,6 +51,12 @@ import { toast } from "sonner";
 
 const DISMISSED_SNAPSHOT_KEY = "gymtracker:dismissed-snapshot-id";
 type SettingsTabKey = "app" | "personal" | "data";
+
+function getSettingsTabFromHash(hash: string): SettingsTabKey {
+  if (hash === "#data-import") return "data";
+  if (hash === "#weekly-goals") return "personal";
+  return "app";
+}
 
 interface SettingsCardTitleProps {
   icon: LucideIcon;
@@ -179,9 +188,7 @@ export function SettingsPage() {
   } = useSettings();
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState<SettingsTabKey>(() =>
-    location.hash === "#data-import" ? "data" : "app"
-  );
+  const [activeTab, setActiveTab] = useState<SettingsTabKey>(() => getSettingsTabFromHash(location.hash));
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<AppBackupFile | null>(null);
@@ -200,9 +207,11 @@ export function SettingsPage() {
   const [weeklyWeightGoalDraft, setWeeklyWeightGoalDraft] = useState("");
   const [weeklyCaloriesGoalDraft, setWeeklyCaloriesGoalDraft] = useState("");
   const [weeklyWorkoutCountGoalDraft, setWeeklyWorkoutCountGoalDraft] = useState("");
+  const [weeklyDurationGoalDraft, setWeeklyDurationGoalDraft] = useState("");
   const [weeklyWeightGoalEnabled, setWeeklyWeightGoalEnabled] = useState(false);
   const [weeklyCaloriesGoalEnabled, setWeeklyCaloriesGoalEnabled] = useState(false);
   const [weeklyWorkoutCountGoalEnabled, setWeeklyWorkoutCountGoalEnabled] = useState(false);
+  const [weeklyDurationGoalEnabled, setWeeklyDurationGoalEnabled] = useState(false);
 
   const showSnapshotNotice = !!latestUpdateSnapshot && latestUpdateSnapshot.id !== dismissedSnapshotId;
 
@@ -239,21 +248,38 @@ export function SettingsPage() {
         ? String(Math.round(weeklyWorkoutCountGoal))
         : ""
     );
+
+    const weeklyDurationGoal = settingsRecord?.weeklyDurationGoal;
+    setWeeklyDurationGoalEnabled(
+      typeof weeklyDurationGoal === "number" && Number.isFinite(weeklyDurationGoal) && weeklyDurationGoal > 0
+    );
+    setWeeklyDurationGoalDraft(
+      typeof weeklyDurationGoal === "number" && Number.isFinite(weeklyDurationGoal)
+        ? String(Math.round(weeklyDurationGoal))
+        : ""
+    );
   }, [
     settingsRecord?.bodyWeight,
     settingsRecord?.weeklyWeightGoal,
     settingsRecord?.weeklyCaloriesGoal,
-    settingsRecord?.weeklyWorkoutCountGoal
+    settingsRecord?.weeklyWorkoutCountGoal,
+    settingsRecord?.weeklyDurationGoal
   ]);
 
   useEffect(() => {
     if (location.hash === "#data-import") {
       setActiveTab("data");
-      window.requestAnimationFrame(() => {
-        const target = document.getElementById("data-import");
-        target?.scrollIntoView({ block: "start", behavior: "smooth" });
-      });
+    } else if (location.hash === "#weekly-goals") {
+      setActiveTab("personal");
+    } else {
+      return;
     }
+
+    window.requestAnimationFrame(() => {
+      const targetId = location.hash.slice(1);
+      const target = document.getElementById(targetId);
+      target?.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
   }, [location.hash]);
 
   const handleDismissSnapshot = () => {
@@ -472,6 +498,29 @@ export function SettingsPage() {
     setWeeklyWorkoutCountGoalDraft(String(rounded));
   };
 
+  const handleWeeklyDurationGoalCommit = async () => {
+    const normalized = weeklyDurationGoalDraft.trim();
+    if (!normalized) {
+      await updateSettings({ weeklyDurationGoal: undefined });
+      setWeeklyDurationGoalDraft("");
+      return;
+    }
+
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setWeeklyDurationGoalDraft(
+        typeof settingsRecord?.weeklyDurationGoal === "number" && Number.isFinite(settingsRecord.weeklyDurationGoal)
+          ? String(Math.round(settingsRecord.weeklyDurationGoal))
+          : ""
+      );
+      return;
+    }
+
+    const rounded = Math.max(1, Math.round(parsed));
+    await updateSettings({ weeklyDurationGoal: rounded });
+    setWeeklyDurationGoalDraft(String(rounded));
+  };
+
   const handleWeeklyWorkoutGoalToggle = async (checked: boolean) => {
     setWeeklyWorkoutCountGoalEnabled(checked);
     if (!checked) {
@@ -490,6 +539,13 @@ export function SettingsPage() {
     setWeeklyWeightGoalEnabled(checked);
     if (!checked) {
       await updateSettings({ weeklyWeightGoal: undefined });
+    }
+  };
+
+  const handleWeeklyDurationGoalToggle = async (checked: boolean) => {
+    setWeeklyDurationGoalEnabled(checked);
+    if (!checked) {
+      await updateSettings({ weeklyDurationGoal: undefined });
     }
   };
 
@@ -626,7 +682,7 @@ export function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card id="weekly-goals" className="scroll-mt-20">
             <CardHeader>
               <SettingsCardTitle icon={Target}>{t("weeklyGoals")}</SettingsCardTitle>
             </CardHeader>
@@ -635,7 +691,10 @@ export function SettingsPage() {
                 <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
                   <div className="space-y-1">
                     <Label htmlFor="weekly-workout-goal-enabled" className="text-sm">
-                      {t("weeklyWorkoutGoal")}
+                      <span className="inline-flex items-center gap-2">
+                        <Dumbbell className="h-4 w-4 text-muted-foreground" />
+                        {t("weeklyWorkoutGoal")}
+                      </span>
                     </Label>
                   </div>
                   <Switch
@@ -675,42 +734,45 @@ export function SettingsPage() {
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
                   <div className="space-y-1">
-                    <Label htmlFor="weekly-calories-goal-enabled" className="text-sm">
-                      {t("weeklyCaloriesGoal")}
+                    <Label htmlFor="weekly-duration-goal-enabled" className="text-sm">
+                      <span className="inline-flex items-center gap-2">
+                        <Clock3 className="h-4 w-4 text-muted-foreground" />
+                        {t("weeklyDurationGoal")}
+                      </span>
                     </Label>
                   </div>
                   <Switch
-                    id="weekly-calories-goal-enabled"
-                    checked={weeklyCaloriesGoalEnabled}
-                    onCheckedChange={(checked) => void handleWeeklyCaloriesGoalToggle(checked)}
+                    id="weekly-duration-goal-enabled"
+                    checked={weeklyDurationGoalEnabled}
+                    onCheckedChange={(checked) => void handleWeeklyDurationGoalToggle(checked)}
                   />
                 </div>
-                <div className={`grid transition-all duration-200 ${weeklyCaloriesGoalEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                <div className={`grid transition-all duration-200 ${weeklyDurationGoalEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                   <div className="overflow-hidden">
                     <div className="relative px-1 py-1.5">
                       <Input
-                        id="weekly-calories-goal"
+                        id="weekly-duration-goal"
                         inputMode="numeric"
-                        pattern="[0-9]*[.,]?[0-9]*"
-                        value={weeklyCaloriesGoalDraft}
+                        pattern="[0-9]*"
+                        value={weeklyDurationGoalDraft}
                         onChange={(event) => {
                           const next = event.currentTarget.value;
-                          if (/^[0-9]*([.,][0-9]*)?$/.test(next) || next === "") {
-                            setWeeklyCaloriesGoalDraft(next);
+                          if (/^[0-9]*$/.test(next)) {
+                            setWeeklyDurationGoalDraft(next);
                           }
                         }}
-                        onBlur={() => void handleWeeklyCaloriesGoalCommit()}
+                        onBlur={() => void handleWeeklyDurationGoalCommit()}
                         onKeyDown={(event) => {
                           if (event.key === "Enter") {
                             event.currentTarget.blur();
                           }
                         }}
-                        placeholder="1800"
+                        placeholder="180"
                         className="pr-14"
-                        disabled={!weeklyCaloriesGoalEnabled}
+                        disabled={!weeklyDurationGoalEnabled}
                       />
                       <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                        kcal
+                        min
                       </div>
                     </div>
                   </div>
@@ -721,7 +783,10 @@ export function SettingsPage() {
                 <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
                   <div className="space-y-1">
                     <Label htmlFor="weekly-weight-goal-enabled" className="text-sm">
-                      {t("weeklyWeightGoal")}
+                      <span className="inline-flex items-center gap-2">
+                        <Weight className="h-4 w-4 text-muted-foreground" />
+                        {t("weeklyWeightGoal")}
+                      </span>
                     </Label>
                   </div>
                   <Switch
@@ -756,6 +821,54 @@ export function SettingsPage() {
                       />
                       <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                         {weightUnit}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="weekly-calories-goal-enabled" className="text-sm">
+                      <span className="inline-flex items-center gap-2">
+                        <Flame className="h-4 w-4 text-muted-foreground" />
+                        {t("weeklyCaloriesGoal")}
+                      </span>
+                    </Label>
+                  </div>
+                  <Switch
+                    id="weekly-calories-goal-enabled"
+                    checked={weeklyCaloriesGoalEnabled}
+                    onCheckedChange={(checked) => void handleWeeklyCaloriesGoalToggle(checked)}
+                  />
+                </div>
+                <div className={`grid transition-all duration-200 ${weeklyCaloriesGoalEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                  <div className="overflow-hidden">
+                    <div className="relative px-1 py-1.5">
+                      <Input
+                        id="weekly-calories-goal"
+                        inputMode="numeric"
+                        pattern="[0-9]*[.,]?[0-9]*"
+                        value={weeklyCaloriesGoalDraft}
+                        onChange={(event) => {
+                          const next = event.currentTarget.value;
+                          if (/^[0-9]*([.,][0-9]*)?$/.test(next) || next === "") {
+                            setWeeklyCaloriesGoalDraft(next);
+                          }
+                        }}
+                        onBlur={() => void handleWeeklyCaloriesGoalCommit()}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.currentTarget.blur();
+                          }
+                        }}
+                        placeholder="1800"
+                        className="pr-14"
+                        disabled={!weeklyCaloriesGoalEnabled}
+                      />
+                      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        kcal
                       </div>
                     </div>
                   </div>

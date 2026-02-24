@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" fill="none">
   <rect width="180" height="180" rx="40" fill="#fff"/>
-  <g transform="translate(30, 30) scale(5)">
+  <g transform="translate(150, 30) scale(-5, 5)">
     <path stroke="#02AB76" stroke-width="2" d="M14.4 14.4 9.6 9.6m9.1 11.9a2 2 0 1 1-2.9-2.8l-1.7 1.7a2 2 0 1 1-2.9-2.8l6.4-6.4a2 2 0 1 1 2.8 2.9l-1.7 1.7a2 2 0 1 1 2.8 2.9zm2.8 0-1.4-1.4M3.9 3.9 2.5 2.5m3.9 10.3a2 2 0 1 1-2.8-2.9l1.7-1.7a2 2 0 1 1-2.8-2.9l2.8-2.8a2 2 0 1 1 2.9 2.8l1.7-1.7a2 2 0 1 1 2.9 2.8z"/>
   </g>
 </svg>

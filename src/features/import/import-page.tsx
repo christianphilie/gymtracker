@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { Copy, File, Sparkles, Type } from "lucide-react";
+import { ArrowRight, Copy, File, Sparkles, Type } from "lucide-react";
 import { useSettings } from "@/app/settings-context";
 import { APP_VERSION } from "@/app/version";
 import { Button } from "@/components/ui/button";
@@ -122,7 +122,10 @@ export function ImportPage() {
             </TabsList>
 
             <TabsContent value="ai" className="space-y-3">
-              <p className="text-sm text-muted-foreground">{t("aiImportDescription")}</p>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">{t("aiImportTitle")}</p>
+                <p className="text-xs text-muted-foreground">{t("aiImportDescription")}</p>
+              </div>
               <Textarea
                 className="min-h-[200px]"
                 value={aiPlanText}
@@ -136,15 +139,22 @@ export function ImportPage() {
                 onClick={() => void handleAiGenerate()}
               >
                 <Sparkles className="mr-2 h-4 w-4" />
-                {isAiLoading ? "..." : t("aiGenerate")}
+                {isAiLoading ? "..." : t("aiImportGenerateButton")}
               </Button>
             </TabsContent>
 
             <TabsContent value="manual" className="space-y-4">
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <p className="text-sm font-medium">{t("importFromFileStep1")}</p>
-                  <p className="text-xs text-muted-foreground">{t("importFromFileStep1Desc")}</p>
+                  <p className="text-sm font-medium">{t("importFromFileOwnAiTitle")}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("importFromFileOwnAiDescriptionBefore")}{" "}
+                    <strong className="font-semibold text-foreground">{t("importFromFileOwnAiDescriptionHighlight")}</strong>{" "}
+                    {t("importFromFileOwnAiDescriptionAfter")}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -154,25 +164,19 @@ export function ImportPage() {
                     }}
                   >
                     <Copy className="mr-1.5 h-3.5 w-3.5" />
-                    {t("copyPrompt")}
+                    {t("copyPromptForOwnAi")}
                   </Button>
                 </div>
 
                 <div className="space-y-1">
-                  <p className="text-sm font-medium">{t("importFromFileStep2")}</p>
-                  <p className="text-xs text-muted-foreground">{t("importFromFileStep2Desc")}</p>
-                </div>
-
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">{t("importFromFileStep3")}</p>
-                  <p className="text-xs text-muted-foreground">{t("importFromFileStep3Desc")}</p>
                   <Textarea
-                    className="mono-text min-h-[160px]"
+                    className="mono-text min-h-[160px] text-xs mb-2"
                     value={rawInput}
                     onChange={(event) => setRawInput(event.target.value)}
-                    placeholder='{"schemaVersion":"1.0",...}'
+                    placeholder={t("importJsonResponsePlaceholder")}
                   />
-                  <Button className="w-full" disabled={!canValidate} onClick={handleValidate}>
+                  <Button className="w-full gap-1.5" disabled={!canValidate} onClick={handleValidate}>
+                    <ArrowRight className="h-4 w-4" />
                     {t("buildPreview")}
                   </Button>
                 </div>

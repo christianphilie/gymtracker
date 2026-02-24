@@ -1,7 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ChartNoAxesCombined, Download, Dumbbell, OctagonX, PenSquare, Plus, Sparkles } from "lucide-react";
+import {
+  ChartNoAxesCombined,
+  Clock3,
+  Download,
+  Dumbbell,
+  Flame,
+  ListChecks,
+  OctagonX,
+  PenSquare,
+  Plus,
+  Repeat,
+  Sparkles,
+  Target,
+  Weight
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,7 +58,7 @@ interface WeeklyStatsWorkoutEntry {
 
 interface WeeklyDashboardStats {
   workoutCount: number;
-  exerciseCount: number;
+  durationMinutesTotal: number;
   setCount: number;
   repsTotal: number;
   totalWeight: number;
@@ -54,12 +68,13 @@ interface WeeklyDashboardStats {
   weeklyWeightGoal?: number;
   weeklyCaloriesGoal?: number;
   weeklyWorkoutCountGoal?: number;
+  weeklyDurationGoal?: number;
 }
 
 const ACTIVE_SESSION_PILL_CLASS = "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500";
 const EMPTY_WEEKLY_STATS: WeeklyDashboardStats = {
   workoutCount: 0,
-  exerciseCount: 0,
+  durationMinutesTotal: 0,
   setCount: 0,
   repsTotal: 0,
   totalWeight: 0,
@@ -68,7 +83,8 @@ const EMPTY_WEEKLY_STATS: WeeklyDashboardStats = {
   completedWorkouts: [],
   weeklyWeightGoal: undefined,
   weeklyCaloriesGoal: undefined,
-  weeklyWorkoutCountGoal: undefined
+  weeklyWorkoutCountGoal: undefined,
+  weeklyDurationGoal: undefined
 };
 
 function getWeekStart(date: Date) {
@@ -82,6 +98,22 @@ function getWeekStart(date: Date) {
 
 function normalizeWeeklyGoal(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function formatDurationShort(totalMinutes: number, language: "de" | "en") {
+  const safeMinutes = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(safeMinutes / 60);
+  const minutes = safeMinutes % 60;
+
+  if (hours <= 0) {
+    return language === "de" ? `${minutes} Min` : `${minutes}m`;
+  }
+
+  if (minutes === 0) {
+    return language === "de" ? `${hours} Std` : `${hours}h`;
+  }
+
+  return language === "de" ? `${hours} Std ${minutes} Min` : `${hours}h ${minutes}m`;
 }
 
 function PlayFilledIcon({ className }: { className?: string }) {
@@ -182,6 +214,7 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
     const weeklyWeightGoal = normalizeWeeklyGoal(settings?.weeklyWeightGoal);
     const weeklyCaloriesGoal = normalizeWeeklyGoal(settings?.weeklyCaloriesGoal);
     const weeklyWorkoutCountGoal = normalizeWeeklyGoal(settings?.weeklyWorkoutCountGoal);
+    const weeklyDurationGoal = normalizeWeeklyGoal(settings?.weeklyDurationGoal);
     const completedSessions = (await db.sessions.where("status").equals("completed").toArray())
       .filter((session) => new Date(session.finishedAt ?? session.startedAt) >= weekStart)
       .sort(
@@ -194,7 +227,8 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
         ...EMPTY_WEEKLY_STATS,
         weeklyWeightGoal,
         weeklyCaloriesGoal,
-        weeklyWorkoutCountGoal
+        weeklyWorkoutCountGoal,
+        weeklyDurationGoal
       };
     }
 
@@ -224,7 +258,7 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
       weekday: "long"
     });
 
-    let exerciseCount = 0;
+    let durationMinutesTotal = 0;
     let setCount = 0;
     let repsTotal = 0;
     let totalWeight = 0;
@@ -235,7 +269,6 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
       const sessionId = session.id ?? -1;
       const sessionSets = setsBySessionId.get(sessionId) ?? [];
       const completedSets = sessionSets.filter((set) => set.completed);
-      const setsForExerciseCount = completedSets.length > 0 ? completedSets : sessionSets;
       const weightedCompletedSetCount = completedSets.reduce((sum, set) => sum + getSetStatsMultiplier(set), 0);
       const sessionRepsTotal = completedSets.reduce(
         (sum, set) => sum + (set.actualReps ?? set.targetReps) * getSetStatsMultiplier(set),
@@ -250,12 +283,12 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
         0
       );
 
-      exerciseCount += new Set(setsForExerciseCount.map((set) => set.sessionExerciseKey)).size;
       setCount += weightedCompletedSetCount;
       repsTotal += sessionRepsTotal;
       totalWeight += sessionTotalWeight;
 
       const durationMinutes = getSessionDurationMinutes(session.startedAt, session.finishedAt);
+      durationMinutesTotal += durationMinutes;
       caloriesTotal += estimateStrengthTrainingCalories({
         durationMinutes,
         bodyWeightKg,
@@ -274,7 +307,7 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
 
     return {
       workoutCount: completedSessions.length,
-      exerciseCount,
+      durationMinutesTotal,
       setCount,
       repsTotal,
       totalWeight,
@@ -283,7 +316,8 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
       completedWorkouts,
       weeklyWeightGoal,
       weeklyCaloriesGoal,
-      weeklyWorkoutCountGoal
+      weeklyWorkoutCountGoal,
+      weeklyDurationGoal
     };
   }, [language, weekStart.getTime(), weightUnit]);
 
@@ -319,12 +353,13 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
     };
 
     const items: Array<{
-      key: "workouts" | "calories" | "weight";
+      key: "workouts" | "duration" | "calories" | "weight";
       label: string;
       currentLabel: string;
       targetLabel: string;
       progressPercent: number;
       isComplete: boolean;
+      icon: React.ReactNode;
     }> = [];
 
     if (weeklyStats.weeklyWorkoutCountGoal) {
@@ -336,7 +371,22 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
         currentLabel: formatWithUnit(current),
         targetLabel: formatWithUnit(target),
         progressPercent: Math.max(0, Math.min(100, Math.round((current / target) * 100))),
-        isComplete: current >= target
+        isComplete: current >= target,
+        icon: <Dumbbell className="h-3.5 w-3.5" />
+      });
+    }
+
+    if (weeklyStats.weeklyDurationGoal) {
+      const current = weeklyStats.durationMinutesTotal;
+      const target = weeklyStats.weeklyDurationGoal;
+      items.push({
+        key: "duration",
+        label: t("duration"),
+        currentLabel: formatDurationShort(current, language),
+        targetLabel: formatDurationShort(target, language),
+        progressPercent: Math.max(0, Math.min(100, Math.round((current / target) * 100))),
+        isComplete: current >= target,
+        icon: <Clock3 className="h-3.5 w-3.5" />
       });
     }
 
@@ -349,7 +399,8 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
         currentLabel: formatWithUnit(current, "kcal"),
         targetLabel: formatWithUnit(target, "kcal"),
         progressPercent: Math.max(0, Math.min(100, Math.round((current / target) * 100))),
-        isComplete: current >= target
+        isComplete: current >= target,
+        icon: <Flame className="h-3.5 w-3.5" />
       });
     }
 
@@ -362,12 +413,13 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
         currentLabel: formatWithUnit(current, weightUnit),
         targetLabel: formatWithUnit(target, weightUnit),
         progressPercent: Math.max(0, Math.min(100, Math.round((current / target) * 100))),
-        isComplete: current >= target
+        isComplete: current >= target,
+        icon: <Weight className="h-3.5 w-3.5" />
       });
     }
 
     return items;
-  }, [weeklyStats, t, weightUnit]);
+  }, [weeklyStats, t, weightUnit, language]);
 
   const handleStartSession = async (workoutId: number) => {
     try {
@@ -488,9 +540,22 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
 
   return (
     <section className="space-y-4">
-      <p className="text-base font-semibold leading-tight text-foreground/75">
-        {showWorkoutsSection ? t("workoutsSubtitle") : t("statisticsThisWeekSubtitle")}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-base font-semibold leading-tight text-foreground/75">
+          {showWorkoutsSection ? t("workoutsSubtitle") : t("statisticsThisWeekSubtitle")}
+        </p>
+        {showWorkoutsSection && hasWorkouts && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => navigate("/workouts/add")}
+          >
+            <Plus className="h-4 w-4" />
+            {t("addWorkout")}
+          </Button>
+        )}
+      </div>
 
       {showWorkoutsSection && !hasWorkouts && (
         <>
@@ -569,49 +634,54 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
         </div>
       )}
 
-      {showWorkoutsSection && hasWorkouts && (
-        <>
-          <Button
-            variant="secondary"
-            className="w-full justify-start gap-2"
-            onClick={() => navigate("/workouts/add")}
-          >
-            <Plus className="h-4 w-4" />
-            {t("addWorkout")}
-          </Button>
-        </>
-      )}
-
       {showStatsSection && (
         <section className="space-y-3">
           <Card>
             <CardContent className="space-y-4 pt-4">
               <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
                 <div className="rounded-lg border bg-card px-3 py-2">
-                  <p className="text-xs text-muted-foreground">{t("workoutsThisWeek")}</p>
+                  <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <Dumbbell className="h-3.5 w-3.5" />
+                    {t("workoutsThisWeek")}
+                  </p>
                   <p className="text-base font-semibold">{weeklyStats?.workoutCount ?? 0}</p>
                 </div>
                 <div className="rounded-lg border bg-card px-3 py-2">
-                  <p className="text-xs text-muted-foreground">{t("exercises")}</p>
-                  <p className="text-base font-semibold">{weeklyStats?.exerciseCount ?? 0}</p>
+                  <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    {t("duration")}
+                  </p>
+                  <p className="text-base font-semibold">{formatDurationShort(weeklyStats?.durationMinutesTotal ?? 0, language)}</p>
                 </div>
                 <div className="rounded-lg border bg-card px-3 py-2">
-                  <p className="text-xs text-muted-foreground">{t("sets")}</p>
+                  <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <ListChecks className="h-3.5 w-3.5" />
+                    {t("sets")}
+                  </p>
                   <p className="text-base font-semibold">{weeklyStats?.setCount ?? 0}</p>
                 </div>
                 <div className="rounded-lg border bg-card px-3 py-2">
-                  <p className="text-xs text-muted-foreground">{t("repsTotal")}</p>
+                  <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <Repeat className="h-3.5 w-3.5" />
+                    {t("repsTotal")}
+                  </p>
                   <p className="text-base font-semibold">{weeklyStats?.repsTotal ?? 0}</p>
                 </div>
                 <div className="rounded-lg border bg-card px-3 py-2">
-                  <p className="text-xs text-muted-foreground">{t("totalWeight")}</p>
+                  <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <Weight className="h-3.5 w-3.5" />
+                    {t("totalWeight")}
+                  </p>
                   <p className="text-base font-semibold">
                     {formatNumber(weeklyStats?.totalWeight ?? 0, 0)} {weightUnit}
                   </p>
                 </div>
                 <div className="relative rounded-lg border bg-card px-3 py-2">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-xs text-muted-foreground">{t("calories")}</p>
+                    <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      <Flame className="h-3.5 w-3.5" />
+                      {t("calories")}
+                    </p>
                     {weeklyStats?.usesDefaultBodyWeightForCalories && (
                       <InfoHint
                         ariaLabel={t("calories")}
@@ -650,13 +720,27 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
 
           {weeklyGoalItems.length > 0 && (
             <section className="space-y-3">
-              <p className="text-base font-semibold leading-tight text-foreground/75">{t("weeklyGoals")}</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="inline-flex items-center gap-2 text-base font-semibold leading-tight text-foreground/75">
+                  <Target className="h-4 w-4" />
+                  {t("weeklyGoals")}
+                </p>
+                <Button asChild variant="secondary" size="sm" className="h-8 gap-1.5">
+                  <Link to="/settings#weekly-goals">
+                    <PenSquare className="h-3.5 w-3.5" />
+                    {t("edit")}
+                  </Link>
+                </Button>
+              </div>
               <Card>
                 <CardContent className="space-y-2 pt-4">
                   {weeklyGoalItems.map((goal) => (
                     <div key={goal.key} className="rounded-md border bg-background px-2.5 py-2">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs text-muted-foreground">{goal.label}</p>
+                        <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                          {goal.icon}
+                          {goal.label}
+                        </p>
                         <p className="text-xs font-medium tabular-nums">
                           {goal.currentLabel} / {goal.targetLabel}
                         </p>

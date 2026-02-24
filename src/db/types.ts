@@ -12,6 +12,7 @@ export interface Settings {
   weeklyWeightGoal?: number;
   weeklyCaloriesGoal?: number;
   weeklyWorkoutCountGoal?: number;
+  weeklyDurationGoal?: number;
   lockerNoteEnabled?: boolean;
   lockerNumber?: string;
   lockerNumberUpdatedAt?: string;
@@ -28,11 +29,26 @@ export interface Workout {
   archivedAt?: string | null;
 }
 
+export interface ExerciseAiTargetMuscle {
+  muscle: string;
+  involvementPercent: number;
+}
+
+export interface ExerciseAiInfo {
+  targetMuscles: ExerciseAiTargetMuscle[];
+  executionGuide: string;
+  coachingTips: string[];
+  generatedAt: string;
+  sourceProvider?: string;
+  sourceModel?: string;
+}
+
 export interface Exercise {
   id?: number;
   workoutId: number;
   name: string;
   notes?: string;
+  aiInfo?: ExerciseAiInfo;
   order: number;
   isTemplate?: boolean;
   x2Enabled?: boolean;
@@ -66,6 +82,7 @@ export interface SessionExerciseSet {
   sessionExerciseKey: string;
   exerciseName: string;
   exerciseNotes?: string;
+  exerciseAiInfo?: ExerciseAiInfo;
   exerciseOrder: number;
   isTemplateExercise: boolean;
   x2Enabled?: boolean;

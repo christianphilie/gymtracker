@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { BookSearch, Check, ChevronDown, Flag, NotebookPen, OctagonX, Plus, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, Flag, NotebookPen, OctagonX, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
+import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +17,8 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import type { SessionExerciseSet } from "@/db/types";
+import type { ExerciseAiInfo, SessionExerciseSet } from "@/db/types";
+import { db } from "@/db/db";
 import {
   addSessionExercise,
   addSessionSet,
@@ -33,21 +35,6 @@ import { formatSessionDateLabel } from "@/lib/utils";
 const ACTIVE_SESSION_PILL_CLASS = "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500";
 const SUCCESS_CIRCLE_CLASS = "inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-500";
 const SESSION_COLLAPSED_STORAGE_KEY_PREFIX = "gymtracker:session-collapsed:";
-
-function ExerciseSearchLink({ exerciseName }: { exerciseName: string }) {
-  const url = `https://www.google.com/search?q=${encodeURIComponent(`${exerciseName} exercise database`)}`;
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noreferrer"
-      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
-      aria-label="Exercise links"
-    >
-      <BookSearch className="h-4 w-4" />
-    </a>
-  );
-}
 
 function formatInlineValue(value: number) {
   return `${value}`;
@@ -86,6 +73,20 @@ export function SessionPage() {
       previousSummary
     };
   }, [numericSessionId]);
+  const templateExerciseInfoMap = useLiveQuery(async () => {
+    const templateIds = Array.from(
+      new Set((payload?.sets ?? []).map((set) => set.templateExerciseId).filter((id): id is number => id !== undefined))
+    );
+    if (templateIds.length === 0) {
+      return new Map<number, ExerciseAiInfo>();
+    }
+    const exercises = await db.exercises.where("id").anyOf(templateIds).toArray();
+    return new Map(
+      exercises
+        .filter((exercise): exercise is typeof exercise & { id: number } => exercise.id !== undefined && !!exercise.aiInfo)
+        .map((exercise) => [exercise.id, exercise.aiInfo!])
+    );
+  }, [payload?.sets]);
 
   useEffect(() => {
     if (Number.isNaN(numericSessionId)) {
@@ -195,11 +196,14 @@ export function SessionPage() {
           exerciseOrder: firstSet.exerciseOrder,
           isTemplateExercise: firstSet.isTemplateExercise,
           templateExerciseId: firstSet.templateExerciseId,
-          x2Enabled: firstSet.x2Enabled ?? false
+          x2Enabled: firstSet.x2Enabled ?? false,
+          exerciseAiInfo:
+            firstSet.exerciseAiInfo ??
+            (firstSet.templateExerciseId !== undefined ? templateExerciseInfoMap?.get(firstSet.templateExerciseId) : undefined)
         };
       })
       .sort((a, b) => a.exerciseOrder - b.exerciseOrder);
-  }, [groupedSets]);
+  }, [groupedSets, templateExerciseInfoMap]);
 
   if (!payload) {
     return <p className="text-sm text-muted-foreground">Session not found.</p>;
@@ -267,9 +271,20 @@ export function SessionPage() {
                   )}
                 </div>
                 {allCompleted && (
-                  <span className={SUCCESS_CIRCLE_CLASS} aria-label={t("done")}>
-                    <Check className="h-3 w-3" />
-                  </span>
+                  <div className="flex items-center gap-1">
+                    {isCompleted && (
+                      <ExerciseInfoDialogButton
+                        exerciseName={exercise.exerciseName}
+                        aiInfo={exercise.exerciseAiInfo}
+                      />
+                    )}
+                    <span className={SUCCESS_CIRCLE_CLASS} aria-label={t("done")}>
+                      <Check className="h-3 w-3" />
+                    </span>
+                  </div>
+                )}
+                {!allCompleted && isCompleted && (
+                  <ExerciseInfoDialogButton exerciseName={exercise.exerciseName} aiInfo={exercise.exerciseAiInfo} />
                 )}
               </div>
 
@@ -367,7 +382,11 @@ export function SessionPage() {
 
                 {!isCompleted && (
                   <div className="flex items-center gap-2 border-t pt-2">
-                    <ExerciseSearchLink exerciseName={exercise.exerciseName}/>
+                    <ExerciseInfoDialogButton
+                      exerciseName={exercise.exerciseName}
+                      aiInfo={exercise.exerciseAiInfo}
+                      className="h-8 w-8 rounded-md text-muted-foreground/70"
+                    />
                     <div className="flex-1" />
                     <button
                       type="button"
