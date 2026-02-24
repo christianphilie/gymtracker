@@ -1,20 +1,15 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
-  type LucideIcon,
   Clock3,
   Database,
-  DoorClosedLocked,
   Download,
   Dumbbell,
   Flame,
-  Globe,
   RotateCcw,
   Settings,
-  SunMoon,
   Target,
-  Timer,
   Upload,
   User,
   Weight,
@@ -47,6 +42,15 @@ import {
 } from "@/db/repository";
 import type { AppLanguage, ColorScheme, WeightUnit } from "@/db/types";
 import { createBackupPayload, parseBackupPayload, type AppBackupFile } from "@/features/settings/backup-utils";
+import { SettingsAppTab } from "@/features/settings/settings-app-tab";
+import { SettingsDataTab } from "@/features/settings/settings-data-tab";
+import { SettingsPersonalTab } from "@/features/settings/settings-personal-tab";
+import {
+  ConfirmDialog,
+  OptionTabsCard,
+  SettingsCardTitle,
+  type TabsOption
+} from "@/features/settings/settings-page-primitives";
 import { toast } from "sonner";
 
 const DISMISSED_SNAPSHOT_KEY = "gymtracker:dismissed-snapshot-id";
@@ -56,118 +60,6 @@ function getSettingsTabFromHash(hash: string): SettingsTabKey {
   if (hash === "#data-import") return "data";
   if (hash === "#weekly-goals") return "personal";
   return "app";
-}
-
-interface SettingsCardTitleProps {
-  icon: LucideIcon;
-  children: ReactNode;
-}
-
-interface ToggleSettingRowProps {
-  id: string;
-  label: string;
-  hint: string;
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-}
-
-interface TabsOption {
-  value: string;
-  label: string;
-  disabled?: boolean;
-}
-
-interface OptionTabsCardProps {
-  icon: LucideIcon;
-  title: string;
-  value: string;
-  options: TabsOption[];
-  onValueChange: (value: string) => void;
-}
-
-interface ConfirmDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: string;
-  description: string;
-  cancelLabel: string;
-  confirmLabel: string;
-  onConfirm: () => void;
-  confirmDisabled?: boolean;
-  confirmClassName?: string;
-}
-
-function SettingsCardTitle({ icon: Icon, children }: SettingsCardTitleProps) {
-  return (
-    <CardTitle className="inline-flex items-center gap-2">
-      <Icon className="h-4 w-4" />
-      {children}
-    </CardTitle>
-  );
-}
-
-function ToggleSettingRow({ id, label, hint, checked, onCheckedChange }: ToggleSettingRowProps) {
-  return (
-    <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
-      <div className="space-y-1">
-        <Label htmlFor={id} className="text-sm">
-          {label}
-        </Label>
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      </div>
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
-    </div>
-  );
-}
-
-function OptionTabsCard({ icon, title, value, options, onValueChange }: OptionTabsCardProps) {
-  return (
-    <Card>
-      <CardHeader>
-        <SettingsCardTitle icon={icon}>{title}</SettingsCardTitle>
-      </CardHeader>
-      <CardContent>
-        <Tabs value={value} onValueChange={onValueChange}>
-          <TabsList className="w-full">
-            {options.map((option) => (
-              <TabsTrigger key={option.value} value={option.value} className="flex-1" disabled={option.disabled}>
-                {option.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ConfirmDialog({
-  open,
-  onOpenChange,
-  title,
-  description,
-  cancelLabel,
-  confirmLabel,
-  onConfirm,
-  confirmDisabled,
-  confirmClassName
-}: ConfirmDialogProps) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>{cancelLabel}</Button>
-          <Button className={confirmClassName} disabled={confirmDisabled} onClick={onConfirm}>
-            {confirmLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 export function SettingsPage() {
@@ -567,394 +459,72 @@ export function SettingsPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="app" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <SettingsCardTitle icon={DoorClosedLocked}>{t("lockerNoteSettingTitle")}</SettingsCardTitle>
-            </CardHeader>
-            <CardContent>
-              <ToggleSettingRow
-                id="locker-note-enabled"
-                label={t("lockerNoteToggle")}
-                hint={t("lockerNoteToggleHint")}
-                checked={lockerNoteEnabled}
-                onCheckedChange={(checked) => void setLockerNoteEnabled(checked)}
-              />
-            </CardContent>
-          </Card>
+        <SettingsAppTab
+          t={t}
+          language={language}
+          setLanguage={(value) => void setLanguage(value)}
+          weightUnit={weightUnit}
+          setWeightUnit={(value) => void setWeightUnit(value)}
+          restTimerSeconds={restTimerSeconds}
+          restTimerEnabled={restTimerEnabled}
+          setRestTimerEnabled={(value) => void setRestTimerEnabled(value)}
+          setRestTimerSeconds={(value) => void setRestTimerSeconds(value)}
+          lockerNoteEnabled={lockerNoteEnabled}
+          setLockerNoteEnabled={(value) => void setLockerNoteEnabled(value)}
+          colorScheme={colorScheme}
+          setColorScheme={(value) => void setColorScheme(value)}
+          languageOptions={languageOptions}
+          weightOptions={weightOptions}
+          colorSchemeOptions={colorSchemeOptions.map((option) => ({
+            value: option.value,
+            label: t(option.labelKey)
+          }))}
+          restTimerLengthOptions={restTimerLengthOptions}
+        />
 
-          <Card>
-            <CardHeader>
-              <SettingsCardTitle icon={Timer}>{t("restTimerDuration")}</SettingsCardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <ToggleSettingRow
-                id="rest-timer-enabled"
-                label={t("restTimerShowToggle")}
-                hint={t("restTimerShowToggleHint")}
-                checked={restTimerEnabled}
-                onCheckedChange={(checked) => void setRestTimerEnabled(checked)}
-              />
-              <div className={`grid transition-all duration-200 ${restTimerEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
-                <div className="overflow-hidden">
-                  <div className="space-y-1 pb-1">
-                    <Label htmlFor="rest-timer-length">{t("restTimerLengthLabel")}</Label>
-                    <Tabs value={String(restTimerSeconds)} onValueChange={(value) => void setRestTimerSeconds(Number(value))}>
-                      <TabsList className="w-full">
-                        {restTimerLengthOptions.map((option) => (
-                          <TabsTrigger key={option.value} value={option.value} className="flex-1" disabled={option.disabled}>
-                            {option.label}
-                          </TabsTrigger>
-                        ))}
-                      </TabsList>
-                    </Tabs>
-                    <p className="text-xs text-muted-foreground">{t("restTimerDescription")}</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <SettingsPersonalTab
+          t={t}
+          weightUnit={weightUnit}
+          bodyWeightDraft={bodyWeightDraft}
+          setBodyWeightDraft={setBodyWeightDraft}
+          onBodyWeightCommit={() => void handleBodyWeightCommit()}
+          weeklyWorkoutCountGoalDraft={weeklyWorkoutCountGoalDraft}
+          setWeeklyWorkoutCountGoalDraft={setWeeklyWorkoutCountGoalDraft}
+          weeklyWorkoutCountGoalEnabled={weeklyWorkoutCountGoalEnabled}
+          onWeeklyWorkoutGoalToggle={(checked) => void handleWeeklyWorkoutGoalToggle(checked)}
+          onWeeklyWorkoutCountGoalCommit={() => void handleWeeklyWorkoutCountGoalCommit()}
+          weeklyDurationGoalDraft={weeklyDurationGoalDraft}
+          setWeeklyDurationGoalDraft={setWeeklyDurationGoalDraft}
+          weeklyDurationGoalEnabled={weeklyDurationGoalEnabled}
+          onWeeklyDurationGoalToggle={(checked) => void handleWeeklyDurationGoalToggle(checked)}
+          onWeeklyDurationGoalCommit={() => void handleWeeklyDurationGoalCommit()}
+          weeklyWeightGoalDraft={weeklyWeightGoalDraft}
+          setWeeklyWeightGoalDraft={setWeeklyWeightGoalDraft}
+          weeklyWeightGoalEnabled={weeklyWeightGoalEnabled}
+          onWeeklyWeightGoalToggle={(checked) => void handleWeeklyWeightGoalToggle(checked)}
+          onWeeklyWeightGoalCommit={() => void handleWeeklyWeightGoalCommit()}
+          weeklyCaloriesGoalDraft={weeklyCaloriesGoalDraft}
+          setWeeklyCaloriesGoalDraft={setWeeklyCaloriesGoalDraft}
+          weeklyCaloriesGoalEnabled={weeklyCaloriesGoalEnabled}
+          onWeeklyCaloriesGoalToggle={(checked) => void handleWeeklyCaloriesGoalToggle(checked)}
+          onWeeklyCaloriesGoalCommit={() => void handleWeeklyCaloriesGoalCommit()}
+        />
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <OptionTabsCard
-              icon={Globe}
-              title={t("language")}
-              value={language}
-              onValueChange={(value) => void setLanguage(value as AppLanguage)}
-              options={languageOptions}
-            />
-            <OptionTabsCard
-              icon={Weight}
-              title={t("unit")}
-              value={weightUnit}
-              onValueChange={(value) => void setWeightUnit(value as WeightUnit)}
-              options={weightOptions}
-            />
-          </div>
-
-          <OptionTabsCard
-            icon={SunMoon}
-            title={t("colorScheme")}
-            value={colorScheme}
-            onValueChange={(value) => void setColorScheme(value as ColorScheme)}
-            options={colorSchemeOptions.map((option) => ({
-              value: option.value,
-              label: t(option.labelKey)
-            }))}
-          />
-        </TabsContent>
-
-        <TabsContent value="personal" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <SettingsCardTitle icon={Weight}>{t("bodyWeight")}</SettingsCardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="relative w-full">
-                  <Input
-                    inputMode="decimal"
-                    pattern="[0-9]*[.,]?[0-9]*"
-                    value={bodyWeightDraft}
-                    onChange={(event) => {
-                      const next = event.currentTarget.value;
-                      if (/^[0-9]*([.,][0-9]*)?$/.test(next) || next === "") {
-                        setBodyWeightDraft(next);
-                      }
-                    }}
-                    onBlur={() => void handleBodyWeightCommit()}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.currentTarget.blur();
-                      }
-                    }}
-                    placeholder={weightUnit === "kg" ? "70" : "155"}
-                    aria-label={t("bodyWeight")}
-                    className="pr-12"
-                  />
-                  <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                    {weightUnit}
-                  </div>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">{t("bodyWeightHint")}</p>
-              <p className="text-xs text-muted-foreground">{t("calorieEstimateInfo")}</p>
-            </CardContent>
-          </Card>
-
-          <Card id="weekly-goals" className="scroll-mt-20">
-            <CardHeader>
-              <SettingsCardTitle icon={Target}>{t("weeklyGoals")}</SettingsCardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="weekly-workout-goal-enabled" className="text-sm">
-                      <span className="inline-flex items-center gap-2">
-                        <Dumbbell className="h-4 w-4 text-muted-foreground" />
-                        {t("weeklyWorkoutGoal")}
-                      </span>
-                    </Label>
-                  </div>
-                  <Switch
-                    id="weekly-workout-goal-enabled"
-                    checked={weeklyWorkoutCountGoalEnabled}
-                    onCheckedChange={(checked) => void handleWeeklyWorkoutGoalToggle(checked)}
-                  />
-                </div>
-                <div className={`grid transition-all duration-200 ${weeklyWorkoutCountGoalEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
-                  <div className="overflow-hidden">
-                    <div className="relative px-1 py-1.5">
-                      <Input
-                        id="weekly-workout-goal"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={weeklyWorkoutCountGoalDraft}
-                        onChange={(event) => {
-                          const next = event.currentTarget.value;
-                          if (/^[0-9]*$/.test(next)) {
-                            setWeeklyWorkoutCountGoalDraft(next);
-                          }
-                        }}
-                        onBlur={() => void handleWeeklyWorkoutCountGoalCommit()}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.currentTarget.blur();
-                          }
-                        }}
-                        className="pr-20"
-                        disabled={!weeklyWorkoutCountGoalEnabled}
-                      />
-                      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                        {t("workouts")}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="weekly-duration-goal-enabled" className="text-sm">
-                      <span className="inline-flex items-center gap-2">
-                        <Clock3 className="h-4 w-4 text-muted-foreground" />
-                        {t("weeklyDurationGoal")}
-                      </span>
-                    </Label>
-                  </div>
-                  <Switch
-                    id="weekly-duration-goal-enabled"
-                    checked={weeklyDurationGoalEnabled}
-                    onCheckedChange={(checked) => void handleWeeklyDurationGoalToggle(checked)}
-                  />
-                </div>
-                <div className={`grid transition-all duration-200 ${weeklyDurationGoalEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
-                  <div className="overflow-hidden">
-                    <div className="relative px-1 py-1.5">
-                      <Input
-                        id="weekly-duration-goal"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={weeklyDurationGoalDraft}
-                        onChange={(event) => {
-                          const next = event.currentTarget.value;
-                          if (/^[0-9]*$/.test(next)) {
-                            setWeeklyDurationGoalDraft(next);
-                          }
-                        }}
-                        onBlur={() => void handleWeeklyDurationGoalCommit()}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.currentTarget.blur();
-                          }
-                        }}
-                        className="pr-14"
-                        disabled={!weeklyDurationGoalEnabled}
-                      />
-                      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                        min
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="weekly-weight-goal-enabled" className="text-sm">
-                      <span className="inline-flex items-center gap-2">
-                        <Weight className="h-4 w-4 text-muted-foreground" />
-                        {t("weeklyWeightGoal")}
-                      </span>
-                    </Label>
-                  </div>
-                  <Switch
-                    id="weekly-weight-goal-enabled"
-                    checked={weeklyWeightGoalEnabled}
-                    onCheckedChange={(checked) => void handleWeeklyWeightGoalToggle(checked)}
-                  />
-                </div>
-                <div className={`grid transition-all duration-200 ${weeklyWeightGoalEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
-                  <div className="overflow-hidden">
-                    <div className="relative px-1 py-1.5">
-                      <Input
-                        id="weekly-weight-goal"
-                        inputMode="decimal"
-                        pattern="[0-9]*[.,]?[0-9]*"
-                        value={weeklyWeightGoalDraft}
-                        onChange={(event) => {
-                          const next = event.currentTarget.value;
-                          if (/^[0-9]*([.,][0-9]*)?$/.test(next) || next === "") {
-                            setWeeklyWeightGoalDraft(next);
-                          }
-                        }}
-                        onBlur={() => void handleWeeklyWeightGoalCommit()}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.currentTarget.blur();
-                          }
-                        }}
-                        className="pr-12"
-                        disabled={!weeklyWeightGoalEnabled}
-                      />
-                      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                        {weightUnit}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="weekly-calories-goal-enabled" className="text-sm">
-                      <span className="inline-flex items-center gap-2">
-                        <Flame className="h-4 w-4 text-muted-foreground" />
-                        {t("weeklyCaloriesGoal")}
-                      </span>
-                    </Label>
-                  </div>
-                  <Switch
-                    id="weekly-calories-goal-enabled"
-                    checked={weeklyCaloriesGoalEnabled}
-                    onCheckedChange={(checked) => void handleWeeklyCaloriesGoalToggle(checked)}
-                  />
-                </div>
-                <div className={`grid transition-all duration-200 ${weeklyCaloriesGoalEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
-                  <div className="overflow-hidden">
-                    <div className="relative px-1 py-1.5">
-                      <Input
-                        id="weekly-calories-goal"
-                        inputMode="numeric"
-                        pattern="[0-9]*[.,]?[0-9]*"
-                        value={weeklyCaloriesGoalDraft}
-                        onChange={(event) => {
-                          const next = event.currentTarget.value;
-                          if (/^[0-9]*([.,][0-9]*)?$/.test(next) || next === "") {
-                            setWeeklyCaloriesGoalDraft(next);
-                          }
-                        }}
-                        onBlur={() => void handleWeeklyCaloriesGoalCommit()}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.currentTarget.blur();
-                          }
-                        }}
-                        className="pr-14"
-                        disabled={!weeklyCaloriesGoalEnabled}
-                      />
-                      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                        kcal
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="data" className="space-y-4">
-          {showSnapshotNotice && latestUpdateSnapshot && (
-            <div className="relative space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              <button
-                type="button"
-                className="absolute right-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded text-amber-700 hover:bg-amber-100 hover:text-amber-900"
-                aria-label={t("dismiss")}
-                onClick={handleDismissSnapshot}
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-              <p className="pr-6 font-medium">{t("updateSafetySnapshotAvailable")}</p>
-              <p>{latestUpdateSnapshot.previousAppVersion ?? "-"} → {latestUpdateSnapshot.appVersion}</p>
-              <p>{new Date(latestUpdateSnapshot.createdAt).toLocaleString(language)}</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-amber-300 bg-white hover:bg-amber-100"
-                onClick={() => setRestoreDialogOpen(true)}
-              >
-                {t("restoreUpdateSafetySnapshot")}
-              </Button>
-            </div>
-          )}
-
-          <Card id="data-import" className="scroll-mt-20">
-            <CardHeader>
-              <SettingsCardTitle icon={Database}>{t("dataExportImport")}</SettingsCardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">{t("dataExportHint")}</p>
-              <Button variant="outline" className="w-full justify-start gap-2" onClick={() => void handleExportAllData()}>
-                <Upload className="h-4 w-4" />
-                {t("exportAllData")}
-              </Button>
-              <p className="border-t pt-3 text-sm text-muted-foreground">{t("dataImportHint")}</p>
-              <div className="space-y-2">
-                <Input type="file" accept="application/json,.json,text/plain" onChange={handleBackupFileUpload} />
-                <p className="text-xs text-muted-foreground">{pendingImportFileName ?? t("noFileLoaded")}</p>
-                {pendingImport && (
-                  <div className="space-y-1 rounded-md border p-2 text-xs text-muted-foreground">
-                    <p>{t("backupFileReady")}</p>
-                    <p>{pendingImport.data.workouts.length} {t("workouts")}</p>
-                    <p>{pendingImport.data.sessions.length} {t("sessions")}</p>
-                    <p>{new Date(pendingImport.exportedAt).toLocaleString(language)}</p>
-                  </div>
-                )}
-              </div>
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-2"
-                disabled={!pendingImport}
-                onClick={() => setImportDialogOpen(true)}
-              >
-                <Download className="h-4 w-4" />
-                {t("importAllData")}
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <SettingsCardTitle icon={RotateCcw}>{t("reset")}</SettingsCardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button
-                variant="outline"
-                className="w-full border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
-                onClick={() => setClearDialogOpen(true)}
-              >
-                {t("clearAllData")}
-              </Button>
-            </CardContent>
-          </Card>
-
-          <p className="text-center text-xs text-muted-foreground">{t("versionLabel")} {APP_VERSION}</p>
-        </TabsContent>
+        <SettingsDataTab
+          t={t}
+          language={language}
+          appVersion={APP_VERSION}
+          showSnapshotNotice={showSnapshotNotice}
+          latestUpdateSnapshot={latestUpdateSnapshot ?? undefined}
+          onDismissSnapshot={handleDismissSnapshot}
+          onOpenRestoreDialog={() => setRestoreDialogOpen(true)}
+          onExportAllData={() => void handleExportAllData()}
+          onBackupFileUpload={handleBackupFileUpload}
+          pendingImportFileName={pendingImportFileName}
+          pendingImport={pendingImport}
+          onOpenImportDialog={() => setImportDialogOpen(true)}
+          onOpenClearDialog={() => setClearDialogOpen(true)}
+        />
       </Tabs>
 
       <footer className="border-t pt-4">
