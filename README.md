@@ -9,21 +9,29 @@ A minimalist workout tracking app built as a PWA — for people who already have
 * Create and edit multiple workouts with any number of exercises and sets
 * Define target values per set (reps × weight)
 * Reorder exercises via drag & drop
+* Mark exercises as `×2` (e.g. unilateral work) so stats count volume correctly
 
 ### Session Tracking
 
 * Start a session from a workout template
+* Resume the current active session from anywhere in the app
 * Target values are prefilled, actual values are entered directly
 * Check off sets individually
 * Values from the last session are shown as a reference during training
 * Add additional exercises and sets during a session
-* Finish a session (optionally overwrite the template with new values) or discard it
+* Finish a session (optionally apply current values to the template) or discard it
+* Compact header progress + rest timer widgets with pause/resume support
 
 ### History
 
 * View completed sessions per workout
 * Edit individual sets in past sessions
 * Delete sessions from history
+
+### Statistics
+
+* Separate weekly statistics view (workouts, exercises, sets, reps, weight, calories)
+* Optional weekly goals for workouts, calories, and weight volume with progress bars
 
 ### Import
 
@@ -34,11 +42,18 @@ A minimalist workout tracking app built as a PWA — for people who already have
 ### Settings & Data
 
 * Language: German / English
-* Weight unit: kg / lbs (including automatic conversion)
+* Weight unit: kg / lb (including automatic conversion of stored weights)
 * Color scheme: Light / Dark / System
-* Rest timer: 2 / 3 / 5 minutes
+* Rest timer: 1 / 2 / 3 / 5 minutes (show/hide + configurable duration)
+* Optional locker-number note in the app header
+* Personal weekly goals (toggleable per goal)
 * Export a full backup and import it on another device
 * Reset all data
+
+### Empty State / Starter Data
+
+* Guided intro when no workouts exist
+* Optional starter set creates two example workouts (`Upper Body` / `Lower Body` style split)
 
 ## 🛠 Tech Stack
 
@@ -94,6 +109,7 @@ Without this endpoint, the manual import (copy prompt → use your own AI → pa
 ## 📁 Project Structure
 
 ```
+api/             # Optional AI import endpoint
 src/
 ├── app/          # Router, Settings context
 ├── components/   # Shared UI primitives, App shell
@@ -104,8 +120,10 @@ docs/             # Product requirements, tech spec, release notes, ...
 
 ## 📄 Docs
 
+* [`docs/AGENTS.md`](docs/AGENTS.md) (agent/handoff notes)
 * [`docs/PRODUCT_REQUIREMENTS.md`](docs/PRODUCT_REQUIREMENTS.md)
 * [`docs/TECH_SPEC.md`](docs/TECH_SPEC.md)
-* [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md)
+* [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)
 * [`docs/TODO.md`](docs/TODO.md)
+* [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md)
 * [`docs/TRAINING_PLAN_IMPORT_SCHEMA_V1.json`](docs/TRAINING_PLAN_IMPORT_SCHEMA_V1.json)

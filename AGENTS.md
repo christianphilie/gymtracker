@@ -1,4 +1,8 @@
-# Repository Notes for Codex Agents
+# Agent Notes (Shim)
+
+Canonical agent/project notes now live in `docs/AGENTS.md`.
+
+This root file remains intentionally small so agent tooling can still discover the most important local rule quickly.
 
 ## UI Copy Style
 

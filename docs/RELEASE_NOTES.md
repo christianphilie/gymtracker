@@ -2,7 +2,21 @@
 
 ## Unreleased
 
-No entries yet.
+### Added
+1. Weekly goals (workouts, calories, weight volume) in personal settings, including progress cards in the weekly statistics view.
+2. Starter workout action now seeds two sample workouts (Upper Body / Lower Body) for quicker onboarding and testing.
+
+### Changed
+1. Settings UX was refactored and polished with reusable card/title patterns, additional icons, and animated reveal/hide behavior for timer duration and weekly-goal inputs.
+2. Bottom-tab active states now map nested views to their parent section tabs (e.g. workout editor -> Workouts, workout history -> Statistics, legal/privacy -> Settings).
+3. `×2` exercise labels now use the multiplication symbol consistently, and the workout-editor toggle moved next to the sets section.
+4. Long exercise names now stay left-aligned when wrapping in editor, active session, and history cards.
+5. German completion action text was clarified from "Session übernehmen" to "Werte übernehmen".
+
+### Docs
+1. Agent notes were consolidated into `docs/AGENTS.md` (root `AGENTS.md` kept as a small shim).
+2. `docs/IMPLEMENTATION_PLAN.md` and `docs/IMPLEMENTATION_STATUS.md` were consolidated into `docs/PROJECT_STATUS.md`.
+3. `README.md` was refreshed to reflect current features, starter workouts, weekly goals, and docs layout.
 
 ---
 

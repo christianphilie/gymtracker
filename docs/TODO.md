@@ -10,7 +10,7 @@
 7. Add tests for automatic update safety snapshots (create, retain 3, restore).
 8. Add tests for weight-unit conversion behavior across template and session values.
 9. Add tests for `/api/ai-import` plus fallback UX when backend env is missing.
-10. Add tests for rest-timer behavior (starts on first completed set, configurable 2/3/5 minute threshold).
+10. Add tests for rest-timer behavior (starts on first completed set, configurable 1/2/3/5 minute threshold).
 11. Add tests for history session edit/delete actions (including DB integrity after remove).
 12. Add tests for top-bar timer pause/resume interactions and reset-on-new-check behavior.
 
@@ -47,3 +47,8 @@
 24. Workout editor polish: header save action in edit view, button/icon styling alignment, and footer action separator.
 25. Settings/import UI polish: tab trigger alignment consistency, export/import icon correction, and settings legal link removal.
 26. Weight-unit conversion hardening to avoid duplicate conversion during concurrent settings updates.
+27. UI polish for `×2` exercises: consistent multiply symbol, editor toggle placement, and better long-title alignment in editor/session/history cards.
+28. Bottom-tab active state now maps nested routes to their parent section (e.g. workout edit -> Workouts, history -> Statistics).
+29. Weekly goals added to personal settings (toggleable per goal) and shown as progress cards in weekly statistics.
+30. Starter workout action now creates two example workouts (Upper Body + Lower Body) instead of one full-body template.
+31. Settings page refactor: reusable card titles/toggle rows/dialogs, animated show/hide for timer duration and weekly-goal inputs, plus additional section icons.
