@@ -429,9 +429,13 @@ export function WorkoutHistoryPage() {
       ))}
 
       <Dialog open={editingSessionId !== null} onOpenChange={(nextOpen) => !nextOpen && closeEditDialog()}>
-        <DialogContent className="max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent hideClose className="max-h-[80vh] overflow-y-auto">
+          <DialogHeader className="flex-row items-center justify-between space-y-0 pr-0">
             <DialogTitle>{t("editSession")}</DialogTitle>
+            <Button size="sm" className="h-7 gap-1.5 px-2 text-xs" disabled={isSavingEdit} onClick={() => void handleSaveSessionEdit()}>
+              <Save className="h-3.5 w-3.5" />
+              {t("save")}
+            </Button>
           </DialogHeader>
           <div className="space-y-3">
             <Card>

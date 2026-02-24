@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
 import { AppShell } from "@/components/layout/app-shell";
-import { DashboardPage, StatisticsPage } from "@/features/dashboard/dashboard-page";
+import { HomePage } from "@/features/home/home-page";
+import { WeeklyDataPage } from "@/features/statistics/weekly-data-page";
 import { AddWorkoutChoicePage } from "@/features/workouts/add-workout-choice-page";
 import { WorkoutEditorPage } from "@/features/workouts/workout-editor-page";
 import { SessionPage } from "@/features/sessions/session-page";
@@ -15,8 +16,8 @@ export const router = createBrowserRouter([
     path: "/",
     element: <AppShell />,
     children: [
-      { index: true, element: <DashboardPage /> },
-      { path: "statistics", element: <StatisticsPage /> },
+      { index: true, element: <HomePage /> },
+      { path: "statistics", element: <WeeklyDataPage /> },
       { path: "workouts/add", element: <AddWorkoutChoicePage /> },
       { path: "workouts/new", element: <WorkoutEditorPage mode="create" /> },
       { path: "workouts/:workoutId/edit", element: <WorkoutEditorPage mode="edit" /> },

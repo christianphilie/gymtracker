@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   ChartNoAxesCombined,
+  ChevronDown,
   Clock3,
   Download,
   Dumbbell,
@@ -18,6 +19,13 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { InfoHint } from "@/components/ui/info-hint";
 import {
   Dialog,
@@ -37,305 +45,39 @@ import {
   resolveCaloriesBodyWeightKg
 } from "@/lib/calorie-estimation";
 import { formatNumber, formatSessionDateLabel, getSetStatsMultiplier } from "@/lib/utils";
+import {
+  addMuscleContributionFromSet,
+  buildRoundedRadarPath,
+  createEmptyMuscleGroupMetrics,
+  EMPTY_WEEKLY_STATS,
+  formatDurationShort,
+  formatMuscleMetricValue,
+  getMuscleGroupLabel,
+  getMuscleMetricValue,
+  getWeekEndExclusive,
+  getWeekStart,
+  MUSCLE_GROUP_ORDER,
+  normalizeExerciseLookupName,
+  normalizeWeeklyGoal,
+  type MuscleMetricMode,
+  type WeeklyDashboardStats
+} from "@/features/statistics/weekly-data-utils";
 
 interface WorkoutListItem {
   id?: number;
   name: string;
   exerciseCount: number;
+  estimatedDurationMinutes: number;
   lastSessionAt?: string;
   activeSessionId?: number;
   activeSessionStartedAt?: string;
   sortTimestamp: number;
 }
 
-interface WeeklyStatsWorkoutEntry {
-  sessionId: number;
-  workoutId: number;
-  workoutName: string;
-  weekdayLabel: string;
-  startedAt: string;
-  finishedAt: string | null;
-  midpointAt: string;
-}
-
-interface WeeklyDashboardStats {
-  workoutCount: number;
-  durationMinutesTotal: number;
-  setCount: number;
-  repsTotal: number;
-  totalWeight: number;
-  caloriesTotal: number | null;
-  usesDefaultBodyWeightForCalories: boolean;
-  completedWorkouts: WeeklyStatsWorkoutEntry[];
-  weeklyWeightGoal?: number;
-  weeklyCaloriesGoal?: number;
-  weeklyWorkoutCountGoal?: number;
-  weeklyDurationGoal?: number;
-  muscleGroupMetrics: WeeklyMuscleGroupMetrics;
-}
-
-type MuscleMetricMode = "reps" | "sets" | "weight";
-type MuscleGroupKey = "back" | "shoulders" | "core" | "arms" | "chest" | "legs";
-
-interface MuscleMetricAggregate {
-  sets: number;
-  reps: number;
-  weight: number;
-}
-
-interface RadarPoint {
-  x: number;
-  y: number;
-}
-
-type WeeklyMuscleGroupMetrics = Record<MuscleGroupKey, MuscleMetricAggregate>;
-
-const MUSCLE_GROUP_ORDER: MuscleGroupKey[] = ["back", "shoulders", "core", "arms", "chest", "legs"];
-
-function createEmptyMuscleGroupMetrics(): WeeklyMuscleGroupMetrics {
-  return {
-    back: { sets: 0, reps: 0, weight: 0 },
-    shoulders: { sets: 0, reps: 0, weight: 0 },
-    core: { sets: 0, reps: 0, weight: 0 },
-    arms: { sets: 0, reps: 0, weight: 0 },
-    chest: { sets: 0, reps: 0, weight: 0 },
-    legs: { sets: 0, reps: 0, weight: 0 }
-  };
-}
-
 const ACTIVE_SESSION_PILL_CLASS =
   "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500 dark:bg-emerald-950 dark:text-emerald-200";
-const EMPTY_WEEKLY_STATS: WeeklyDashboardStats = {
-  workoutCount: 0,
-  durationMinutesTotal: 0,
-  setCount: 0,
-  repsTotal: 0,
-  totalWeight: 0,
-  caloriesTotal: null,
-  usesDefaultBodyWeightForCalories: false,
-  completedWorkouts: [],
-  weeklyWeightGoal: undefined,
-  weeklyCaloriesGoal: undefined,
-  weeklyWorkoutCountGoal: undefined,
-  weeklyDurationGoal: undefined,
-  muscleGroupMetrics: createEmptyMuscleGroupMetrics()
-};
-
-function getWeekStart(date: Date) {
-  const target = new Date(date);
-  const day = target.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  target.setHours(0, 0, 0, 0);
-  target.setDate(target.getDate() + diff);
-  return target;
-}
-
-function getWeekEndExclusive(weekStart: Date) {
-  const next = new Date(weekStart);
-  next.setDate(next.getDate() + 7);
-  return next;
-}
-
-function normalizeWeeklyGoal(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
-}
-
-function formatDurationShort(totalMinutes: number, language: "de" | "en") {
-  const safeMinutes = Math.max(0, Math.round(totalMinutes));
-  const hours = Math.floor(safeMinutes / 60);
-  const minutes = safeMinutes % 60;
-
-  if (hours <= 0) {
-    return language === "de" ? `${minutes} Min` : `${minutes}m`;
-  }
-
-  if (minutes === 0) {
-    return language === "de" ? `${hours} Std` : `${hours}h`;
-  }
-
-  return language === "de" ? `${hours} Std ${minutes} Min` : `${hours}h ${minutes}m`;
-}
-
-function clampPercent(value: number) {
-  return Math.max(0, Math.min(100, value));
-}
-
-function normalizeExerciseLookupName(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function normalizeMuscleName(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/muskulatur/g, "")
-    .replace(/musculature/g, "")
-    .trim();
-}
-
-function resolveMuscleGroup(muscleName: string): MuscleGroupKey | null {
-  const name = normalizeMuscleName(muscleName);
-  if (!name) return null;
-
-  if (
-    /(bizeps|biceps|trizeps|triceps|unterarm|forearm|brachialis|brachioradialis)/.test(name)
-  ) {
-    return "arms";
-  }
-  if (
-    /(brust|chest|pec|pectoral)/.test(name)
-  ) {
-    return "chest";
-  }
-  if (
-    /(schulter|shoulder|deltoid|delt|rotatorenmanschette|rotator cuff|supraspinatus|infraspinatus)/.test(name)
-  ) {
-    return "shoulders";
-  }
-  if (
-    /(rücken|back|lat|lats|latissimus|rhomboid|trapez|trapezius|trap|teres|erector spinae|spinal erector)/.test(name)
-  ) {
-    return "back";
-  }
-  if (
-    /(bauch|core|abs|abdom|oblique|obliques|transversus|serratus)/.test(name)
-  ) {
-    return "core";
-  }
-  if (
-    /(bein|leg|quad|quadriceps|hamstring|glute|gluteus|adductor|abductor|calf|calves|wade)/.test(name)
-  ) {
-    return "legs";
-  }
-
-  return null;
-}
-
-function getSetAiInfo(
-  set: SessionExerciseSet,
-  templateAiInfoById: Map<number, ExerciseAiInfo>,
-  templateAiInfoByWorkoutAndName: Map<string, ExerciseAiInfo>,
-  sessionWorkoutIdBySessionId: Map<number, number>
-) {
-  if (set.exerciseAiInfo) {
-    return set.exerciseAiInfo;
-  }
-  if (set.templateExerciseId !== undefined) {
-    const byId = templateAiInfoById.get(set.templateExerciseId);
-    if (byId) {
-      return byId;
-    }
-  }
-  const workoutId = sessionWorkoutIdBySessionId.get(set.sessionId);
-  const exerciseNameKey = normalizeExerciseLookupName(set.exerciseName);
-  if (workoutId === undefined || !exerciseNameKey) {
-    return undefined;
-  }
-  return templateAiInfoByWorkoutAndName.get(`${workoutId}::${exerciseNameKey}`);
-}
-
-function addMuscleContributionFromSet(
-  set: SessionExerciseSet,
-  metrics: WeeklyMuscleGroupMetrics,
-  templateAiInfoById: Map<number, ExerciseAiInfo>,
-  templateAiInfoByWorkoutAndName: Map<string, ExerciseAiInfo>,
-  sessionWorkoutIdBySessionId: Map<number, number>
-) {
-  const aiInfo = getSetAiInfo(set, templateAiInfoById, templateAiInfoByWorkoutAndName, sessionWorkoutIdBySessionId);
-  if (!aiInfo?.targetMuscles?.length) {
-    return;
-  }
-
-  const groupPercentByKey = new Map<MuscleGroupKey, number>();
-  for (const target of aiInfo.targetMuscles) {
-    const group = resolveMuscleGroup(target.muscle);
-    if (!group) continue;
-    const percent = clampPercent(Number(target.involvementPercent));
-    if (!Number.isFinite(percent) || percent <= 0) continue;
-    groupPercentByKey.set(group, (groupPercentByKey.get(group) ?? 0) + percent);
-  }
-
-  const totalPercent = [...groupPercentByKey.values()].reduce((sum, value) => sum + value, 0);
-  if (totalPercent <= 0) {
-    return;
-  }
-
-  const setMultiplier = getSetStatsMultiplier(set);
-  const repsBase = (set.actualReps ?? set.targetReps) * setMultiplier;
-  const weightBase = (set.actualWeight ?? set.targetWeight) * (set.actualReps ?? set.targetReps) * setMultiplier;
-
-  for (const [group, percent] of groupPercentByKey.entries()) {
-    const factor = percent / totalPercent;
-    metrics[group].sets += setMultiplier * factor;
-    metrics[group].reps += repsBase * factor;
-    metrics[group].weight += weightBase * factor;
-  }
-}
-
-function getMuscleMetricValue(metrics: WeeklyMuscleGroupMetrics, group: MuscleGroupKey, mode: MuscleMetricMode) {
-  return metrics[group][mode];
-}
-
-function formatMuscleMetricValue(value: number, mode: MuscleMetricMode) {
-  const digits = mode === "sets" ? 1 : 0;
-  return formatNumber(value, digits);
-}
-
-function getDistance(a: RadarPoint, b: RadarPoint) {
-  return Math.hypot(b.x - a.x, b.y - a.y);
-}
-
-function buildRoundedRadarPath(points: RadarPoint[], cornerRadius = 2.5) {
-  if (points.length === 0) return "";
-  if (points.length < 3) {
-    return `M ${points.map((point) => `${point.x} ${point.y}`).join(" L ")} Z`;
-  }
-
-  const corners = points.map((point, index) => {
-    const prev = points[(index - 1 + points.length) % points.length];
-    const next = points[(index + 1) % points.length];
-    const prevDistance = getDistance(point, prev);
-    const nextDistance = getDistance(point, next);
-    const radius = Math.min(cornerRadius, prevDistance / 2, nextDistance / 2);
-
-    if (radius <= 0 || !Number.isFinite(radius)) {
-      return { start: point, end: point, vertex: point };
-    }
-
-    const start: RadarPoint = {
-      x: point.x + ((prev.x - point.x) * radius) / prevDistance,
-      y: point.y + ((prev.y - point.y) * radius) / prevDistance
-    };
-    const end: RadarPoint = {
-      x: point.x + ((next.x - point.x) * radius) / nextDistance,
-      y: point.y + ((next.y - point.y) * radius) / nextDistance
-    };
-
-    return { start, end, vertex: point };
-  });
-
-  const [firstCorner] = corners;
-  let path = `M ${firstCorner.start.x} ${firstCorner.start.y}`;
-  for (let index = 0; index < corners.length; index += 1) {
-    const corner = corners[index];
-    const nextCorner = corners[(index + 1) % corners.length];
-    path += ` Q ${corner.vertex.x} ${corner.vertex.y} ${corner.end.x} ${corner.end.y}`;
-    path += ` L ${nextCorner.start.x} ${nextCorner.start.y}`;
-  }
-  path += " Z";
-  return path;
-}
-
-function getMuscleGroupLabel(
-  t: (key: "muscleGroupBack" | "muscleGroupShoulders" | "muscleGroupCore" | "muscleGroupArms" | "muscleGroupChest" | "muscleGroupLegs") => string,
-  key: MuscleGroupKey
-) {
-  if (key === "back") return t("muscleGroupBack");
-  if (key === "shoulders") return t("muscleGroupShoulders");
-  if (key === "core") return t("muscleGroupCore");
-  if (key === "arms") return t("muscleGroupArms");
-  if (key === "chest") return t("muscleGroupChest");
-  return t("muscleGroupLegs");
-}
+const RECOMMENDED_PILL_CLASS =
+  "rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground";
 
 function PlayFilledIcon({ className }: { className?: string }) {
   return (
@@ -343,6 +85,38 @@ function PlayFilledIcon({ className }: { className?: string }) {
       <path d="M8 6v12l10-6z" fill="currentColor" />
     </svg>
   );
+}
+
+function formatCompactDateTimeLabel(value: string, language: "de" | "en") {
+  const label = formatSessionDateLabel(value, language);
+  if (/, \d{1,2}:\d{2}$/.test(label)) {
+    return label;
+  }
+  return label.replace(/^(.+?)\s(\d{1,2}:\d{2})$/, "$1, $2");
+}
+
+function estimateWorkoutDurationMinutes(params: {
+  restSeconds: number;
+  exercises: Array<{ x2Enabled?: boolean; setTargetReps: number[] }>;
+}) {
+  const repSecondsPerRep = 3;
+  let totalWeightedSets = 0;
+  let totalWeightedReps = 0;
+  let exercisesWithSets = 0;
+
+  for (const exercise of params.exercises) {
+    if (exercise.setTargetReps.length === 0) continue;
+    exercisesWithSets += 1;
+    const multiplier = getSetStatsMultiplier({ x2Enabled: exercise.x2Enabled });
+    totalWeightedSets += exercise.setTargetReps.length * multiplier;
+    totalWeightedReps += exercise.setTargetReps.reduce((sum, reps) => sum + Math.max(0, reps), 0) * multiplier;
+  }
+
+  if (totalWeightedSets <= 0) return 0;
+
+  const restIntervalCount = Math.max(0, totalWeightedSets - 1) + Math.max(0, exercisesWithSets - 1);
+  const totalSeconds = totalWeightedReps * repSecondsPerRep + restIntervalCount * Math.max(0, params.restSeconds);
+  return Math.max(1, Math.round(totalSeconds / 60));
 }
 
 export function DashboardPage() {
@@ -354,13 +128,14 @@ export function StatisticsPage() {
 }
 
 function DashboardPageContent({ section }: { section: "workouts" | "statistics" }) {
-  const { t, language, weightUnit } = useSettings();
+  const { t, language, weightUnit, restTimerEnabled, restTimerSeconds } = useSettings();
   const navigate = useNavigate();
   const [clockTick, setClockTick] = useState(() => Date.now());
   const weekStart = useMemo(() => getWeekStart(new Date(clockTick)), [clockTick]);
   const [discardConfirmSessionId, setDiscardConfirmSessionId] = useState<number | null>(null);
   const [isCreatingStarterWorkout, setIsCreatingStarterWorkout] = useState(false);
   const [muscleMetricMode, setMuscleMetricMode] = useState<MuscleMetricMode>("reps");
+  const [homeWeeklyGoalKey, setHomeWeeklyGoalKey] = useState<"workouts" | "duration" | "calories" | "weight" | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClockTick(Date.now()), 60_000);
@@ -382,9 +157,43 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
       workoutIds.length ? db.sessions.where("workoutId").anyOf(workoutIds).toArray() : []
     ]);
 
+    const exerciseIds = exercises.map((exercise) => exercise.id).filter((id): id is number => id !== undefined);
+    const templateSets = exerciseIds.length
+      ? await db.exerciseTemplateSets.where("exerciseId").anyOf(exerciseIds).toArray()
+      : [];
+
     const exerciseCountByWorkout = new Map<number, number>();
+    const templateExercisesByWorkout = new Map<number, Array<{ id: number; x2Enabled?: boolean }>>();
     for (const exercise of exercises) {
       exerciseCountByWorkout.set(exercise.workoutId, (exerciseCountByWorkout.get(exercise.workoutId) ?? 0) + 1);
+      if (exercise.id !== undefined) {
+        const current = templateExercisesByWorkout.get(exercise.workoutId) ?? [];
+        current.push({ id: exercise.id, x2Enabled: exercise.x2Enabled });
+        templateExercisesByWorkout.set(exercise.workoutId, current);
+      }
+    }
+    for (const entry of templateExercisesByWorkout.values()) {
+      entry.sort((a, b) => a.id - b.id);
+    }
+
+    const setTargetRepsByExerciseId = new Map<number, number[]>();
+    for (const set of templateSets) {
+      const current = setTargetRepsByExerciseId.get(set.exerciseId) ?? [];
+      current.push(set.targetReps);
+      setTargetRepsByExerciseId.set(set.exerciseId, current);
+    }
+
+    const estimatedDurationMinutesByWorkout = new Map<number, number>();
+    const effectiveRestSeconds = restTimerEnabled ? restTimerSeconds : 180;
+    for (const [workoutId, workoutExercises] of templateExercisesByWorkout.entries()) {
+      const durationMinutes = estimateWorkoutDurationMinutes({
+        restSeconds: effectiveRestSeconds,
+        exercises: workoutExercises.map((exercise) => ({
+          x2Enabled: exercise.x2Enabled,
+          setTargetReps: setTargetRepsByExerciseId.get(exercise.id) ?? []
+        }))
+      });
+      estimatedDurationMinutesByWorkout.set(workoutId, durationMinutes);
     }
 
     const lastSessionByWorkout = new Map<number, string>();
@@ -423,13 +232,14 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
       return {
         ...workout,
         exerciseCount: exerciseCountByWorkout.get(workout.id ?? -1) ?? 0,
+        estimatedDurationMinutes: estimatedDurationMinutesByWorkout.get(workout.id ?? -1) ?? 0,
         lastSessionAt,
         activeSessionId: activeSession?.id,
         activeSessionStartedAt: activeSession?.startedAt,
         sortTimestamp: lastSessionAt ? new Date(lastSessionAt).getTime() : -Infinity
       };
     });
-  }, []);
+  }, [restTimerEnabled, restTimerSeconds]);
 
   const weeklyStats = useLiveQuery<WeeklyDashboardStats>(async () => {
     const weekEndExclusive = getWeekEndExclusive(weekStart);
@@ -616,6 +426,21 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
   const showWorkoutsSection = section === "workouts";
   const showStatsSection = section === "statistics";
   const hasActiveWorkout = activeWorkouts.length > 0;
+  const hasTrackedWorkoutToday = useMemo(() => {
+    const dayStart = new Date(clockTick);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+    return (weeklyStats?.completedWorkouts ?? []).some((session) => {
+      const completedAt = new Date(session.finishedAt ?? session.startedAt);
+      return completedAt >= dayStart && completedAt < dayEnd;
+    });
+  }, [clockTick, weeklyStats?.completedWorkouts]);
+
+  const recommendedWorkoutId = useMemo(() => {
+    if (hasActiveWorkout || hasTrackedWorkoutToday) return null;
+    return inactiveWorkouts[0]?.id ?? null;
+  }, [hasActiveWorkout, hasTrackedWorkoutToday, inactiveWorkouts]);
   const weeklyGoalItems = useMemo(() => {
     if (!weeklyStats) {
       return [];
@@ -695,6 +520,22 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
     return items;
   }, [weeklyStats, t, weightUnit, language]);
 
+  const selectedHomeWeeklyGoal = useMemo(
+    () => weeklyGoalItems.find((item) => item.key === homeWeeklyGoalKey) ?? null,
+    [homeWeeklyGoalKey, weeklyGoalItems]
+  );
+
+  useEffect(() => {
+    if (weeklyGoalItems.length === 0) {
+      setHomeWeeklyGoalKey(null);
+      return;
+    }
+
+    setHomeWeeklyGoalKey((current) =>
+      current && weeklyGoalItems.some((item) => item.key === current) ? current : weeklyGoalItems[0]?.key ?? null
+    );
+  }, [weeklyGoalItems]);
+
   const weeklyMuscleChart = useMemo(() => {
     const metrics = weeklyStats?.muscleGroupMetrics ?? EMPTY_WEEKLY_STATS.muscleGroupMetrics;
     const items = MUSCLE_GROUP_ORDER.map((key) => ({
@@ -711,6 +552,7 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
     const weekStartMs = weekStart.getTime();
     const weekEndMs = getWeekEndExclusive(weekStart).getTime();
     const totalSpanMs = Math.max(1, weekEndMs - weekStartMs);
+    const nowMs = Math.max(weekStartMs, Math.min(weekEndMs, clockTick));
     const weekdayFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", { weekday: "short" });
     const timeFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
       hour: "2-digit",
@@ -733,6 +575,10 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
       isDayBoundary: tickIndex % 4 === 0
     }));
 
+    const nowTick = {
+      leftPercent: ((nowMs - weekStartMs) / totalSpanMs) * 100
+    };
+
     const items = (weeklyStats?.completedWorkouts ?? []).map((item) => {
       const midpointMs = new Date(item.midpointAt).getTime();
       const clampedMidpointMs = Math.max(weekStartMs, Math.min(weekEndMs, midpointMs));
@@ -751,8 +597,8 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
       };
     });
 
-    return { dayLabels, ticks, items };
-  }, [language, weekStart, weeklyStats?.completedWorkouts]);
+    return { dayLabels, ticks, items, nowTick };
+  }, [clockTick, language, weekStart, weeklyStats?.completedWorkouts]);
 
   const handleStartSession = async (workoutId: number) => {
     try {
@@ -787,9 +633,41 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
     }
   };
 
+  const renderWeeklyGoalCard = (
+    goal: {
+      key: "workouts" | "duration" | "calories" | "weight";
+      label: string;
+      currentLabel: string;
+      targetLabel: string;
+      progressPercent: number;
+      isComplete: boolean;
+      icon: React.ReactNode;
+    },
+    compact = false
+  ) => (
+    <div key={goal.key} className={`rounded-md border bg-card ${compact ? "px-2.5 py-2" : "px-2.5 py-2"}`}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+          {goal.icon}
+          {goal.label}
+        </p>
+        <p className="text-xs font-medium tabular-nums">
+          {goal.currentLabel} / {goal.targetLabel}
+        </p>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
+        <div
+          className={`h-full rounded-full transition-all ${goal.isComplete ? "bg-emerald-500" : "bg-primary"}`}
+          style={{ width: `${goal.progressPercent}%` }}
+        />
+      </div>
+    </div>
+  );
+
   const renderWorkoutCard = (workout: WorkoutListItem) => {
     const isActive = !!workout.activeSessionId;
     const disableStartBecauseOtherActive = hasActiveWorkout && !isActive;
+    const isRecommended = !isActive && workout.id !== undefined && workout.id === recommendedWorkoutId;
 
     return (
       <Card key={workout.id}>
@@ -797,7 +675,12 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
           <div className="space-y-1">
             <CardTitle>{workout.name}</CardTitle>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              {workout.exerciseCount} {t("exercises")}
+              <span>
+                {workout.exerciseCount} {t("exercises")}
+                {workout.estimatedDurationMinutes > 0 && (
+                  <>, {t("approxShort")} {workout.estimatedDurationMinutes} {t("minutesUnitLabel")}</>
+                )}
+              </span>
             </div>
           </div>
 
@@ -813,10 +696,16 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
                 </p>
               </>
             ) : (
-              <div className="text-xs text-muted-foreground">
-                <p>{t("lastSession")}</p>
-                <p>{workout.lastSessionAt ? formatSessionDateLabel(workout.lastSessionAt, language) : "-"}</p>
-              </div>
+              <>
+                {isRecommended && (
+                  <span className={RECOMMENDED_PILL_CLASS}>
+                    {t("recommended")}
+                  </span>
+                )}
+                <p className="pr-2 text-xs text-muted-foreground whitespace-nowrap">
+                  {t("lastSeen")}: {workout.lastSessionAt ? formatCompactDateTimeLabel(workout.lastSessionAt, language) : "-"}
+                </p>
+              </>
             )}
           </div>
         </CardHeader>
@@ -967,6 +856,42 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
         </div>
       )}
 
+      {showWorkoutsSection && selectedHomeWeeklyGoal && (
+        <>
+          <div className="py-3">
+            <div className="h-px bg-border" />
+          </div>
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-base font-semibold leading-tight text-foreground/75">{t("myWeeklyGoal")}</p>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" size="sm" className="h-7 gap-1 px-2 text-xs">
+                    <span className="max-w-[8.5rem] truncate">{selectedHomeWeeklyGoal.label}</span>
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-44">
+                  <DropdownMenuRadioGroup
+                    value={homeWeeklyGoalKey ?? selectedHomeWeeklyGoal.key}
+                    onValueChange={(value) =>
+                      setHomeWeeklyGoalKey(value as "workouts" | "duration" | "calories" | "weight")
+                    }
+                  >
+                    {weeklyGoalItems.map((goal) => (
+                      <DropdownMenuRadioItem key={`home-goal-${goal.key}`} value={goal.key}>
+                        {goal.label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            {renderWeeklyGoalCard(selectedHomeWeeklyGoal, true)}
+          </section>
+        </>
+      )}
+
       {showStatsSection && (
         <section className="space-y-3">
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
@@ -1053,6 +978,14 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
                     </div>
                   ))}
 
+                  <div
+                    className="absolute bottom-3 -translate-x-1/2"
+                    style={{ left: `${weeklySessionsTimeline.nowTick.leftPercent}%` }}
+                    aria-hidden="true"
+                  >
+                    <div className="w-[2px] h-5 rounded-full bg-foreground" />
+                  </div>
+
                   {weeklySessionsTimeline.items.map((item) => (
                     <Link
                       key={item.sessionId}
@@ -1110,25 +1043,7 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
                   </Button>
                 </div>
                 <div className="space-y-2">
-                  {weeklyGoalItems.map((goal) => (
-                    <div key={goal.key} className="rounded-md border bg-card px-2.5 py-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                          {goal.icon}
-                          {goal.label}
-                        </p>
-                        <p className="text-xs font-medium tabular-nums">
-                          {goal.currentLabel} / {goal.targetLabel}
-                        </p>
-                      </div>
-                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
-                        <div
-                          className={`h-full rounded-full transition-all ${goal.isComplete ? "bg-emerald-500" : "bg-primary"}`}
-                          style={{ width: `${goal.progressPercent}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                  {weeklyGoalItems.map((goal) => renderWeeklyGoalCard(goal))}
                 </div>
               </section>
               <div className="py-3">
@@ -1188,9 +1103,7 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
                           const axisY = 180 + Math.sin(angle) * 116;
                           const labelX = 180 + Math.cos(angle) * 148;
                           const labelY = 180 + Math.sin(angle) * 148;
-                          const textAnchor =
-                            Math.cos(angle) > 0.2 ? "start" : Math.cos(angle) < -0.2 ? "end" : "middle";
-                          const valueY = labelY + (Math.sin(angle) > 0.3 ? 18 : Math.sin(angle) < -0.3 ? 20 : 18);
+                          const valueY = labelY + (Math.sin(angle) > 0.3 ? 14 : Math.sin(angle) < -0.3 ? 16 : 14);
 
                           return (
                             <g key={`axis-${item.key}`}>
@@ -1206,25 +1119,27 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
                               <text
                                 x={labelX}
                                 y={labelY}
-                                textAnchor={textAnchor}
-                                className="fill-foreground text-[12px] font-medium"
+                                textAnchor="middle"
+                                className="fill-foreground text-xs font-medium"
                               >
                                 {item.label}
                               </text>
                               <text
                                 x={labelX}
                                 y={valueY}
-                                textAnchor={textAnchor}
-                                className="fill-muted-foreground text-[11px]"
+                                textAnchor="middle"
+                                className="fill-muted-foreground text-xs"
                               >
-                                {formatMuscleMetricValue(item.value, muscleMetricMode)}
+                                {muscleMetricMode === "weight"
+                                  ? `${formatMuscleMetricValue(item.value, muscleMetricMode)} ${weightUnit}`
+                                  : formatMuscleMetricValue(item.value, muscleMetricMode)}
                               </text>
                             </g>
                           );
                         })}
 
                         {(() => {
-                          const points: RadarPoint[] = weeklyMuscleChart.items.map((item, index) => {
+                          const points: Array<{ x: number; y: number }> = weeklyMuscleChart.items.map((item, index) => {
                             const angle = (-120 + index * 60) * (Math.PI / 180);
                             const ratio = weeklyMuscleChart.maxValue > 0 ? item.value / weeklyMuscleChart.maxValue : 0;
                             const radius = 28 + ratio * 88;

@@ -51,6 +51,7 @@ const exerciseSchema = z.object({
     .optional(),
   order: z.number().int(),
   isTemplate: z.boolean().optional(),
+  x2Enabled: z.boolean().optional(),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1)
 });
@@ -96,6 +97,7 @@ const sessionExerciseSetSchema = z.object({
     .optional(),
   exerciseOrder: z.number().int(),
   isTemplateExercise: z.boolean(),
+  x2Enabled: z.boolean().optional(),
   templateSetOrder: z.number().int(),
   targetReps: z.number().int().positive(),
   targetWeight: z.number().nonnegative(),

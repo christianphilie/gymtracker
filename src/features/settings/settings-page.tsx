@@ -570,6 +570,21 @@ export function SettingsPage() {
         <TabsContent value="app" className="space-y-4">
           <Card>
             <CardHeader>
+              <SettingsCardTitle icon={DoorClosedLocked}>{t("lockerNoteSettingTitle")}</SettingsCardTitle>
+            </CardHeader>
+            <CardContent>
+              <ToggleSettingRow
+                id="locker-note-enabled"
+                label={t("lockerNoteToggle")}
+                hint={t("lockerNoteToggleHint")}
+                checked={lockerNoteEnabled}
+                onCheckedChange={(checked) => void setLockerNoteEnabled(checked)}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <SettingsCardTitle icon={Timer}>{t("restTimerDuration")}</SettingsCardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -597,21 +612,6 @@ export function SettingsPage() {
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <SettingsCardTitle icon={DoorClosedLocked}>{t("lockerNoteSettingTitle")}</SettingsCardTitle>
-            </CardHeader>
-            <CardContent>
-              <ToggleSettingRow
-                id="locker-note-enabled"
-                label={t("lockerNoteToggle")}
-                hint={t("lockerNoteToggleHint")}
-                checked={lockerNoteEnabled}
-                onCheckedChange={(checked) => void setLockerNoteEnabled(checked)}
-              />
             </CardContent>
           </Card>
 
@@ -705,7 +705,7 @@ export function SettingsPage() {
                 </div>
                 <div className={`grid transition-all duration-200 ${weeklyWorkoutCountGoalEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                   <div className="overflow-hidden">
-                    <div className="px-1 py-1.5">
+                    <div className="relative px-1 py-1.5">
                       <Input
                         id="weekly-workout-goal"
                         inputMode="numeric"
@@ -723,9 +723,12 @@ export function SettingsPage() {
                             event.currentTarget.blur();
                           }
                         }}
-                        placeholder="3"
+                        className="pr-20"
                         disabled={!weeklyWorkoutCountGoalEnabled}
                       />
+                      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        {t("workouts")}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -767,7 +770,6 @@ export function SettingsPage() {
                             event.currentTarget.blur();
                           }
                         }}
-                        placeholder="180"
                         className="pr-14"
                         disabled={!weeklyDurationGoalEnabled}
                       />
@@ -815,7 +817,6 @@ export function SettingsPage() {
                             event.currentTarget.blur();
                           }
                         }}
-                        placeholder={weightUnit === "kg" ? "5000" : "11000"}
                         className="pr-12"
                         disabled={!weeklyWeightGoalEnabled}
                       />
@@ -863,7 +864,6 @@ export function SettingsPage() {
                             event.currentTarget.blur();
                           }
                         }}
-                        placeholder="1800"
                         className="pr-14"
                         disabled={!weeklyCaloriesGoalEnabled}
                       />
@@ -913,8 +913,7 @@ export function SettingsPage() {
                 <Upload className="h-4 w-4" />
                 {t("exportAllData")}
               </Button>
-              <p className="border-t pt-3 text-xs text-muted-foreground">{t("dataExportImportDivider")}</p>
-              <p className="text-sm text-muted-foreground">{t("dataImportHint")}</p>
+              <p className="border-t pt-3 text-sm text-muted-foreground">{t("dataImportHint")}</p>
               <div className="space-y-2">
                 <Input type="file" accept="application/json,.json,text/plain" onChange={handleBackupFileUpload} />
                 <p className="text-xs text-muted-foreground">{pendingImportFileName ?? t("noFileLoaded")}</p>
