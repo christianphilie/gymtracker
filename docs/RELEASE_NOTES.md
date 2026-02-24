@@ -4,6 +4,25 @@
 
 ---
 
+## 1.2.0 - 2026-02-24
+
+### Added
+1. Local exercise catalog matching for exercise info generation (instead of fully generating target muscles/coaching text from AI), including a curated multilingual exercise catalog and canonical 3-level muscle taxonomy for stable stats mapping.
+2. Automatic exercise-info enrichment in the workout editor when exercises are added, renamed, or edited (with local cache reuse and local frontend fallback matching when the API route is unavailable).
+3. Clickable multi-suggestion pills for ambiguous or fuzzy exercise names in the workout editor (e.g. multiple triceps pushdown variants).
+4. One-time background backfill for existing users that fills missing exercise infos and missing catalog match metadata for template exercises without opening the workout editor.
+
+### Changed
+1. Exercise info popups now display the matched catalog exercise name as the dialog title to make mismatches easier to spot.
+2. Exercise target-muscle rows now use user-friendly middle/detail muscle labels with lighter secondary detail text in-line.
+3. Workout-editor notes labels no longer show the note icon (the icon remains available in active session views).
+4. Privacy copy now mentions that exercise names may be sent to an AI API for matching in future/optional fallback scenarios, while workout import copy keeps the short AI-processing notice.
+
+### Fixed
+1. Automatic exercise-info assignment no longer overwrites newer workout-editor input state after async matching responses (race-condition fix).
+2. Auto-matching retries no longer loop continuously for unchanged non-matching exercise names, which stopped save-button disabled/enabled flicker.
+3. Fuzzy exercise matching now handles simple typos better (e.g. missing letters) via additional character-similarity scoring.
+
 ## 1.1.1 - 2026-02-24
 
 ### Added
