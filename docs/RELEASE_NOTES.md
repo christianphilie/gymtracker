@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+---
+
+## 1.1.0 - 2026-02-24
+
 ### Added
 1. Weekly goals (workouts, calories, weight volume) in personal settings, including progress cards in the weekly statistics view.
 2. Starter workout action now seeds two sample workouts (Upper Body / Lower Body) for quicker onboarding and testing.
@@ -39,8 +43,6 @@
 2. `docs/IMPLEMENTATION_PLAN.md` and `docs/IMPLEMENTATION_STATUS.md` were consolidated into `docs/PROJECT_STATUS.md`.
 3. `README.md` was refreshed to reflect current features, starter workouts, weekly goals, and docs layout.
 4. `docs/TODO.md` backlog and done items were updated to reflect duration goals, session timing edits, exercise-info enrichment, and local dev API middleware support.
-
----
 
 ## 1.0.0 - 2026-02-24
 
