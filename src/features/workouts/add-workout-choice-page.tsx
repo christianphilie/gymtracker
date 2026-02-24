@@ -10,11 +10,6 @@ export function AddWorkoutChoicePage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="inline-flex items-center gap-2 text-base font-semibold">
-        <Plus className="h-4 w-4" />
-        {t("addWorkout")}
-      </h1>
-
       <Card>
         <CardHeader className="space-y-1">
           <CardTitle>{t("addWorkoutChoiceTitle")}</CardTitle>

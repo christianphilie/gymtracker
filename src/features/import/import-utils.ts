@@ -10,6 +10,7 @@ const setSchema = z.object({
 const exerciseSchema = z.object({
   name: z.string().min(1),
   notes: z.string().optional(),
+  x2Enabled: z.boolean().optional(),
   sets: z.array(setSchema).min(1)
 });
 
@@ -121,11 +122,25 @@ export function repairImportPayload(raw: unknown): RepairResult {
       }
 
       const notes = typeof exerciseSource.notes === "string" ? exerciseSource.notes.trim() : undefined;
+      const x2Raw = exerciseSource.x2Enabled ?? exerciseSource.x2;
+      const x2Enabled =
+        typeof x2Raw === "boolean"
+          ? x2Raw
+          : typeof x2Raw === "string"
+            ? ["true", "1", "yes", "ja"].includes(x2Raw.trim().toLowerCase())
+            : undefined;
       const rawSets = Array.isArray(exerciseSource.sets) ? exerciseSource.sets : [];
 
       if (rawSets.length === 0) {
         changes.push(`workout[${workoutIndex}].exercise[${exerciseIndex}] removed (no sets)`);
         return;
+      }
+
+      if (exerciseSource.x2 !== undefined && exerciseSource.x2Enabled === undefined) {
+        changes.push(`Alias x2 -> x2Enabled at workout[${workoutIndex}].exercise[${exerciseIndex}]`);
+      }
+      if (typeof x2Raw === "string") {
+        changes.push(`String converted to boolean for x2Enabled at workout[${workoutIndex}].exercise[${exerciseIndex}]`);
       }
 
       const repairedSets: TrainingPlanImportV1["workouts"][number]["exercises"][number]["sets"] = [];
@@ -176,6 +191,7 @@ export function repairImportPayload(raw: unknown): RepairResult {
       repairedExercises.push({
         name: exerciseName,
         notes,
+        ...(x2Enabled ? { x2Enabled: true } : {}),
         sets: repairedSets
       });
     });
@@ -221,6 +237,7 @@ export function repairImportPayload(raw: unknown): RepairResult {
     exercises: workout.exercises.map((exercise) => ({
       name: exercise.name,
       notes: exercise.notes,
+      x2Enabled: exercise.x2Enabled ?? false,
       sets: exercise.sets.map((set) => ({
         targetReps: set.targetReps,
         targetWeight: set.targetWeight
@@ -244,9 +261,10 @@ Regeln:
 1) schemaVersion muss exakt "1.0" sein.
 2) targetReps und targetWeight müssen Zahlen sein (kein String, kein null).
 3) targetWeight darf 0 sein, wenn kein Gewicht angegeben ist.
-4) Das Feld "notes" nur einfügen, wenn wirklich eine Anmerkung vorhanden ist – sonst weglassen.
-5) Nur die Felder aus dem Schema verwenden – keine Extrafelder.
-6) Jede Übung braucht mindestens einen Satz.
+4) Optional: "x2Enabled": true nur setzen, wenn die Übung als 2x markiert ist (sonst Feld weglassen)
+5) Das Feld "notes" nur einfügen, wenn wirklich eine Anmerkung vorhanden ist – sonst weglassen.
+6) Nur die Felder aus dem Schema verwenden – keine Extrafelder.
+7) Jede Übung braucht mindestens einen Satz.
 
 Schema:
 {
@@ -265,6 +283,7 @@ Schema:
         },
         {
           "name": "Klimmzüge",
+          "x2Enabled": true,
           "notes": "Mit Zusatzgewicht",
           "sets": [
             { "targetReps": 6, "targetWeight": 10 }
@@ -282,9 +301,10 @@ Rules:
 1) schemaVersion must be exactly "1.0".
 2) targetReps and targetWeight must be numbers (not strings, not null).
 3) targetWeight may be 0 if no weight is specified.
-4) Only include the "notes" field if there is an actual note – omit it otherwise.
-5) Use only the schema fields – no extra fields.
-6) Every exercise needs at least one set.
+4) Optional: include "x2Enabled": true only if the exercise is marked as 2x (otherwise omit the field).
+5) Only include the "notes" field if there is an actual note – omit it otherwise.
+6) Use only the schema fields – no extra fields.
+7) Every exercise needs at least one set.
 
 Schema:
 {
@@ -303,6 +323,7 @@ Schema:
         },
         {
           "name": "Pull-ups",
+          "x2Enabled": true,
           "notes": "With added weight",
           "sets": [
             { "targetReps": 6, "targetWeight": 10 }

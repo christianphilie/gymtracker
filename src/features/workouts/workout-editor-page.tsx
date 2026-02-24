@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   createWorkout,
   deleteWorkout,
@@ -35,6 +36,7 @@ function createEmptyDraft(): WorkoutDraft {
       {
         name: "",
         notes: "",
+        x2Enabled: false,
         sets: [
           { targetReps: 10, targetWeight: 0 },
           { targetReps: 10, targetWeight: 0 },
@@ -93,6 +95,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         exercises: existing.exercises.map((item) => ({
           name: item.exercise.name,
           notes: item.exercise.notes ?? "",
+          x2Enabled: item.exercise.x2Enabled ?? false,
           sets: item.sets.map((set) => ({
             targetReps: set.targetReps,
             targetWeight: set.targetWeight
@@ -172,10 +175,6 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
 
   return (
     <section className="space-y-4">
-    <h1 className="inline-flex items-center gap-2 text-base font-semibold">
-      {mode === "create" ? <Plus className="h-4 w-4" /> : <PenSquare className="h-4 w-4" />}
-      {mode === "create" ? t("newWorkout") : t("editWorkoutTitle")}
-      </h1>
 
       <Card>
         <CardContent className="space-y-2 pt-2">
@@ -231,9 +230,29 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                     <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${collapsed ? "-rotate-90" : ""}`} />
                     <CardTitle>{title}</CardTitle>
                   </button>
+                  {exercise.x2Enabled && (
+                    <span className="ml-1 rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+                      2x
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-1">
+                  <label className="inline-flex items-center gap-1 rounded-full border border-transparent px-1.5 py-0.5 text-[10px] text-muted-foreground hover:border-border/60">
+                    <span>2x</span>
+                    <Switch
+                      checked={exercise.x2Enabled ?? false}
+                      onCheckedChange={(checked) => {
+                        setDraft((prev) => {
+                          const next = structuredClone(prev);
+                          next.exercises[exerciseIndex].x2Enabled = checked;
+                          return next;
+                        });
+                      }}
+                      aria-label={t("exerciseX2Toggle")}
+                      className="h-4 w-7 border-muted-foreground/30"
+                    />
+                  </label>
                   <button
                     type="button"
                     draggable={true}
@@ -449,6 +468,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                       {
                         name: trimmed,
                         notes: "",
+                        x2Enabled: false,
                         sets: [
                           { targetReps: 10, targetWeight: 0 },
                           { targetReps: 10, targetWeight: 0 },

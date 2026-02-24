@@ -32,6 +32,7 @@ export interface Exercise {
   notes?: string;
   order: number;
   isTemplate?: boolean;
+  x2Enabled?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -64,6 +65,7 @@ export interface SessionExerciseSet {
   exerciseNotes?: string;
   exerciseOrder: number;
   isTemplateExercise: boolean;
+  x2Enabled?: boolean;
   templateSetOrder: number;
   targetReps: number;
   targetWeight: number;

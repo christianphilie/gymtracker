@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ChartNoAxesCombined, Download, Dumbbell, List, OctagonX, PenSquare, Plus, Sparkles } from "lucide-react";
+import { ChartNoAxesCombined, Download, Dumbbell, OctagonX, PenSquare, Plus, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +23,7 @@ import {
   getSessionDurationMinutes,
   resolveCaloriesBodyWeightKg
 } from "@/lib/calorie-estimation";
-import { formatNumber, formatSessionDateLabel } from "@/lib/utils";
+import { formatNumber, formatSessionDateLabel, getSetStatsMultiplier } from "@/lib/utils";
 
 interface WorkoutListItem {
   id?: number;
@@ -83,6 +83,14 @@ function PlayFilledIcon({ className }: { className?: string }) {
 }
 
 export function DashboardPage() {
+  return <DashboardPageContent section="workouts" />;
+}
+
+export function StatisticsPage() {
+  return <DashboardPageContent section="statistics" />;
+}
+
+function DashboardPageContent({ section }: { section: "workouts" | "statistics" }) {
   const { t, language, weightUnit } = useSettings();
   const navigate = useNavigate();
   const weekStart = useMemo(() => getWeekStart(new Date()), []);
@@ -110,18 +118,23 @@ export function DashboardPage() {
     }
 
     const lastSessionByWorkout = new Map<number, string>();
+    const activeSessions = sessions
+      .filter((session): session is typeof session & { id: number } => session.status === "active" && session.id !== undefined)
+      .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+    const primaryActiveSession = activeSessions[0];
+    const primaryActiveSessionId = primaryActiveSession?.id;
     const activeSessionByWorkout = new Map<number, { id: number; startedAt: string }>();
 
     for (const session of sessions) {
-      if (session.status === "active" && session.id) {
-        const existingActive = activeSessionByWorkout.get(session.workoutId);
-        const timestamp = new Date(session.startedAt).getTime();
-        if (!existingActive || timestamp < new Date(existingActive.startedAt).getTime()) {
-          activeSessionByWorkout.set(session.workoutId, {
-            id: session.id,
-            startedAt: session.startedAt
-          });
-        }
+      if (
+        primaryActiveSessionId !== undefined &&
+        session.status === "active" &&
+        session.id === primaryActiveSessionId
+      ) {
+        activeSessionByWorkout.set(session.workoutId, {
+          id: primaryActiveSessionId,
+          startedAt: session.startedAt
+        });
       }
 
       if (session.status === "completed") {
@@ -199,14 +212,22 @@ export function DashboardPage() {
       const sessionSets = setsBySessionId.get(sessionId) ?? [];
       const completedSets = sessionSets.filter((set) => set.completed);
       const setsForExerciseCount = completedSets.length > 0 ? completedSets : sessionSets;
-      const sessionRepsTotal = completedSets.reduce((sum, set) => sum + (set.actualReps ?? set.targetReps), 0);
+      const weightedCompletedSetCount = completedSets.reduce((sum, set) => sum + getSetStatsMultiplier(set), 0);
+      const sessionRepsTotal = completedSets.reduce(
+        (sum, set) => sum + (set.actualReps ?? set.targetReps) * getSetStatsMultiplier(set),
+        0
+      );
       const sessionTotalWeight = completedSets.reduce(
-        (sum, set) => sum + (set.actualWeight ?? set.targetWeight) * (set.actualReps ?? set.targetReps),
+        (sum, set) =>
+          sum +
+          (set.actualWeight ?? set.targetWeight) *
+            (set.actualReps ?? set.targetReps) *
+            getSetStatsMultiplier(set),
         0
       );
 
       exerciseCount += new Set(setsForExerciseCount.map((set) => set.sessionExerciseKey)).size;
-      setCount += completedSets.length;
+      setCount += weightedCompletedSetCount;
       repsTotal += sessionRepsTotal;
       totalWeight += sessionTotalWeight;
 
@@ -214,7 +235,7 @@ export function DashboardPage() {
       caloriesTotal += estimateStrengthTrainingCalories({
         durationMinutes,
         bodyWeightKg,
-        completedSetCount: completedSets.length,
+        completedSetCount: weightedCompletedSetCount,
         repsTotal: sessionRepsTotal
       });
 
@@ -257,6 +278,9 @@ export function DashboardPage() {
   }, [workouts]);
 
   const hasWorkouts = useMemo(() => (workouts?.length ?? 0) > 0, [workouts]);
+  const showWorkoutsSection = section === "workouts";
+  const showStatsSection = section === "statistics";
+  const hasActiveWorkout = activeWorkouts.length > 0;
 
   const handleStartSession = async (workoutId: number) => {
     try {
@@ -293,6 +317,7 @@ export function DashboardPage() {
 
   const renderWorkoutCard = (workout: WorkoutListItem) => {
     const isActive = !!workout.activeSessionId;
+    const disableStartBecauseOtherActive = hasActiveWorkout && !isActive;
 
     return (
       <Card key={workout.id}>
@@ -362,6 +387,7 @@ export function DashboardPage() {
             )}
             <Button
               className={isActive ? "bg-emerald-600 text-white hover:bg-emerald-700" : undefined}
+              disabled={disableStartBecauseOtherActive}
               onClick={() => handleStartSession(workout.id!)}
             >
               <PlayFilledIcon className={`mr-2 shrink-0 ${isActive ? "h-[1.375rem] w-[1.375rem]" : "h-[1.125rem] w-[1.125rem]"}`} />
@@ -375,14 +401,11 @@ export function DashboardPage() {
 
   return (
     <section className="space-y-4">
-      <div className="flex items-start justify-between gap-2">
-        <h1 className="inline-flex items-center gap-2 text-base font-semibold">
-          <List className="h-4 w-4" />
-          {t("workouts")}
-        </h1>
-      </div>
+      <p className="text-base font-semibold leading-tight text-foreground/75">
+        {showWorkoutsSection ? t("workouts") : t("statisticsThisWeekSubtitle")}
+      </p>
 
-      {!hasWorkouts && (
+      {showWorkoutsSection && !hasWorkouts && (
         <>
         <Card>
           <CardHeader className="space-y-1">
@@ -441,16 +464,16 @@ export function DashboardPage() {
         </>
       )}
 
-      {activeWorkouts.length > 0 && (
+      {showWorkoutsSection && activeWorkouts.length > 0 && (
         <div className="space-y-3">
-          <p className="text-xs font-medium text-muted-foreground">{t("activeSessions")}</p>
+          <p className="text-xs font-medium text-muted-foreground">{t("activeSession")}</p>
           {activeWorkouts.map(renderWorkoutCard)}
         </div>
       )}
 
-      {activeWorkouts.length > 0 && inactiveWorkouts.length > 0 && <div className="h-px bg-border" />}
+      {showWorkoutsSection && activeWorkouts.length > 0 && inactiveWorkouts.length > 0 && <div className="h-px bg-border" />}
 
-      {inactiveWorkouts.length > 0 && (
+      {showWorkoutsSection && inactiveWorkouts.length > 0 && (
         <div className="space-y-3">
           {activeWorkouts.length > 0 && (
             <p className="text-xs font-medium text-muted-foreground">{t("otherWorkouts")}</p>
@@ -459,7 +482,7 @@ export function DashboardPage() {
         </div>
       )}
 
-      {hasWorkouts && (
+      {showWorkoutsSection && hasWorkouts && (
         <>
           <Button
             variant="secondary"
@@ -469,78 +492,75 @@ export function DashboardPage() {
             <Plus className="h-4 w-4" />
             {t("addWorkout")}
           </Button>
-          <div className="h-px bg-border" />
-          <section className="space-y-3">
-            <h2 className="inline-flex items-center gap-2 text-base font-semibold">
-              <ChartNoAxesCombined className="h-4 w-4" />
-              {t("statistics")}
-            </h2>
-
-            <Card>
-              <CardContent className="space-y-4 pt-4">
-                <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
-                  <div className="rounded-lg border bg-card px-3 py-2">
-                    <p className="text-xs text-muted-foreground">{t("workoutsThisWeek")}</p>
-                    <p className="text-base font-semibold">{weeklyStats?.workoutCount ?? 0}</p>
-                  </div>
-                  <div className="rounded-lg border bg-card px-3 py-2">
-                    <p className="text-xs text-muted-foreground">{t("exercises")}</p>
-                    <p className="text-base font-semibold">{weeklyStats?.exerciseCount ?? 0}</p>
-                  </div>
-                  <div className="rounded-lg border bg-card px-3 py-2">
-                    <p className="text-xs text-muted-foreground">{t("sets")}</p>
-                    <p className="text-base font-semibold">{weeklyStats?.setCount ?? 0}</p>
-                  </div>
-                  <div className="rounded-lg border bg-card px-3 py-2">
-                    <p className="text-xs text-muted-foreground">{t("repsTotal")}</p>
-                    <p className="text-base font-semibold">{weeklyStats?.repsTotal ?? 0}</p>
-                  </div>
-                  <div className="rounded-lg border bg-card px-3 py-2">
-                    <p className="text-xs text-muted-foreground">{t("totalWeight")}</p>
-                    <p className="text-base font-semibold">
-                      {formatNumber(weeklyStats?.totalWeight ?? 0, 0)} {weightUnit}
-                    </p>
-                  </div>
-                  <div className="relative rounded-lg border bg-card px-3 py-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-xs text-muted-foreground">{t("calories")}</p>
-                      {weeklyStats?.usesDefaultBodyWeightForCalories && (
-                        <InfoHint
-                          ariaLabel={t("calories")}
-                          text={t("caloriesEstimateAverageHint")}
-                          className="-mr-1 -mt-0.5 shrink-0"
-                        />
-                      )}
-                    </div>
-                    <p className="text-base font-semibold">
-                      {formatNumber(weeklyStats?.caloriesTotal ?? 0, 0)} kcal
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">{t("completedWorkoutsThisWeek")}</p>
-                  {(weeklyStats?.completedWorkouts.length ?? 0) > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {weeklyStats?.completedWorkouts.map((item) => (
-                        <Link
-                          key={item.sessionId}
-                          to={`/workouts/${item.workoutId}/history#session-${item.sessionId}`}
-                          className="rounded-xl border bg-background px-3 py-2 transition-colors hover:bg-secondary"
-                        >
-                          <p className="text-sm font-medium leading-none">{item.workoutName}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">{item.weekdayLabel}</p>
-                        </Link>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">{t("noWorkoutsThisWeek")}</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </section>
         </>
+      )}
+
+      {showStatsSection && (
+        <section className="space-y-3">
+          <Card>
+            <CardContent className="space-y-4 pt-4">
+              <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+                <div className="rounded-lg border bg-card px-3 py-2">
+                  <p className="text-xs text-muted-foreground">{t("workoutsThisWeek")}</p>
+                  <p className="text-base font-semibold">{weeklyStats?.workoutCount ?? 0}</p>
+                </div>
+                <div className="rounded-lg border bg-card px-3 py-2">
+                  <p className="text-xs text-muted-foreground">{t("exercises")}</p>
+                  <p className="text-base font-semibold">{weeklyStats?.exerciseCount ?? 0}</p>
+                </div>
+                <div className="rounded-lg border bg-card px-3 py-2">
+                  <p className="text-xs text-muted-foreground">{t("sets")}</p>
+                  <p className="text-base font-semibold">{weeklyStats?.setCount ?? 0}</p>
+                </div>
+                <div className="rounded-lg border bg-card px-3 py-2">
+                  <p className="text-xs text-muted-foreground">{t("repsTotal")}</p>
+                  <p className="text-base font-semibold">{weeklyStats?.repsTotal ?? 0}</p>
+                </div>
+                <div className="rounded-lg border bg-card px-3 py-2">
+                  <p className="text-xs text-muted-foreground">{t("totalWeight")}</p>
+                  <p className="text-base font-semibold">
+                    {formatNumber(weeklyStats?.totalWeight ?? 0, 0)} {weightUnit}
+                  </p>
+                </div>
+                <div className="relative rounded-lg border bg-card px-3 py-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">{t("calories")}</p>
+                    {weeklyStats?.usesDefaultBodyWeightForCalories && (
+                      <InfoHint
+                        ariaLabel={t("calories")}
+                        text={t("caloriesEstimateAverageHint")}
+                        className="-mr-1 -mt-0.5 shrink-0"
+                      />
+                    )}
+                  </div>
+                  <p className="text-base font-semibold">
+                    ~{formatNumber(weeklyStats?.caloriesTotal ?? 0, 0)} kcal
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">{t("completedWorkoutsThisWeek")}</p>
+                {(weeklyStats?.completedWorkouts.length ?? 0) > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {weeklyStats?.completedWorkouts.map((item) => (
+                      <Link
+                        key={item.sessionId}
+                        to={`/workouts/${item.workoutId}/history#session-${item.sessionId}`}
+                        className="rounded-xl border bg-background px-3 py-2 transition-colors hover:bg-secondary"
+                      >
+                        <p className="text-sm font-medium leading-none">{item.workoutName}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{item.weekdayLabel}</p>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t("noWorkoutsThisWeek")}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
       )}
 
       <Dialog open={discardConfirmSessionId !== null} onOpenChange={(open) => !open && setDiscardConfirmSessionId(null)}>

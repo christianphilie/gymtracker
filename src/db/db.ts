@@ -214,6 +214,31 @@ class GymTrackerDB extends Dexie {
         });
       });
 
+    this.version(9)
+      .stores({
+        settings: "id, language, weightUnit",
+        workouts: "++id, name, createdAt, updatedAt",
+        exercises: "++id, workoutId, name, order, isTemplate, x2Enabled",
+        exerciseTemplateSets: "++id, exerciseId, order",
+        sessions: "++id, workoutId, status, startedAt, finishedAt",
+        sessionExerciseSets:
+          "++id, sessionId, templateExerciseId, sessionExerciseKey, isTemplateExercise, completed, x2Enabled",
+        updateSafetySnapshots: "++id, createdAt, appVersion, previousAppVersion"
+      })
+      .upgrade(async (tx) => {
+        await tx.table("exercises").toCollection().modify((exercise: Record<string, unknown>) => {
+          if (exercise.x2Enabled === undefined) {
+            exercise.x2Enabled = false;
+          }
+        });
+
+        await tx.table("sessionExerciseSets").toCollection().modify((set: Record<string, unknown>) => {
+          if (set.x2Enabled === undefined) {
+            set.x2Enabled = false;
+          }
+        });
+      });
+
   }
 }
 

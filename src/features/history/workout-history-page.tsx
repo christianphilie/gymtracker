@@ -29,7 +29,7 @@ import {
   getSessionDurationMinutes,
   resolveCaloriesBodyWeightKg
 } from "@/lib/calorie-estimation";
-import { formatNumber, formatSessionDateLabel } from "@/lib/utils";
+import { formatNumber, formatSessionDateLabel, getSetStatsMultiplier } from "@/lib/utils";
 
 interface EditableSessionSet {
   id: number;
@@ -37,6 +37,7 @@ interface EditableSessionSet {
   exerciseName: string;
   exerciseOrder: number;
   templateSetOrder: number;
+  x2Enabled: boolean;
   actualReps: number;
   actualWeight: number;
   completed: boolean;
@@ -134,19 +135,26 @@ export function WorkoutHistoryPage() {
 
       const setsForExerciseCount = completedSets.length > 0 ? completedSets : entry.sets;
       const exerciseCount = new Set(setsForExerciseCount.map((set) => set.sessionExerciseKey)).size;
-      const setCount = completedSets.length;
-      const repsTotal = completedSets.reduce((sum, set) => sum + (set.actualReps ?? set.targetReps), 0);
+      const setCount = completedSets.reduce((sum, set) => sum + getSetStatsMultiplier(set), 0);
+      const repsTotal = completedSets.reduce(
+        (sum, set) => sum + (set.actualReps ?? set.targetReps) * getSetStatsMultiplier(set),
+        0
+      );
       const totalWeight = completedSets.reduce(
-        (sum, set) => sum + (set.actualWeight ?? set.targetWeight) * (set.actualReps ?? set.targetReps),
+        (sum, set) =>
+          sum +
+          (set.actualWeight ?? set.targetWeight) *
+            (set.actualReps ?? set.targetReps) *
+            getSetStatsMultiplier(set),
         0
       );
       const { bodyWeightKg, usesDefaultBodyWeight } = resolveCaloriesBodyWeightKg(settings?.bodyWeight, weightUnit);
       const calories = estimateStrengthTrainingCalories({
         durationMinutes: getSessionDurationMinutes(entry.session.startedAt, entry.session.finishedAt),
         bodyWeightKg,
-        completedSetCount: completedSets.length,
-        repsTotal
-      });
+          completedSetCount: setCount,
+          repsTotal
+        });
 
       return {
         ...entry,
@@ -176,6 +184,7 @@ export function WorkoutHistoryPage() {
         exerciseName: set.exerciseName,
         exerciseOrder: set.exerciseOrder,
         templateSetOrder: set.templateSetOrder,
+        x2Enabled: set.x2Enabled ?? false,
         actualReps: set.actualReps ?? set.targetReps,
         actualWeight: set.actualWeight ?? set.targetWeight,
         completed: set.completed
@@ -230,11 +239,7 @@ export function WorkoutHistoryPage() {
     <section className="space-y-4">
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-1">
-          <h1 className="inline-flex items-center gap-2 text-base font-semibold">
-            <ChartNoAxesCombined className="h-4 w-4" />
-            {t("sessions")}
-          </h1>
-          <p className="text-sm text-muted-foreground">{payload.workout.workout.name}</p>
+          <p className="text-sm font-medium">{payload.workout.workout.name}</p>
         </div>
         <p className="text-xs text-muted-foreground">
           {t("completedThisWeek")}: {completedThisWeek}
@@ -284,7 +289,14 @@ export function WorkoutHistoryPage() {
               return (
                 <div key={firstSet.sessionExerciseKey} className="space-y-1">
                   <div className="rounded-md border bg-card px-2 py-1.5">
-                    <p className="text-xs font-medium">{firstSet.exerciseName}</p>
+                    <div className="inline-flex items-center gap-1">
+                      <p className="text-xs font-medium">{firstSet.exerciseName}</p>
+                      {firstSet.x2Enabled && (
+                        <span className="rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+                          2x
+                        </span>
+                      )}
+                    </div>
                     <div className="mt-1 space-y-1">
                       {sets.map((set, index) => (
                         <p
@@ -328,7 +340,7 @@ export function WorkoutHistoryPage() {
                     />
                   )}
                 </div>
-                <p className="text-xs font-semibold">{formatNumber(entry.stats.calories, 0)} kcal</p>
+                <p className="text-xs font-semibold">~{formatNumber(entry.stats.calories, 0)} kcal</p>
               </div>
             </div>
           </CardContent>
@@ -346,7 +358,14 @@ export function WorkoutHistoryPage() {
               return (
                 <Card key={firstSet.sessionExerciseKey}>
                   <CardHeader className="pb-2">
-                    <CardTitle>{firstSet.exerciseName}</CardTitle>
+                    <div className="inline-flex items-center gap-1">
+                      <CardTitle>{firstSet.exerciseName}</CardTitle>
+                      {firstSet.x2Enabled && (
+                        <span className="rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+                          2x
+                        </span>
+                      )}
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {sets.map((set) => (

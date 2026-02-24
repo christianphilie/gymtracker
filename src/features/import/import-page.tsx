@@ -107,11 +107,6 @@ export function ImportPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="inline-flex items-center gap-2 text-base font-semibold">
-        <Sparkles className="h-4 w-4" />
-        {t("aiGenerate")}
-      </h1>
-
       <Card>
         <CardContent className="space-y-3 pt-4">
           <Tabs value={activeTab} onValueChange={setActiveTab}>

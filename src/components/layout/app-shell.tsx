@@ -1,7 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, Dumbbell, Flag, Pause, Play, Save, Settings } from "lucide-react";
+import {
+  ChartNoAxesCombined,
+  Check,
+  Dumbbell,
+  Flag,
+  House,
+  Pause,
+  PenSquare,
+  Play,
+  Plus,
+  Save,
+  Scale,
+  Settings,
+  Shield,
+  Sparkles
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LockerNoteInput } from "@/components/forms/locker-note-input";
 import { useSettings } from "@/app/settings-context";
@@ -42,6 +57,23 @@ interface HeaderActionsProps {
   onToggleTimer: () => void;
   showEditorSave: boolean;
   onEditorSave: () => void;
+}
+
+function PlaySolidIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path d="M8 6v12l10-6z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function PauseSolidIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <rect x="7" y="6" width="4" height="12" rx="1" fill="currentColor" />
+      <rect x="13" y="6" width="4" height="12" rx="1" fill="currentColor" />
+    </svg>
+  );
 }
 
 function HeaderActions({
@@ -85,18 +117,20 @@ function HeaderActions({
         {sessionState.sinceIso && hasRestTimer && (
           <button
             type="button"
-            className="m-0 w-[80px] space-y-1 border-0 bg-transparent p-0 text-left align-top [appearance:none]"
+            className="relative m-0 h-9 w-[88px] overflow-hidden rounded-md border border-input bg-background/80 p-0 text-left align-top shadow-sm [appearance:none]"
             onClick={onToggleTimer}
             aria-label={timerPaused ? t("resumeSession") : t("pauseTimer")}
           >
-            <p className="inline-flex h-[16px] w-full items-center justify-start text-left text-xs font-medium leading-none">
-              <span className="flex-1">{formatDurationClock(sessionState.elapsedSeconds)}</span>
-              {timerPaused
-                ? <Play className="h-3 w-3 shrink-0" />
-                : <Pause className="h-3 w-3 shrink-0" />
-              }
-            </p>
-            <div className="h-1.5 overflow-hidden rounded-full border bg-secondary">
+            <div className="inline-flex h-full w-full items-start px-2 pt-1.5">
+              <p className="inline-flex h-[16px] w-full items-center justify-start gap-1 text-left text-xs font-medium leading-none">
+                {timerPaused
+                  ? <PlaySolidIcon className="h-4 w-4 shrink-0" />
+                  : <PauseSolidIcon className="h-4 w-4 shrink-0" />
+                }
+                <span>{formatDurationClock(sessionState.elapsedSeconds)}</span>
+              </p>
+            </div>
+            <div className="absolute inset-x-0 bottom-0 h-1.5 bg-secondary">
               <div
                 className="h-full transition-all"
                 style={{ width: `${Math.round(timerProgress * 100)}%`, backgroundColor: timerBarColor }}
@@ -105,12 +139,14 @@ function HeaderActions({
           </button>
         )}
 
-        <div className="w-[80px] space-y-1">
-          <p className="inline-flex h-[16px] w-full items-center justify-end text-right text-xs font-medium leading-none">
-            <Check className="mr-1 h-3.5 w-3.5" />
-            {sessionState.completed}/{sessionState.total}
-          </p>
-          <div className="h-1.5 overflow-hidden rounded-full border bg-secondary">
+        <div className="relative h-9 w-[88px] overflow-hidden rounded-md border border-input bg-background/80 shadow-sm">
+          <div className="inline-flex h-full w-full items-start px-2 pt-1.5">
+            <p className="inline-flex h-[16px] w-full items-center justify-start text-left text-xs font-medium leading-none">
+              <Check className="mr-1 h-3.5 w-3.5" />
+              {sessionState.completed}/{sessionState.total}
+            </p>
+          </div>
+          <div className="absolute inset-x-0 bottom-0 h-1.5 bg-secondary">
             <div className="h-full bg-primary" style={{ width: `${donePercent}%` }} />
           </div>
         </div>
@@ -127,15 +163,7 @@ function HeaderActions({
     );
   }
 
-  return (
-    <div className="flex items-center justify-end">
-      <Button asChild variant="outline" size="icon" aria-label={t("settings")}>
-        <Link to="/settings">
-          <Settings className="h-4 w-4" />
-        </Link>
-      </Button>
-    </div>
-  );
+  return null;
 }
 
 export function AppShell() {
@@ -145,6 +173,53 @@ export function AppShell() {
   const workoutEditMatch = location.pathname.match(/^\/workouts\/(\d+)\/edit$/);
   const activeSessionId = sessionMatch ? Number(sessionMatch[1]) : null;
   const isWorkoutEditRoute = !!workoutEditMatch;
+  const pageHeader = useMemo(() => {
+    let title = t("appName");
+    let Icon = Dumbbell;
+    let iconClassName = "text-muted-foreground";
+    let titleClassName = "text-foreground";
+    let containerClassName = "";
+
+    if (location.pathname === "/") {
+      title = t("appName");
+      Icon = Dumbbell;
+      iconClassName = "text-emerald-700";
+      titleClassName = "text-emerald-700";
+      containerClassName = "rounded-full bg-emerald-100 px-3.5 py-1.5";
+    } else if (location.pathname === "/statistics") {
+      title = t("statistics");
+      Icon = ChartNoAxesCombined;
+    } else if (location.pathname === "/settings") {
+      title = t("settings");
+      Icon = Settings;
+    } else if (location.pathname === "/import") {
+      title = t("aiGenerate");
+      Icon = Sparkles;
+    } else if (location.pathname === "/legal") {
+      title = t("legal");
+      Icon = Scale;
+    } else if (location.pathname === "/privacy") {
+      title = t("privacy");
+      Icon = Shield;
+    } else if (/^\/workouts\/add$/.test(location.pathname)) {
+      title = t("addWorkout");
+      Icon = Plus;
+    } else if (/^\/workouts\/new$/.test(location.pathname)) {
+      title = t("newWorkout");
+      Icon = Plus;
+    } else if (/^\/workouts\/\d+\/edit$/.test(location.pathname)) {
+      title = t("editWorkoutTitle");
+      Icon = PenSquare;
+    } else if (/^\/workouts\/\d+\/history$/.test(location.pathname)) {
+      title = t("sessionHistory");
+      Icon = ChartNoAxesCombined;
+    } else if (/^\/sessions\/\d+$/.test(location.pathname)) {
+      title = "Session";
+      Icon = Play;
+    }
+
+    return { title, Icon, iconClassName, titleClassName, containerClassName };
+  }, [location.pathname, t]);
 
   const sessionMeta = useLiveQuery(async () => {
     if (!activeSessionId || Number.isNaN(activeSessionId)) {
@@ -172,6 +247,17 @@ export function AppShell() {
       sinceIso: lastCompletedAt ?? null
     };
   }, [activeSessionId]);
+
+  const activeSessionNav = useLiveQuery(async () => {
+    const activeSessions = await db.sessions.where("status").equals("active").toArray();
+    activeSessions.sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+    const active = activeSessions[0];
+    if (!active?.id) {
+      return null;
+    }
+
+    return { sessionId: active.id };
+  }, []);
 
 
   const [now, setNow] = useState(() => Date.now());
@@ -225,7 +311,7 @@ export function AppShell() {
       doneAndReady: sessionMeta.total > 0 && sessionMeta.completed === sessionMeta.total
     };
   }, [sessionMeta, now, timerPaused, timerPauseStartedAt, timerPausedTotalMs]);
-  const showLockerNote = lockerNoteEnabled && !sessionState && !isWorkoutEditRoute;
+  const showLockerNote = lockerNoteEnabled && !isWorkoutEditRoute;
   const handleToggleTimer = () => {
     if (!sessionState?.sinceIso) {
       return;
@@ -257,17 +343,11 @@ export function AppShell() {
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col bg-background">
       <header className="sticky top-0 z-20 border-x-0 border-b border-t-0 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="container flex h-14 items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Link
-              to="/"
-              className="inline-flex items-center gap-2 rounded-full border border-input bg-card px-4 py-2 text-base font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-colors hover:bg-emerald-100 hover:text-emerald-700"
-            >
-              <Dumbbell className="h-4 w-4 text-emerald-600" />
-              {t("appName")}
-            </Link>
+          <div className={`flex min-w-0 items-center gap-2 ${pageHeader.containerClassName}`}>
+            <pageHeader.Icon className={`h-5 w-5 shrink-0 ${pageHeader.iconClassName}`} />
+            <p className={`truncate text-lg font-semibold ${pageHeader.titleClassName}`}>{pageHeader.title}</p>
           </div>
           <div className="flex items-center gap-2">
-            {showLockerNote && <LockerNoteInput />}
             <HeaderActions
               sessionState={sessionState}
               restTimerSeconds={restTimerSeconds}
@@ -277,39 +357,81 @@ export function AppShell() {
               showEditorSave={isWorkoutEditRoute}
               onEditorSave={handleEditorSave}
             />
+            {showLockerNote && <LockerNoteInput />}
           </div>
         </div>
       </header>
 
 
-      <main className="container flex-1 py-4 pb-6">
+      <main className="container flex-1 py-4 pb-28 sm:pb-24">
         <Outlet />
       </main>
-
-      <footer className="border-t bg-background/80">
-        <div className="container flex flex-col gap-1 py-3 text-center text-xs text-muted-foreground">
-          <p>
-            {t("footerMadeWith")} <span className="text-foreground">❤</span> {t("footerBy")}{" "}
-            <a
-              href="https://github.com/christianphilie/gymtracker"
-              target="_blank"
-              rel="noreferrer"
-              className="underline-offset-4 hover:underline"
-            >
-              christianphilie
-            </a>
-          </p>
-          <p>
-            <Link to="/legal" className="underline-offset-4 hover:underline">
-              {t("legal")}
-            </Link>
-            {" · "}
-            <Link to="/privacy" className="underline-offset-4 hover:underline">
-              {t("privacy")}
-            </Link>
-          </p>
+      <div className="pointer-events-none fixed inset-x-0 bottom-3 z-30 px-4">
+        <div className="relative mx-auto max-w-3xl">
+          <nav className="pointer-events-auto flex justify-center" aria-label="Primary">
+            <div className="flex items-center gap-0 rounded-2xl border border-white/50 bg-background/80 p-0.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08),0_22px_52px_rgba(15,23,42,0.14)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
+              <div className="flex w-[4.25rem] shrink-0 justify-center">
+                <Link
+                  to="/"
+                  aria-label={t("workouts")}
+                  title={t("workouts")}
+                  className={`inline-flex h-11 items-center justify-center rounded-xl transition-[padding,background-color,color] duration-200 ${
+                    location.pathname === "/"
+                      ? "bg-primary px-6 text-primary-foreground"
+                      : "px-4 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  }`}
+                >
+                  <House className="h-5 w-5" />
+                </Link>
+              </div>
+              {activeSessionNav && (
+                <div className="flex w-[4.25rem] shrink-0 justify-center">
+                  <Link
+                    to={`/sessions/${activeSessionNav.sessionId}`}
+                    aria-label={t("resumeSession")}
+                    title={t("resumeSession")}
+                    className={`inline-flex h-11 items-center justify-center rounded-xl transition-[padding,background-color,color] duration-200 ${
+                      location.pathname === `/sessions/${activeSessionNav.sessionId}`
+                        ? "bg-emerald-100 px-6 text-emerald-700"
+                        : "px-4 text-foreground hover:bg-secondary hover:text-foreground"
+                    }`}
+                  >
+                    <Play className="h-5 w-5" />
+                  </Link>
+                </div>
+              )}
+              <div className="flex w-[4.25rem] shrink-0 justify-center">
+                <Link
+                  to="/statistics"
+                  aria-label={t("statistics")}
+                  title={t("statistics")}
+                  className={`inline-flex h-11 items-center justify-center rounded-xl transition-[padding,background-color,color] duration-200 ${
+                    location.pathname === "/statistics"
+                      ? "bg-primary px-6 text-primary-foreground"
+                      : "px-4 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  }`}
+                >
+                  <ChartNoAxesCombined className="h-5 w-5" />
+                </Link>
+              </div>
+              <div className="flex w-[4.25rem] shrink-0 justify-center">
+                <Link
+                  to="/settings"
+                  aria-label={t("settings")}
+                  title={t("settings")}
+                  className={`inline-flex h-11 items-center justify-center rounded-xl transition-[padding,background-color,color] duration-200 ${
+                    location.pathname === "/settings"
+                      ? "bg-primary px-6 text-primary-foreground"
+                      : "px-4 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  }`}
+                >
+                  <Settings className="h-5 w-5" />
+                </Link>
+              </div>
+            </div>
+          </nav>
         </div>
-      </footer>
+      </div>
       {/*
       <Dialog open={showIosWebAppHint} onOpenChange={(open) => !open && dismissIosWebAppHint()}>
         <DialogContent>

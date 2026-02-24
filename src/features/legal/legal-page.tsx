@@ -1,4 +1,3 @@
-import { Scale } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSettings } from "@/app/settings-context";
 
@@ -47,11 +46,6 @@ export function LegalPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="inline-flex items-center gap-2 text-base font-semibold">
-        <Scale className="h-4 w-4" />
-        {t("legal")}
-      </h1>
-
       {/* App */}
       <Card>
         <CardHeader>

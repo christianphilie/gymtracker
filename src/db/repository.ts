@@ -23,6 +23,7 @@ interface WorkoutDraft {
   exercises: Array<{
     name: string;
     notes?: string;
+    x2Enabled?: boolean;
     sets: Array<{
       targetReps: number;
       targetWeight: number;
@@ -171,6 +172,14 @@ async function getActiveSessionForWorkout(workoutId: number) {
     .equals(workoutId)
     .and((session) => session.status === "active")
     .first();
+}
+
+async function getAnyActiveSession() {
+  const activeSessions = await db.sessions.where("status").equals("active").toArray();
+  activeSessions.sort(
+    (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
+  );
+  return activeSessions[0] ?? null;
 }
 
 export async function ensureDefaultSettings() {
@@ -394,6 +403,7 @@ async function createWorkoutRecord(draft: WorkoutDraft) {
       notes: exerciseDraft.notes?.trim(),
       order: exerciseIndex,
       isTemplate: true,
+      x2Enabled: exerciseDraft.x2Enabled ?? false,
       createdAt: now,
       updatedAt: now
     };
@@ -466,6 +476,7 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
           notes: exerciseDraft.notes?.trim(),
           order: exerciseIndex,
           isTemplate: true,
+          x2Enabled: exerciseDraft.x2Enabled ?? false,
           createdAt: current.createdAt,
           updatedAt: nowIso()
         });
@@ -560,6 +571,7 @@ export async function ensureDefaultWorkout() {
       },
       {
         name: "Bizepscurl (Maschine)",
+        x2Enabled: true,
         sets: [
           { targetReps: 12, targetWeight: 15 },
           { targetReps: 12, targetWeight: 15 },
@@ -678,6 +690,11 @@ export async function importAllDataSnapshot(snapshot: AppDataSnapshot) {
 }
 
 export async function startSession(workoutId: number) {
+  const anyActiveSession = await getAnyActiveSession();
+  if (anyActiveSession?.id) {
+    return anyActiveSession.id;
+  }
+
   const existingActiveSession = await getActiveSessionForWorkout(workoutId);
   if (existingActiveSession?.id) {
     return existingActiveSession.id;
@@ -716,6 +733,7 @@ export async function startSession(workoutId: number) {
             exerciseNotes: exerciseBlock.exercise.notes,
             exerciseOrder: exerciseBlock.exercise.order,
             isTemplateExercise: true,
+            x2Enabled: exerciseBlock.exercise.x2Enabled ?? false,
             templateSetOrder: set.order,
             targetReps: set.targetReps,
             targetWeight: set.targetWeight,
@@ -806,6 +824,7 @@ export async function addSessionSet(sessionId: number, sessionExerciseKey: strin
     exerciseNotes: firstSet.exerciseNotes,
     exerciseOrder: firstSet.exerciseOrder,
     isTemplateExercise: firstSet.isTemplateExercise,
+    x2Enabled: firstSet.x2Enabled ?? false,
     templateSetOrder,
     targetReps,
     targetWeight,
@@ -849,6 +868,7 @@ export async function addSessionExercise(sessionId: number, name: string) {
     exerciseNotes: "",
     exerciseOrder: maxOrder + 1,
     isTemplateExercise: false,
+    x2Enabled: false,
     templateSetOrder: 0,
     targetReps: 10,
     targetWeight: 0,
@@ -934,6 +954,7 @@ async function applySessionAsTemplate(sessionId: number) {
         notes: firstSet.exerciseNotes,
         order: exerciseIndex,
         isTemplate: true,
+        x2Enabled: firstSet.x2Enabled ?? false,
         createdAt: now,
         updatedAt: now
       });

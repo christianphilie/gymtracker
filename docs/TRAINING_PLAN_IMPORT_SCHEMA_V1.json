@@ -32,6 +32,7 @@
               "properties": {
                 "name": { "type": "string", "minLength": 1 },
                 "notes": { "type": "string" },
+                "x2Enabled": { "type": "boolean" },
                 "sets": {
                   "type": "array",
                   "minItems": 1,

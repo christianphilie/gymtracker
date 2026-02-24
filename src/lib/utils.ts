@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { AppLanguage } from "@/db/types";
+import type { AppLanguage, SessionExerciseSet } from "@/db/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -93,4 +93,8 @@ export function formatDurationClock(totalSeconds: number) {
     .padStart(2, "0");
   const seconds = (safe % 60).toString().padStart(2, "0");
   return `${minutes}:${seconds}`;
+}
+
+export function getSetStatsMultiplier(set: Pick<SessionExerciseSet, "x2Enabled">) {
+  return set.x2Enabled ? 2 : 1;
 }

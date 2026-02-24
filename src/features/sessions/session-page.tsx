@@ -194,7 +194,8 @@ export function SessionPage() {
           exerciseNotes: firstSet.exerciseNotes,
           exerciseOrder: firstSet.exerciseOrder,
           isTemplateExercise: firstSet.isTemplateExercise,
-          templateExerciseId: firstSet.templateExerciseId
+          templateExerciseId: firstSet.templateExerciseId,
+          x2Enabled: firstSet.x2Enabled ?? false
         };
       })
       .sort((a, b) => a.exerciseOrder - b.exerciseOrder);
@@ -209,10 +210,7 @@ export function SessionPage() {
   return (
     <section className="space-y-4 pb-6">
       <div className="space-y-1">
-        <h1 className="inline-flex items-center gap-2 text-base font-semibold">
-          <Play className="h-4 w-4" />
-          {payload.workout.workout.name}
-        </h1>
+        <p className="text-base font-semibold leading-tight text-foreground/75">{payload.workout.workout.name}</p>
         {!isCompleted && (
           <div className="flex flex-wrap items-center gap-2">
             <span className={ACTIVE_SESSION_PILL_CLASS}>
@@ -262,6 +260,11 @@ export function SessionPage() {
                     <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
                     <CardTitle>{exercise.exerciseName}</CardTitle>
                   </button>
+                  {exercise.x2Enabled && (
+                    <span className="ml-1 rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+                      2x
+                    </span>
+                  )}
                 </div>
                 {allCompleted && (
                   <span className={SUCCESS_CIRCLE_CLASS} aria-label={t("done")}>
@@ -270,12 +273,6 @@ export function SessionPage() {
                 )}
               </div>
 
-              {exercise.exerciseNotes && (
-                <p className="inline-flex items-start gap-1 text-xs text-muted-foreground">
-                  <NotebookPen className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <span>{exercise.exerciseNotes}</span>
-                </p>
-              )}
               {lastTemplateSets && (
                 <p className="text-xs text-muted-foreground">
                   {t("lastSession")}: {lastSessionSetSummary}
@@ -285,6 +282,14 @@ export function SessionPage() {
 
             <div className={`grid transition-all duration-200 ${isCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}>
               <div className="overflow-hidden">
+              {exercise.exerciseNotes && (
+                <div className="px-6 pt-0.5">
+                  <p className="inline-flex items-start gap-1 text-xs text-muted-foreground">
+                    <NotebookPen className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>{exercise.exerciseNotes}</span>
+                  </p>
+                </div>
+              )}
               <CardContent className="space-y-2">
                 {exercise.sets.map((set) => {
                   const actualRepsValue = set.actualReps ?? set.targetReps;

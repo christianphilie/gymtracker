@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Database, DoorClosedLocked, Download, Globe, Settings, SunMoon, Timer, Upload, User, Weight, X } from "lucide-react";
 import { useSettings } from "@/app/settings-context";
@@ -220,11 +220,6 @@ export function SettingsPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="inline-flex items-center gap-2 text-base font-semibold">
-        <Settings className="h-4 w-4" />
-        {t("settings")}
-      </h1>
-
       <Tabs defaultValue="app" className="space-y-4">
         <TabsList className="grid h-auto w-full grid-cols-3">
           <TabsTrigger value="app" className="flex gap-2">
@@ -486,6 +481,31 @@ export function SettingsPage() {
           <p className="text-center text-xs text-muted-foreground">{t("versionLabel")} {APP_VERSION}</p>
         </TabsContent>
       </Tabs>
+
+      <footer className="border-t pt-4">
+        <div className="flex flex-col gap-1 text-center text-xs text-muted-foreground">
+          <p>
+            {t("footerMadeWith")} <span className="text-foreground">❤</span> {t("footerBy")}{" "}
+            <a
+              href="https://github.com/christianphilie/gymtracker"
+              target="_blank"
+              rel="noreferrer"
+              className="underline-offset-4 hover:underline"
+            >
+              christianphilie
+            </a>
+          </p>
+          <p>
+            <Link to="/legal" className="underline-offset-4 hover:underline">
+              {t("legal")}
+            </Link>
+            {" · "}
+            <Link to="/privacy" className="underline-offset-4 hover:underline">
+              {t("privacy")}
+            </Link>
+          </p>
+        </div>
+      </footer>
 
       <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
         <DialogContent>
