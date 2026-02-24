@@ -552,7 +552,7 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
             onClick={() => navigate("/workouts/add")}
           >
             <Plus className="h-4 w-4" />
-            {t("addWorkout")}
+            {t("add")}
           </Button>
         )}
       </div>

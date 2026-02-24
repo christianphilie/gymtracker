@@ -9,7 +9,7 @@
 6. Add tests for backup export/import integrity across all IndexedDB tables.
 7. Add tests for automatic update safety snapshots (create, retain 3, restore).
 8. Add tests for weight-unit conversion behavior across template and session values.
-9. Add tests for `/api/ai-import` plus fallback UX when backend env is missing.
+9. Add tests for `/api/ai-import` and `/api/exercise-info`, plus fallback UX when backend env is missing.
 10. Add tests for rest-timer behavior (starts on first completed set, configurable 1/2/3/5 minute threshold).
 11. Add tests for history session edit/delete actions (including DB integrity after remove).
 12. Add tests for top-bar timer pause/resume interactions and reset-on-new-check behavior.
@@ -52,3 +52,8 @@
 29. Weekly goals added to personal settings (toggleable per goal) and shown as progress cards in weekly statistics.
 30. Starter workout action now creates two example workouts (Upper Body + Lower Body) instead of one full-body template.
 31. Settings page refactor: reusable card titles/toggle rows/dialogs, animated show/hide for timer duration and weekly-goal inputs, plus additional section icons.
+32. Weekly statistics now track total workout duration and support a weekly duration goal (with icons in stats/goals and settings).
+33. Session history editing now supports adjusting completed-session start/end date-time.
+34. Exercise info assistant added: Groq-backed target-muscle + coaching-tip enrichment, stored in templates/session snapshots, with reusable info popups in editor/session/history.
+35. Local Vite dev server now proxies in-repo `/api/*` handlers (`/api/ai-import`, `/api/exercise-info`) so Groq-backed features work during `npm run dev`.
+36. Import screen wording/UX was simplified: clearer text-only Gymtracker-KI path vs. "Aus Datei erstellen" with own AI prompt/JSON flow.

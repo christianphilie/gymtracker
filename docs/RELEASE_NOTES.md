@@ -5,6 +5,9 @@
 ### Added
 1. Weekly goals (workouts, calories, weight volume) in personal settings, including progress cards in the weekly statistics view.
 2. Starter workout action now seeds two sample workouts (Upper Body / Lower Body) for quicker onboarding and testing.
+3. Weekly statistics now include total workout duration, plus an optional weekly duration goal in personal settings and stats progress cards.
+4. Completed session history editing now supports changing session start and end date/time after the fact.
+5. Exercise info enrichment via Groq: per-exercise target-muscle weighting + execution/coaching tips with reusable info popups in workout editor, active session, and history views.
 
 ### Changed
 1. Settings UX was refactored and polished with reusable card/title patterns, additional icons, and animated reveal/hide behavior for timer duration and weekly-goal inputs.
@@ -12,11 +15,19 @@
 3. `×2` exercise labels now use the multiplication symbol consistently, and the workout-editor toggle moved next to the sets section.
 4. Long exercise names now stay left-aligned when wrapping in editor, active session, and history cards.
 5. German completion action text was clarified from "Session übernehmen" to "Werte übernehmen".
+6. Import screen wording and layout were simplified: clearer "text-only" Gymtracker-KI path vs. "Aus Datei erstellen" (own AI + prompt + JSON paste flow), with renamed JSON-processing action text.
+7. Dashboard "Meine Workouts" now places the add-workout action as a compact secondary button in the section header instead of a full-width button at the bottom.
+8. Exercise info popup typography and action placement were refined (smaller, denser content; cleaner icon placement in exercise cards).
+
+### Fixed
+1. Local `npm run dev` now serves in-repo `/api/ai-import` and `/api/exercise-info` handlers through Vite middleware, so AI features work during development with `.env` keys.
+2. Exercise-info loading no longer shows a false error toast when data was successfully fetched and merged; the loader now skips exercises that already have stored info.
 
 ### Docs
 1. Agent notes were consolidated into `docs/AGENTS.md` (root `AGENTS.md` kept as a small shim).
 2. `docs/IMPLEMENTATION_PLAN.md` and `docs/IMPLEMENTATION_STATUS.md` were consolidated into `docs/PROJECT_STATUS.md`.
 3. `README.md` was refreshed to reflect current features, starter workouts, weekly goals, and docs layout.
+4. `docs/TODO.md` backlog and done items were updated to reflect duration goals, session timing edits, exercise-info enrichment, and local dev API middleware support.
 
 ---
 
