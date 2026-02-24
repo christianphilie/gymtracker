@@ -34,8 +34,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   const systemMessage =
     locale === "de"
-      ? "Du bist ein präziser Datenkonverter für Trainingspläne. Gib ausschließlich valides JSON zurück – kein Markdown, keine Erklärungen, keine Code-Blöcke. Das JSON muss direkt parsebar sein."
-      : "You are a precise data converter for workout plans. Return only valid JSON – no markdown, no explanations, no code blocks. The JSON must be directly parseable.";
+      ? "Du bist ein präziser Datenkonverter für Trainingspläne. Gib ausschließlich valides JSON zurück – kein Markdown, keine Erklärungen, keine Code-Blöcke. Das JSON muss direkt parsebar sein. Richte alle erzeugten Textfelder nach der angeforderten Sprache aus."
+      : "You are a precise data converter for workout plans. Return only valid JSON – no markdown, no explanations, no code blocks. The JSON must be directly parseable. Keep all generated text fields in the requested locale.";
 
   const userMessage =
     locale === "de"
@@ -48,6 +48,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           "- Optionales Feld x2Enabled nur als boolean setzen (true/false), bevorzugt nur bei true ausgeben",
           "- Das Feld 'notes' weglassen wenn keine Anmerkungen vorhanden sind",
           "- Kein leeres notes-Feld und keine anderen Extrafelder hinzufügen",
+          "- Schreibe alle erzeugten Textfelder (z. B. Namen/Notizen) auf Deutsch passend zur App-Sprache",
           "",
           "Zielschema:",
           promptTemplate,
@@ -64,6 +65,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           "- Optional field x2Enabled must be a boolean (true/false), preferably only include it when true",
           "- Omit the 'notes' field if there are no notes",
           "- Do not add empty notes fields or any extra fields",
+          "- Write generated text fields (e.g. names/notes) in English to match the app language",
           "",
           "Target schema:",
           promptTemplate,

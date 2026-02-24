@@ -1170,10 +1170,7 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
                     </svg>
                   </div>
                 ) : (
-                  <div className="rounded-md border bg-background px-3 py-3">
-                    <p className="text-sm text-muted-foreground">{t("noMuscleDataThisWeek")}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{t("noMuscleDataThisWeekHint")}</p>
-                  </div>
+                  <p className="px-3 py-3 text-center text-sm text-muted-foreground">{t("noMuscleDataThisWeekHint")}</p>
                 )}
               </CardContent>
             </Card>

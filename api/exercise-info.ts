@@ -128,8 +128,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   const systemMessage =
     locale === "de"
-      ? "Du bist ein präziser Fitness-Assistenz-Datenlieferant. Gib ausschließlich valides JSON zurück, ohne Markdown, ohne Erklärungen, ohne Codeblöcke."
-      : "You are a precise fitness assistant data provider. Return only valid JSON, with no markdown, no explanations, and no code fences.";
+      ? "Du bist ein präziser Fitness-Assistenz-Datenlieferant. Gib ausschließlich valides JSON zurück, ohne Markdown, ohne Erklärungen, ohne Codeblöcke. Bei deutschen Texten verwende konsequent die informale Anrede (du/dein), nicht die formale Sie-Anrede."
+      : "You are a precise fitness assistant data provider. Return only valid JSON, with no markdown, no explanations, and no code fences. Follow the requested locale for all generated text fields.";
 
   const userMessage =
     locale === "de"
@@ -144,7 +144,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           "- 4 bis 8 Muskel-Einträge bevorzugen",
           "- `executionGuide` als kompakte Anleitung zur Ausführung",
           "- `coachingTips` als kurze konkrete Hinweise (4 bis 8 Punkte)",
-          `- Texte in ${locale === "de" ? "Deutsch" : "Englisch"}`,
+          "- Alle Texte auf Deutsch",
+          "- In `executionGuide` und `coachingTips` konsequent duzen (du/dein), nicht siezen",
           "- Keine zusätzlichen Felder hinzufügen",
           "",
           "Zielschema:",
@@ -164,7 +165,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           "- Prefer 4 to 8 muscle entries",
           "- `executionGuide` should be a concise but useful execution guide",
           "- `coachingTips` should be short concrete tips (4 to 8 items)",
-          "- Write all texts in English",
+          "- Write all texts in English (follow the requested app locale)",
           "- Do not add extra fields",
           "",
           "Target schema:",

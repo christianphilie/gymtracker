@@ -38,6 +38,10 @@ interface ExerciseInfoApiItem {
   coachingTips: string[];
 }
 
+interface GenerateExerciseInfoOptions {
+  forceRefresh?: boolean;
+}
+
 function createEmptyDraft(): WorkoutDraft {
   return {
     name: "",
@@ -104,6 +108,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const [newExerciseName, setNewExerciseName] = useState("");
   const [deleteExerciseIndex, setDeleteExerciseIndex] = useState<number | null>(null);
   const [isGeneratingExerciseInfo, setIsGeneratingExerciseInfo] = useState(false);
+  const [isExerciseInfoReloadDialogOpen, setIsExerciseInfoReloadDialogOpen] = useState(false);
 
   useEffect(() => {
     if (mode !== "edit" || !workoutId) {
@@ -161,33 +166,50 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
     [draft.exercises]
   );
 
-  const handleGenerateExerciseInfo = useCallback(async () => {
+  const handleGenerateExerciseInfo = useCallback(async (options: GenerateExerciseInfoOptions = {}) => {
+    const forceRefresh = options.forceRefresh === true;
     const baseDraft = structuredClone(draft);
 
-    const existingInfoByName = new Map<string, ExerciseAiInfo>();
-    for (const exercise of baseDraft.exercises) {
-      const key = normalizeExerciseName(exercise.name);
-      if (!key || !hasExerciseAiInfo(exercise.aiInfo) || existingInfoByName.has(key)) {
-        continue;
-      }
-      existingInfoByName.set(key, exercise.aiInfo);
+    if (baseDraft.exercises.every((exercise) => !exercise.name.trim())) {
+      toast.error(t("exerciseInfoGenerateNoExercises"));
+      return;
     }
 
+    if (forceRefresh) {
+      for (const exercise of baseDraft.exercises) {
+        if (!exercise.name.trim()) {
+          continue;
+        }
+        exercise.aiInfo = undefined;
+      }
+    }
+
+    const existingInfoByName = new Map<string, ExerciseAiInfo>();
     let locallyFilledCount = 0;
-    for (const exercise of baseDraft.exercises) {
-      if (hasExerciseAiInfo(exercise.aiInfo)) {
-        continue;
+    if (!forceRefresh) {
+      for (const exercise of baseDraft.exercises) {
+        const key = normalizeExerciseName(exercise.name);
+        if (!key || !hasExerciseAiInfo(exercise.aiInfo) || existingInfoByName.has(key)) {
+          continue;
+        }
+        existingInfoByName.set(key, exercise.aiInfo);
       }
-      const key = normalizeExerciseName(exercise.name);
-      if (!key) {
-        continue;
+
+      for (const exercise of baseDraft.exercises) {
+        if (hasExerciseAiInfo(exercise.aiInfo)) {
+          continue;
+        }
+        const key = normalizeExerciseName(exercise.name);
+        if (!key) {
+          continue;
+        }
+        const localInfo = existingInfoByName.get(key);
+        if (!localInfo) {
+          continue;
+        }
+        exercise.aiInfo = localInfo;
+        locallyFilledCount += 1;
       }
-      const localInfo = existingInfoByName.get(key);
-      if (!localInfo) {
-        continue;
-      }
-      exercise.aiInfo = localInfo;
-      locallyFilledCount += 1;
     }
 
     const missingNames = Array.from(
@@ -199,17 +221,12 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
       )
     );
 
-    if (baseDraft.exercises.every((exercise) => !exercise.name.trim())) {
-      toast.error(t("exerciseInfoGenerateNoExercises"));
-      return;
-    }
-
     if (missingNames.length === 0) {
       if (locallyFilledCount > 0) {
         setDraft(baseDraft);
         toast.success(t("exerciseInfoGenerateSuccess").replace("{count}", String(locallyFilledCount)));
       } else {
-        toast.success(t("exerciseInfoAlreadyLoaded"));
+        setIsExerciseInfoReloadDialogOpen(true);
       }
       return;
     }
@@ -291,7 +308,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
 
       let apiUpdatedCount = 0;
       for (const exercise of baseDraft.exercises) {
-        if (hasExerciseAiInfo(exercise.aiInfo)) {
+        if (!forceRefresh && hasExerciseAiInfo(exercise.aiInfo)) {
           continue;
         }
         const info = infoByName.get(normalizeExerciseName(exercise.name));
@@ -750,6 +767,33 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
               }}
             >
               {t("removeExercise")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isExerciseInfoReloadDialogOpen} onOpenChange={setIsExerciseInfoReloadDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("exerciseInfoReloadConfirmTitle")}</DialogTitle>
+            <DialogDescription>{t("exerciseInfoReloadConfirmDescription")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsExerciseInfoReloadDialogOpen(false)}
+              disabled={isGeneratingExerciseInfo}
+            >
+              {t("cancel")}
+            </Button>
+            <Button
+              onClick={() => {
+                setIsExerciseInfoReloadDialogOpen(false);
+                void handleGenerateExerciseInfo({ forceRefresh: true });
+              }}
+              disabled={isGeneratingExerciseInfo}
+            >
+              {t("exerciseInfoReloadConfirmAction")}
             </Button>
           </DialogFooter>
         </DialogContent>
