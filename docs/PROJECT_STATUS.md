@@ -6,8 +6,9 @@ Consolidated status document replacing `IMPLEMENTATION_PLAN.md` and `IMPLEMENTAT
 
 1. Test coverage for import, session lifecycle, destructive flows, and backup/update-safety paths
 2. Security triage for dev-tooling `npm audit` findings
-3. Continue modular refactors for remaining large feature files (`workout-editor-page`, `session-page`)
-4. General UX polish and hardening
+3. Xcode/iOS wrapper migration prep (WebView storage/API parity, file import/export behavior, routing behavior)
+4. Continue modular refactors for remaining large feature files (`workout-editor-page`, `session-page`)
+5. General UX polish and hardening
 
 ## Completed Milestones
 

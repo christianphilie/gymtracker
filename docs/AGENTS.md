@@ -32,6 +32,18 @@ This document consolidates the former root `AGENTS.md` notes and `docs/AGENT_HAN
 4. Repository API: `src/db/repository.ts`
 5. Feature pages: `src/features/*` (dashboard, workouts, sessions, history, import, settings, legal)
 
+## Xcode / iOS Migration Handoff (Important)
+
+1. This app is a React SPA (`react-router-dom` + `BrowserRouter`), so web deployments require SPA rewrites (`vercel.json`); an iOS wrapper must preserve in-app route navigation semantics.
+2. Local persistence is Dexie/IndexedDB (`src/db/db.ts`) with schema migrations and versioned upgrade paths; preserve IndexedDB storage availability in the chosen WebView/container and do not replace it ad hoc without a data migration plan.
+3. Backup/import/export and update-safety snapshots are core data-safety features (repository API in `src/db/repository.ts` facade + domain modules) and should remain functional during migration/testing.
+4. AI-related flows currently depend on `/api/ai-import` and `/api/exercise-info` server endpoints (local dev via Vite middleware, production via server runtime); a pure on-device Xcode wrapper does not provide these routes by itself.
+5. Do not ship API keys inside the iOS app bundle/web assets; keep AI calls server-side or through a secure backend proxy.
+6. PWA/service-worker behavior is useful for web deployment, but an iOS WebView wrapper may not need the same install/update behavior; treat PWA features as web-specific unless explicitly ported.
+7. File import/export flows rely on browser file APIs (`<input type=\"file\">`, downloads); verify iOS WebView behavior for JSON backup import/export and provide native bridge fallbacks if needed.
+8. Mobile UX assumptions are already iPhone-oriented (no horizontal scroll on core flows, touch-friendly controls); regressions should be checked first in active session, workout editor, history edit dialog, and settings data import/export.
+9. For feature parity checks, use `docs/PRODUCT_REQUIREMENTS.md` (functional scope) plus `docs/RELEASE_NOTES.md` (recent UX/data behavior changes).
+
 ## Design Rules (Must Keep)
 
 1. Monochrome (black/white/gray only)

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+---
+
+## 1.2.2 - 2026-02-24
+
 ### Changed
 1. Active session flow was polished: exercise order can be reversed from the header, auto-reordering after checking a set is now visibly animated, and "Resume session" jumps back to the most recently completed set.
 2. Navigation transitions now use a short lightweight page-enter animation, and the inactive Play tab icon now matches the muted styling of the other tabs.
@@ -15,7 +19,8 @@
 3. Active session dark-mode success/check colors are brighter and aligned better with the dashboard dark-mode green treatment.
 4. Session edit date/time fields no longer overflow their grid width on iPhone Safari.
 
----
+### Docs
+1. `docs/AGENTS.md` now includes an explicit Xcode/iOS migration handoff section covering SPA routing, IndexedDB/Dexie persistence, AI API route dependencies, PWA caveats, and file import/export considerations for WebView wrappers.
 
 ## 1.2.1 - 2026-02-24
 
