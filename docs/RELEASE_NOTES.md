@@ -4,6 +4,14 @@
 
 ---
 
+## 1.2.1 - 2026-02-24
+
+### Added
+1. Exercise catalog coverage was expanded substantially with many additional machine, cable, grip, unilateral, and variant exercises across chest, back, shoulders, arms, legs, calves, and core (catalog now covers 265 exercises).
+
+### Changed
+1. Exercise info popup footer note is visually less prominent (smaller and lighter) while keeping the AI-generated info hint.
+
 ## 1.2.0 - 2026-02-24
 
 ### Added
