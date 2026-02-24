@@ -214,7 +214,19 @@ function HeaderActions({
           </HeaderProgressBadge>
         )}
 
-        <HeaderProgressBadge progressPercent={donePercent} progressBarClassName="bg-primary">
+        <HeaderProgressBadge
+          as="button"
+          onClick={() =>
+            window.dispatchEvent(
+              new CustomEvent("gymtracker:complete-next-session-set", {
+                detail: { sessionId: sessionState.sessionId }
+              })
+            )
+          }
+          ariaLabel={t("done")}
+          progressPercent={donePercent}
+          progressBarClassName="bg-primary"
+        >
           <div className="inline-flex h-full w-full items-start px-2 pt-1.5">
             <p className="inline-flex h-[16px] w-full items-center justify-center text-center text-xs font-medium leading-none tabular-nums">
               <Check className="mr-1 h-3.5 w-3.5" />
@@ -269,11 +281,11 @@ export function AppShell() {
     if (location.pathname === "/") {
       title = t("appName");
       Icon = Dumbbell;
-      iconClassName = "text-emerald-500";
-      titleClassName = "text-emerald-500";
-      containerClassName = "rounded-full bg-emerald-100 px-3.5 py-1.5";
+      iconClassName = "text-emerald-500 dark:text-emerald-200";
+      titleClassName = "text-emerald-500 dark:text-emerald-200";
+      containerClassName = "rounded-full bg-emerald-100 px-3.5 py-1.5 dark:bg-emerald-950";
     } else if (location.pathname === "/statistics") {
-      title = t("statistics");
+      title = t("weeklyData");
       Icon = ChartNoAxesCombined;
     } else if (location.pathname === "/settings") {
       title = t("settings");

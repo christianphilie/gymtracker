@@ -205,31 +205,92 @@ export function SessionPage() {
       .sort((a, b) => a.exerciseOrder - b.exerciseOrder);
   }, [groupedSets, templateExerciseInfoMap]);
 
+  const isCompleted = payload?.session.status === "completed";
+
+  useEffect(() => {
+    const onCompleteNextSetRequest = (event: Event) => {
+      const customEvent = event as CustomEvent<{ sessionId?: number }>;
+      if (customEvent.detail?.sessionId !== numericSessionId || isCompleted) {
+        return;
+      }
+
+      const orderedSets = sessionExercises.flatMap((exercise) => exercise.sets);
+      if (orderedSets.length === 0) {
+        return;
+      }
+
+      let lastCompletedIndex = -1;
+      for (let index = 0; index < orderedSets.length; index += 1) {
+        if (orderedSets[index].completed) {
+          lastCompletedIndex = index;
+        }
+      }
+
+      const targetSet =
+        lastCompletedIndex >= 0
+          ? orderedSets.slice(lastCompletedIndex + 1).find((set) => !set.completed)
+          : orderedSets.find((set) => !set.completed);
+
+      if (!targetSet?.id) {
+        return;
+      }
+
+      void updateSessionSet(targetSet.id, { completed: true });
+    };
+
+    window.addEventListener("gymtracker:complete-next-session-set", onCompleteNextSetRequest as EventListener);
+    return () => {
+      window.removeEventListener("gymtracker:complete-next-session-set", onCompleteNextSetRequest as EventListener);
+    };
+  }, [isCompleted, numericSessionId, sessionExercises]);
+
   if (!payload) {
     return <p className="text-sm text-muted-foreground">Session not found.</p>;
   }
 
-  const isCompleted = payload.session.status === "completed";
-
   return (
     <section className="space-y-4 pb-6">
-      <div className="space-y-1">
-        <p className="text-base font-semibold leading-tight text-foreground/75">{payload.workout.workout.name}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <p className="text-base font-semibold leading-tight text-foreground/75">{payload.workout.workout.name}</p>
+          {!isCompleted && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={ACTIVE_SESSION_PILL_CLASS}>
+                {t("activeSession")}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {t("since")} {formatSessionDateLabel(payload.session.startedAt, language)}
+              </span>
+            </div>
+          )}
+          {payload.previousSummary && payload.previousSummary.extraExercises.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {t("lastSessionExtras")}:{" "}
+              {payload.previousSummary.extraExercises.map((item) => `${item.name} (${item.setCount} ${t("extraSets")})`).join(", ")}
+            </p>
+          )}
+        </div>
         {!isCompleted && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={ACTIVE_SESSION_PILL_CLASS}>
-              {t("activeSession")}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {t("since")} {formatSessionDateLabel(payload.session.startedAt, language)}
-            </span>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="secondary"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              aria-label={t("discardSession")}
+              onClick={() => setIsDiscardDialogOpen(true)}
+            >
+              <OctagonX className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="secondary"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              aria-label={t("completeSession")}
+              onClick={() => setIsCompleteDialogOpen(true)}
+            >
+              <Flag className="h-4 w-4" />
+            </Button>
           </div>
-        )}
-        {payload.previousSummary && payload.previousSummary.extraExercises.length > 0 && (
-          <p className="text-xs text-muted-foreground">
-            {t("lastSessionExtras")}:{" "}
-            {payload.previousSummary.extraExercises.map((item) => `${item.name} (${item.setCount} ${t("extraSets")})`).join(", ")}
-          </p>
         )}
       </div>
 
@@ -425,15 +486,15 @@ export function SessionPage() {
       })}
 
       {!isCompleted && !isAddExerciseExpanded && (
-        <div className="flex justify-end">
+        <div className="flex">
           <Button
             variant="secondary"
             size="sm"
-            className="w-full"
+            className="h-8 gap-1.5"
             onClick={() => setIsAddExerciseExpanded(true)}
             aria-label={t("addExercise")}
           >
-            <Plus className="mr-1 h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" />
             {t("addExercise")}
           </Button>
         </div>

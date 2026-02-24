@@ -123,9 +123,9 @@ export function ExerciseInfoDialogButton({
                 <Sparkles className="h-3.5 w-3.5" />
                 {t("exerciseInfoAiDisclaimerShort")}
               </p>
-              <Button asChild variant="secondary" size="sm" className="gap-1.5">
+              <Button asChild variant="secondary" size="sm" className="h-7 gap-1 px-2 text-xs">
                 <a href={exerciseSearchUrl(exerciseName)} target="_blank" rel="noreferrer">
-                  <BookSearch className="h-4 w-4" />
+                  <BookSearch className="h-3 w-3" />
                   {t("moreExerciseResearch")}
                 </a>
               </Button>

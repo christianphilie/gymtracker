@@ -13,7 +13,6 @@ import {
   Plus,
   Repeat,
   Sparkles,
-  Target,
   Weight
 } from "lucide-react";
 import { toast } from "sonner";
@@ -30,7 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { db } from "@/db/db";
 import { discardSession, ensureDefaultWorkout, startSession } from "@/db/repository";
-import type { SessionExerciseSet } from "@/db/types";
+import type { ExerciseAiInfo, SessionExerciseSet } from "@/db/types";
 import { useSettings } from "@/app/settings-context";
 import {
   estimateStrengthTrainingCalories,
@@ -54,6 +53,9 @@ interface WeeklyStatsWorkoutEntry {
   workoutId: number;
   workoutName: string;
   weekdayLabel: string;
+  startedAt: string;
+  finishedAt: string | null;
+  midpointAt: string;
 }
 
 interface WeeklyDashboardStats {
@@ -69,9 +71,40 @@ interface WeeklyDashboardStats {
   weeklyCaloriesGoal?: number;
   weeklyWorkoutCountGoal?: number;
   weeklyDurationGoal?: number;
+  muscleGroupMetrics: WeeklyMuscleGroupMetrics;
 }
 
-const ACTIVE_SESSION_PILL_CLASS = "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500";
+type MuscleMetricMode = "reps" | "sets" | "weight";
+type MuscleGroupKey = "back" | "shoulders" | "core" | "arms" | "chest" | "legs";
+
+interface MuscleMetricAggregate {
+  sets: number;
+  reps: number;
+  weight: number;
+}
+
+interface RadarPoint {
+  x: number;
+  y: number;
+}
+
+type WeeklyMuscleGroupMetrics = Record<MuscleGroupKey, MuscleMetricAggregate>;
+
+const MUSCLE_GROUP_ORDER: MuscleGroupKey[] = ["back", "shoulders", "core", "arms", "chest", "legs"];
+
+function createEmptyMuscleGroupMetrics(): WeeklyMuscleGroupMetrics {
+  return {
+    back: { sets: 0, reps: 0, weight: 0 },
+    shoulders: { sets: 0, reps: 0, weight: 0 },
+    core: { sets: 0, reps: 0, weight: 0 },
+    arms: { sets: 0, reps: 0, weight: 0 },
+    chest: { sets: 0, reps: 0, weight: 0 },
+    legs: { sets: 0, reps: 0, weight: 0 }
+  };
+}
+
+const ACTIVE_SESSION_PILL_CLASS =
+  "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500 dark:bg-emerald-950 dark:text-emerald-200";
 const EMPTY_WEEKLY_STATS: WeeklyDashboardStats = {
   workoutCount: 0,
   durationMinutesTotal: 0,
@@ -84,7 +117,8 @@ const EMPTY_WEEKLY_STATS: WeeklyDashboardStats = {
   weeklyWeightGoal: undefined,
   weeklyCaloriesGoal: undefined,
   weeklyWorkoutCountGoal: undefined,
-  weeklyDurationGoal: undefined
+  weeklyDurationGoal: undefined,
+  muscleGroupMetrics: createEmptyMuscleGroupMetrics()
 };
 
 function getWeekStart(date: Date) {
@@ -94,6 +128,12 @@ function getWeekStart(date: Date) {
   target.setHours(0, 0, 0, 0);
   target.setDate(target.getDate() + diff);
   return target;
+}
+
+function getWeekEndExclusive(weekStart: Date) {
+  const next = new Date(weekStart);
+  next.setDate(next.getDate() + 7);
+  return next;
 }
 
 function normalizeWeeklyGoal(value: unknown) {
@@ -114,6 +154,187 @@ function formatDurationShort(totalMinutes: number, language: "de" | "en") {
   }
 
   return language === "de" ? `${hours} Std ${minutes} Min` : `${hours}h ${minutes}m`;
+}
+
+function clampPercent(value: number) {
+  return Math.max(0, Math.min(100, value));
+}
+
+function normalizeExerciseLookupName(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function normalizeMuscleName(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/muskulatur/g, "")
+    .replace(/musculature/g, "")
+    .trim();
+}
+
+function resolveMuscleGroup(muscleName: string): MuscleGroupKey | null {
+  const name = normalizeMuscleName(muscleName);
+  if (!name) return null;
+
+  if (
+    /(bizeps|biceps|trizeps|triceps|unterarm|forearm|brachialis|brachioradialis)/.test(name)
+  ) {
+    return "arms";
+  }
+  if (
+    /(brust|chest|pec|pectoral)/.test(name)
+  ) {
+    return "chest";
+  }
+  if (
+    /(schulter|shoulder|deltoid|delt|rotatorenmanschette|rotator cuff|supraspinatus|infraspinatus)/.test(name)
+  ) {
+    return "shoulders";
+  }
+  if (
+    /(rücken|back|lat|lats|latissimus|rhomboid|trapez|trapezius|trap|teres|erector spinae|spinal erector)/.test(name)
+  ) {
+    return "back";
+  }
+  if (
+    /(bauch|core|abs|abdom|oblique|obliques|transversus|serratus)/.test(name)
+  ) {
+    return "core";
+  }
+  if (
+    /(bein|leg|quad|quadriceps|hamstring|glute|gluteus|adductor|abductor|calf|calves|wade)/.test(name)
+  ) {
+    return "legs";
+  }
+
+  return null;
+}
+
+function getSetAiInfo(
+  set: SessionExerciseSet,
+  templateAiInfoById: Map<number, ExerciseAiInfo>,
+  templateAiInfoByWorkoutAndName: Map<string, ExerciseAiInfo>,
+  sessionWorkoutIdBySessionId: Map<number, number>
+) {
+  if (set.exerciseAiInfo) {
+    return set.exerciseAiInfo;
+  }
+  if (set.templateExerciseId !== undefined) {
+    const byId = templateAiInfoById.get(set.templateExerciseId);
+    if (byId) {
+      return byId;
+    }
+  }
+  const workoutId = sessionWorkoutIdBySessionId.get(set.sessionId);
+  const exerciseNameKey = normalizeExerciseLookupName(set.exerciseName);
+  if (workoutId === undefined || !exerciseNameKey) {
+    return undefined;
+  }
+  return templateAiInfoByWorkoutAndName.get(`${workoutId}::${exerciseNameKey}`);
+}
+
+function addMuscleContributionFromSet(
+  set: SessionExerciseSet,
+  metrics: WeeklyMuscleGroupMetrics,
+  templateAiInfoById: Map<number, ExerciseAiInfo>,
+  templateAiInfoByWorkoutAndName: Map<string, ExerciseAiInfo>,
+  sessionWorkoutIdBySessionId: Map<number, number>
+) {
+  const aiInfo = getSetAiInfo(set, templateAiInfoById, templateAiInfoByWorkoutAndName, sessionWorkoutIdBySessionId);
+  if (!aiInfo?.targetMuscles?.length) {
+    return;
+  }
+
+  const groupPercentByKey = new Map<MuscleGroupKey, number>();
+  for (const target of aiInfo.targetMuscles) {
+    const group = resolveMuscleGroup(target.muscle);
+    if (!group) continue;
+    const percent = clampPercent(Number(target.involvementPercent));
+    if (!Number.isFinite(percent) || percent <= 0) continue;
+    groupPercentByKey.set(group, (groupPercentByKey.get(group) ?? 0) + percent);
+  }
+
+  const totalPercent = [...groupPercentByKey.values()].reduce((sum, value) => sum + value, 0);
+  if (totalPercent <= 0) {
+    return;
+  }
+
+  const setMultiplier = getSetStatsMultiplier(set);
+  const repsBase = (set.actualReps ?? set.targetReps) * setMultiplier;
+  const weightBase = (set.actualWeight ?? set.targetWeight) * (set.actualReps ?? set.targetReps) * setMultiplier;
+
+  for (const [group, percent] of groupPercentByKey.entries()) {
+    const factor = percent / totalPercent;
+    metrics[group].sets += setMultiplier * factor;
+    metrics[group].reps += repsBase * factor;
+    metrics[group].weight += weightBase * factor;
+  }
+}
+
+function getMuscleMetricValue(metrics: WeeklyMuscleGroupMetrics, group: MuscleGroupKey, mode: MuscleMetricMode) {
+  return metrics[group][mode];
+}
+
+function formatMuscleMetricValue(value: number, mode: MuscleMetricMode) {
+  const digits = mode === "sets" ? 1 : 0;
+  return formatNumber(value, digits);
+}
+
+function getDistance(a: RadarPoint, b: RadarPoint) {
+  return Math.hypot(b.x - a.x, b.y - a.y);
+}
+
+function buildRoundedRadarPath(points: RadarPoint[], cornerRadius = 2.5) {
+  if (points.length === 0) return "";
+  if (points.length < 3) {
+    return `M ${points.map((point) => `${point.x} ${point.y}`).join(" L ")} Z`;
+  }
+
+  const corners = points.map((point, index) => {
+    const prev = points[(index - 1 + points.length) % points.length];
+    const next = points[(index + 1) % points.length];
+    const prevDistance = getDistance(point, prev);
+    const nextDistance = getDistance(point, next);
+    const radius = Math.min(cornerRadius, prevDistance / 2, nextDistance / 2);
+
+    if (radius <= 0 || !Number.isFinite(radius)) {
+      return { start: point, end: point, vertex: point };
+    }
+
+    const start: RadarPoint = {
+      x: point.x + ((prev.x - point.x) * radius) / prevDistance,
+      y: point.y + ((prev.y - point.y) * radius) / prevDistance
+    };
+    const end: RadarPoint = {
+      x: point.x + ((next.x - point.x) * radius) / nextDistance,
+      y: point.y + ((next.y - point.y) * radius) / nextDistance
+    };
+
+    return { start, end, vertex: point };
+  });
+
+  const [firstCorner] = corners;
+  let path = `M ${firstCorner.start.x} ${firstCorner.start.y}`;
+  for (let index = 0; index < corners.length; index += 1) {
+    const corner = corners[index];
+    const nextCorner = corners[(index + 1) % corners.length];
+    path += ` Q ${corner.vertex.x} ${corner.vertex.y} ${corner.end.x} ${corner.end.y}`;
+    path += ` L ${nextCorner.start.x} ${nextCorner.start.y}`;
+  }
+  path += " Z";
+  return path;
+}
+
+function getMuscleGroupLabel(
+  t: (key: "muscleGroupBack" | "muscleGroupShoulders" | "muscleGroupCore" | "muscleGroupArms" | "muscleGroupChest" | "muscleGroupLegs") => string,
+  key: MuscleGroupKey
+) {
+  if (key === "back") return t("muscleGroupBack");
+  if (key === "shoulders") return t("muscleGroupShoulders");
+  if (key === "core") return t("muscleGroupCore");
+  if (key === "arms") return t("muscleGroupArms");
+  if (key === "chest") return t("muscleGroupChest");
+  return t("muscleGroupLegs");
 }
 
 function PlayFilledIcon({ className }: { className?: string }) {
@@ -139,6 +360,7 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
   const weekStart = useMemo(() => getWeekStart(new Date(clockTick)), [clockTick]);
   const [discardConfirmSessionId, setDiscardConfirmSessionId] = useState<number | null>(null);
   const [isCreatingStarterWorkout, setIsCreatingStarterWorkout] = useState(false);
+  const [muscleMetricMode, setMuscleMetricMode] = useState<MuscleMetricMode>("reps");
 
   useEffect(() => {
     const timer = window.setInterval(() => setClockTick(Date.now()), 60_000);
@@ -210,13 +432,17 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
   }, []);
 
   const weeklyStats = useLiveQuery<WeeklyDashboardStats>(async () => {
+    const weekEndExclusive = getWeekEndExclusive(weekStart);
     const settings = await db.settings.get(1);
     const weeklyWeightGoal = normalizeWeeklyGoal(settings?.weeklyWeightGoal);
     const weeklyCaloriesGoal = normalizeWeeklyGoal(settings?.weeklyCaloriesGoal);
     const weeklyWorkoutCountGoal = normalizeWeeklyGoal(settings?.weeklyWorkoutCountGoal);
     const weeklyDurationGoal = normalizeWeeklyGoal(settings?.weeklyDurationGoal);
     const completedSessions = (await db.sessions.where("status").equals("completed").toArray())
-      .filter((session) => new Date(session.finishedAt ?? session.startedAt) >= weekStart)
+      .filter((session) => {
+        const completedAt = new Date(session.finishedAt ?? session.startedAt);
+        return completedAt >= weekStart && completedAt < weekEndExclusive;
+      })
       .sort(
         (a, b) =>
           new Date(a.finishedAt ?? a.startedAt).getTime() - new Date(b.finishedAt ?? b.startedAt).getTime()
@@ -235,10 +461,35 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
     const sessionIds = completedSessions.map((session) => session.id).filter((id): id is number => id !== undefined);
     const workoutIds = [...new Set(completedSessions.map((session) => session.workoutId))];
 
-    const [allSets, workoutsForStats] = await Promise.all([
+    const [allSets, workoutsForStats, templateExercisesForWorkouts] = await Promise.all([
       sessionIds.length ? db.sessionExerciseSets.where("sessionId").anyOf(sessionIds).toArray() : [],
       workoutIds.length ? db.workouts.where("id").anyOf(workoutIds).toArray() : [],
+      workoutIds.length
+        ? db.exercises
+            .where("workoutId")
+            .anyOf(workoutIds)
+            .and((exercise) => exercise.isTemplate !== false)
+            .toArray()
+        : []
     ]);
+
+    const templateExerciseIds = [...new Set(allSets.map((set) => set.templateExerciseId).filter((id): id is number => id !== undefined))];
+    const templateExercises = templateExerciseIds.length
+      ? await db.exercises.where("id").anyOf(templateExerciseIds).toArray()
+      : [];
+    const templateAiInfoById = new Map<number, ExerciseAiInfo>();
+    for (const exercise of templateExercises) {
+      if (exercise.id !== undefined && exercise.aiInfo) {
+        templateAiInfoById.set(exercise.id, exercise.aiInfo);
+      }
+    }
+    const templateAiInfoByWorkoutAndName = new Map<string, ExerciseAiInfo>();
+    for (const exercise of templateExercisesForWorkouts) {
+      if (!exercise.aiInfo) continue;
+      const nameKey = normalizeExerciseLookupName(exercise.name);
+      if (!nameKey) continue;
+      templateAiInfoByWorkoutAndName.set(`${exercise.workoutId}::${nameKey}`, exercise.aiInfo);
+    }
 
     const setsBySessionId = new Map<number, SessionExerciseSet[]>();
     for (const set of allSets) {
@@ -253,6 +504,12 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
         workoutNameById.set(workout.id, workout.name);
       }
     }
+    const sessionWorkoutIdBySessionId = new Map<number, number>();
+    for (const session of completedSessions) {
+      if (session.id !== undefined) {
+        sessionWorkoutIdBySessionId.set(session.id, session.workoutId);
+      }
+    }
 
     const weekdayFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
       weekday: "long"
@@ -263,6 +520,7 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
     let repsTotal = 0;
     let totalWeight = 0;
     let caloriesTotal = 0;
+    const muscleGroupMetrics = createEmptyMuscleGroupMetrics();
     const { bodyWeightKg, usesDefaultBodyWeight } = resolveCaloriesBodyWeightKg(settings?.bodyWeight, weightUnit);
 
     const completedWorkouts = completedSessions.map((session) => {
@@ -286,6 +544,15 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
       setCount += weightedCompletedSetCount;
       repsTotal += sessionRepsTotal;
       totalWeight += sessionTotalWeight;
+      for (const completedSet of completedSets) {
+        addMuscleContributionFromSet(
+          completedSet,
+          muscleGroupMetrics,
+          templateAiInfoById,
+          templateAiInfoByWorkoutAndName,
+          sessionWorkoutIdBySessionId
+        );
+      }
 
       const durationMinutes = getSessionDurationMinutes(session.startedAt, session.finishedAt);
       durationMinutesTotal += durationMinutes;
@@ -297,11 +564,17 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
       });
 
       const completedAt = new Date(session.finishedAt ?? session.startedAt);
+      const startedAtDate = new Date(session.startedAt);
+      const finishedAtDate = new Date(session.finishedAt ?? session.startedAt);
+      const midpointAt = new Date((startedAtDate.getTime() + finishedAtDate.getTime()) / 2);
       return {
         sessionId,
         workoutId: session.workoutId,
         workoutName: workoutNameById.get(session.workoutId) ?? "-",
-        weekdayLabel: weekdayFormatter.format(completedAt)
+        weekdayLabel: weekdayFormatter.format(completedAt),
+        startedAt: session.startedAt,
+        finishedAt: session.finishedAt ?? null,
+        midpointAt: midpointAt.toISOString()
       };
     });
 
@@ -317,7 +590,8 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
       weeklyWeightGoal,
       weeklyCaloriesGoal,
       weeklyWorkoutCountGoal,
-      weeklyDurationGoal
+      weeklyDurationGoal,
+      muscleGroupMetrics
     };
   }, [language, weekStart.getTime(), weightUnit]);
 
@@ -420,6 +694,65 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
 
     return items;
   }, [weeklyStats, t, weightUnit, language]);
+
+  const weeklyMuscleChart = useMemo(() => {
+    const metrics = weeklyStats?.muscleGroupMetrics ?? EMPTY_WEEKLY_STATS.muscleGroupMetrics;
+    const items = MUSCLE_GROUP_ORDER.map((key) => ({
+      key,
+      label: getMuscleGroupLabel(t, key),
+      value: getMuscleMetricValue(metrics, key, muscleMetricMode)
+    }));
+    const maxValue = Math.max(0, ...items.map((item) => item.value));
+    const totalValue = items.reduce((sum, item) => sum + item.value, 0);
+    return { items, maxValue, totalValue };
+  }, [weeklyStats?.muscleGroupMetrics, t, muscleMetricMode]);
+
+  const weeklySessionsTimeline = useMemo(() => {
+    const weekStartMs = weekStart.getTime();
+    const weekEndMs = getWeekEndExclusive(weekStart).getTime();
+    const totalSpanMs = Math.max(1, weekEndMs - weekStartMs);
+    const weekdayFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", { weekday: "short" });
+    const timeFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+
+    const dayLabels = Array.from({ length: 7 }).map((_, dayIndex) => {
+      const dayDate = new Date(weekStartMs + dayIndex * 86_400_000);
+      const raw = weekdayFormatter.format(dayDate).replace(/\.$/, "");
+      return {
+        key: dayIndex,
+        label: raw,
+        leftPercent: ((dayIndex + 0.5) / 7) * 100
+      };
+    });
+
+    const ticks = Array.from({ length: 29 }).map((_, tickIndex) => ({
+      key: tickIndex,
+      leftPercent: (tickIndex / 28) * 100,
+      isDayBoundary: tickIndex % 4 === 0
+    }));
+
+    const items = (weeklyStats?.completedWorkouts ?? []).map((item) => {
+      const midpointMs = new Date(item.midpointAt).getTime();
+      const clampedMidpointMs = Math.max(weekStartMs, Math.min(weekEndMs, midpointMs));
+      const rawLeftPercent = ((clampedMidpointMs - weekStartMs) / totalSpanMs) * 100;
+      const leftPercent = Math.max(1.5, Math.min(98.5, rawLeftPercent));
+      const startLabel = timeFormatter.format(new Date(item.startedAt));
+      const endLabel = timeFormatter.format(new Date(item.finishedAt ?? item.startedAt));
+      const durationMinutes = Math.round(getSessionDurationMinutes(item.startedAt, item.finishedAt ?? item.startedAt));
+
+      return {
+        ...item,
+        leftPercent,
+        shortLabel: item.workoutName.trim(),
+        metaLabel: `${Math.max(0, durationMinutes)} min`,
+        title: `${item.workoutName} • ${item.weekdayLabel} • ${startLabel}–${endLabel}`
+      };
+    });
+
+    return { dayLabels, ticks, items };
+  }, [language, weekStart, weeklyStats?.completedWorkouts]);
 
   const handleStartSession = async (workoutId: number) => {
     try {
@@ -525,7 +858,7 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
               </Button>
             )}
             <Button
-              className={isActive ? "bg-emerald-500 text-white hover:bg-emerald-500/90" : undefined}
+              className={isActive ? "bg-emerald-500 text-emerald-50 hover:bg-emerald-500/90 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900" : undefined}
               disabled={disableStartBecauseOtherActive}
               onClick={() => handleStartSession(workout.id!)}
             >
@@ -540,22 +873,22 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-base font-semibold leading-tight text-foreground/75">
-          {showWorkoutsSection ? t("workoutsSubtitle") : t("statisticsThisWeekSubtitle")}
-        </p>
-        {showWorkoutsSection && hasWorkouts && (
-          <Button
-            variant="secondary"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => navigate("/workouts/add")}
-          >
-            <Plus className="h-4 w-4" />
-            {t("add")}
-          </Button>
-        )}
-      </div>
+      {showWorkoutsSection && (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-base font-semibold leading-tight text-foreground/75">{t("workoutsSubtitle")}</p>
+          {hasWorkouts && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => navigate("/workouts/add")}
+            >
+              <Plus className="h-4 w-4" />
+              {t("add")}
+            </Button>
+          )}
+        </div>
+      )}
 
       {showWorkoutsSection && !hasWorkouts && (
         <>
@@ -636,106 +969,149 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
 
       {showStatsSection && (
         <section className="space-y-3">
-          <Card>
-            <CardContent className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
-                <div className="rounded-lg border bg-card px-3 py-2">
-                  <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <Dumbbell className="h-3.5 w-3.5" />
-                    {t("workoutsThisWeek")}
-                  </p>
-                  <p className="text-base font-semibold">{weeklyStats?.workoutCount ?? 0}</p>
-                </div>
-                <div className="rounded-lg border bg-card px-3 py-2">
-                  <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock3 className="h-3.5 w-3.5" />
-                    {t("duration")}
-                  </p>
-                  <p className="text-base font-semibold">{formatDurationShort(weeklyStats?.durationMinutesTotal ?? 0, language)}</p>
-                </div>
-                <div className="rounded-lg border bg-card px-3 py-2">
-                  <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <ListChecks className="h-3.5 w-3.5" />
-                    {t("sets")}
-                  </p>
-                  <p className="text-base font-semibold">{weeklyStats?.setCount ?? 0}</p>
-                </div>
-                <div className="rounded-lg border bg-card px-3 py-2">
-                  <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <Repeat className="h-3.5 w-3.5" />
-                    {t("repsTotal")}
-                  </p>
-                  <p className="text-base font-semibold">{weeklyStats?.repsTotal ?? 0}</p>
-                </div>
-                <div className="rounded-lg border bg-card px-3 py-2">
-                  <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <Weight className="h-3.5 w-3.5" />
-                    {t("totalWeight")}
-                  </p>
-                  <p className="text-base font-semibold">
-                    {formatNumber(weeklyStats?.totalWeight ?? 0, 0)} {weightUnit}
-                  </p>
-                </div>
-                <div className="relative rounded-lg border bg-card px-3 py-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                      <Flame className="h-3.5 w-3.5" />
-                      {t("calories")}
-                    </p>
-                    {weeklyStats?.usesDefaultBodyWeightForCalories && (
-                      <InfoHint
-                        ariaLabel={t("calories")}
-                        text={t("caloriesEstimateAverageHint")}
-                        className="-mr-1 -mt-0.5 shrink-0"
-                      />
-                    )}
-                  </div>
-                  <p className="text-base font-semibold">
-                    ~{formatNumber(weeklyStats?.caloriesTotal ?? 0, 0)} kcal
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">{t("completedWorkoutsThisWeek")}</p>
-                {(weeklyStats?.completedWorkouts.length ?? 0) > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {weeklyStats?.completedWorkouts.map((item) => (
-                      <Link
-                        key={item.sessionId}
-                        to={`/workouts/${item.workoutId}/history#session-${item.sessionId}`}
-                        className="rounded-xl border bg-background px-3 py-2 transition-colors hover:bg-secondary"
-                      >
-                        <p className="text-sm font-medium leading-none">{item.workoutName}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{item.weekdayLabel}</p>
-                      </Link>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">{t("noWorkoutsThisWeek")}</p>
+          <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+            <div className="rounded-lg border bg-card px-3 py-2">
+              <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <Dumbbell className="h-3.5 w-3.5" />
+                {t("workoutsThisWeek")}
+              </p>
+              <p className="text-base font-semibold">{weeklyStats?.workoutCount ?? 0}</p>
+            </div>
+            <div className="rounded-lg border bg-card px-3 py-2">
+              <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <Clock3 className="h-3.5 w-3.5" />
+                {t("duration")}
+              </p>
+              <p className="text-base font-semibold">{formatDurationShort(weeklyStats?.durationMinutesTotal ?? 0, language)}</p>
+            </div>
+            <div className="rounded-lg border bg-card px-3 py-2">
+              <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <ListChecks className="h-3.5 w-3.5" />
+                {t("sets")}
+              </p>
+              <p className="text-base font-semibold">{weeklyStats?.setCount ?? 0}</p>
+            </div>
+            <div className="rounded-lg border bg-card px-3 py-2">
+              <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <Repeat className="h-3.5 w-3.5" />
+                {t("repsTotal")}
+              </p>
+              <p className="text-base font-semibold">{weeklyStats?.repsTotal ?? 0}</p>
+            </div>
+            <div className="rounded-lg border bg-card px-3 py-2">
+              <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <Weight className="h-3.5 w-3.5" />
+                {t("totalWeight")}
+              </p>
+              <p className="text-base font-semibold">
+                {formatNumber(weeklyStats?.totalWeight ?? 0, 0)} {weightUnit}
+              </p>
+            </div>
+            <div className="relative rounded-lg border bg-card px-3 py-2">
+              <div className="flex items-start justify-between gap-2">
+                <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <Flame className="h-3.5 w-3.5" />
+                  {t("calories")}
+                </p>
+                {weeklyStats?.usesDefaultBodyWeightForCalories && (
+                  <InfoHint
+                    ariaLabel={t("calories")}
+                    text={t("caloriesEstimateAverageHint")}
+                    className="-mr-1 -mt-0.5 shrink-0"
+                  />
                 )}
               </div>
-            </CardContent>
-          </Card>
+              <p className="text-base font-semibold">
+                ~{formatNumber(weeklyStats?.caloriesTotal ?? 0, 0)} kcal
+              </p>
+            </div>
+          </div>
+
+          <div className="py-3">
+            <div className="h-px bg-border" />
+          </div>
+
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="inline-flex items-center gap-2 text-base font-semibold leading-tight text-foreground/75">
+                {t("sessions")}
+              </p>
+            </div>
+            {(weeklyStats?.completedWorkouts.length ?? 0) > 0 ? (
+              <div className="relative h-34 px-1 pt-4">
+                <div className="relative h-28">
+                  <div className="absolute inset-x-0 bottom-3 h-px bg-border" />
+
+                  {weeklySessionsTimeline.ticks.map((tick) => (
+                    <div
+                      key={`session-tick-${tick.key}`}
+                      className="absolute bottom-3 -translate-x-1/2"
+                      style={{ left: `${tick.leftPercent}%` }}
+                      aria-hidden="true"
+                    >
+                      <div className={`w-px bg-border ${tick.isDayBoundary ? "h-3.5" : "h-[7px] opacity-80"}`} />
+                    </div>
+                  ))}
+
+                  {weeklySessionsTimeline.items.map((item) => (
+                    <Link
+                      key={item.sessionId}
+                      to={`/workouts/${item.workoutId}/history#session-${item.sessionId}`}
+                      title={item.title}
+                      className="group absolute bottom-4 -translate-x-1/2"
+                      style={{ left: `${item.leftPercent}%` }}
+                    >
+                      <div className="relative inline-flex h-[6rem] w-[2rem] items-center justify-center rounded-md border bg-card px-3 py-3 shadow-sm transition-colors group-hover:bg-secondary">
+                        <div className="absolute left-1/2 top-1/2 w-[5rem] -translate-x-1/2 -translate-y-1/2 -rotate-90 overflow-hidden">
+                          <span className="block truncate text-center font-sans text-[12px] font-medium leading-none text-foreground">
+                            {item.shortLabel}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+
+                <div className="relative -mt-1 h-3">
+                  {weeklySessionsTimeline.dayLabels.map((day) => (
+                    <div
+                      key={`session-day-${day.key}`}
+                      className="absolute top-0 -translate-x-1/2 text-[10px] font-medium leading-none text-muted-foreground"
+                      style={{ left: `${day.leftPercent}%` }}
+                    >
+                      {day.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="px-1 py-1">
+                <p className="text-sm text-muted-foreground">{t("noWorkoutsThisWeek")}</p>
+              </div>
+            )}
+          </section>
+
+          <div className="py-3">
+            <div className="h-px bg-border" />
+          </div>
 
           {weeklyGoalItems.length > 0 && (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="inline-flex items-center gap-2 text-base font-semibold leading-tight text-foreground/75">
-                  <Target className="h-4 w-4" />
-                  {t("weeklyGoals")}
-                </p>
-                <Button asChild variant="secondary" size="sm" className="h-8 gap-1.5">
-                  <Link to="/settings#weekly-goals">
-                    <PenSquare className="h-3.5 w-3.5" />
-                    {t("edit")}
-                  </Link>
-                </Button>
-              </div>
-              <Card>
-                <CardContent className="space-y-2 pt-4">
+            <>
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="inline-flex items-center gap-2 text-base font-semibold leading-tight text-foreground/75">
+                    {t("weeklyGoals")}
+                  </p>
+                  <Button asChild variant="secondary" size="sm" className="h-7 gap-1 px-2 text-xs">
+                    <Link to="/settings#weekly-goals">
+                      <PenSquare className="h-3 w-3" />
+                      {t("edit")}
+                    </Link>
+                  </Button>
+                </div>
+                <div className="space-y-2">
                   {weeklyGoalItems.map((goal) => (
-                    <div key={goal.key} className="rounded-md border bg-background px-2.5 py-2">
+                    <div key={goal.key} className="rounded-md border bg-card px-2.5 py-2">
                       <div className="flex items-center justify-between gap-2">
                         <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                           {goal.icon}
@@ -753,10 +1129,140 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
                       </div>
                     </div>
                   ))}
-                </CardContent>
-              </Card>
-            </section>
+                </div>
+              </section>
+              <div className="py-3">
+                <div className="h-px bg-border" />
+              </div>
+            </>
           )}
+
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="inline-flex items-center gap-2 text-base font-semibold leading-tight text-foreground/75">
+                {t("muscleGroupsThisWeek")}
+              </p>
+              <div className="inline-flex items-center rounded-lg border bg-background p-0.5">
+                {(["reps", "sets", "weight"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setMuscleMetricMode(mode)}
+                    className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                      muscleMetricMode === mode
+                        ? "bg-secondary text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    aria-pressed={muscleMetricMode === mode}
+                  >
+                    {mode === "reps" ? t("muscleMetricReps") : mode === "sets" ? t("muscleMetricSets") : t("muscleMetricWeight")}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Card>
+              <CardContent className="space-y-0 px-4 py-0">
+                {weeklyMuscleChart.totalValue > 0 ? (
+                  <div className="mx-auto w-full max-w-[420px]">
+                    <svg viewBox="0 0 360 360" className="block h-auto w-full" role="img" aria-label={t("muscleGroupsThisWeek")}>
+                        {Array.from({ length: 5 }).map((_, ringIndex) => {
+                          const radius = 28 + ringIndex * 22;
+                          return (
+                            <circle
+                              key={`ring-${radius}`}
+                              cx="180"
+                              cy="180"
+                              r={radius}
+                              fill="none"
+                              stroke="currentColor"
+                              className="text-border/70"
+                              strokeWidth="1"
+                            />
+                          );
+                        })}
+
+                        {weeklyMuscleChart.items.map((item, index) => {
+                          const angle = (-120 + index * 60) * (Math.PI / 180);
+                          const axisX = 180 + Math.cos(angle) * 116;
+                          const axisY = 180 + Math.sin(angle) * 116;
+                          const labelX = 180 + Math.cos(angle) * 148;
+                          const labelY = 180 + Math.sin(angle) * 148;
+                          const textAnchor =
+                            Math.cos(angle) > 0.2 ? "start" : Math.cos(angle) < -0.2 ? "end" : "middle";
+                          const valueY = labelY + (Math.sin(angle) > 0.3 ? 18 : Math.sin(angle) < -0.3 ? 20 : 18);
+
+                          return (
+                            <g key={`axis-${item.key}`}>
+                              <line
+                                x1="180"
+                                y1="180"
+                                x2={axisX}
+                                y2={axisY}
+                                stroke="currentColor"
+                                className="text-border"
+                                strokeWidth="1"
+                              />
+                              <text
+                                x={labelX}
+                                y={labelY}
+                                textAnchor={textAnchor}
+                                className="fill-foreground text-[12px] font-medium"
+                              >
+                                {item.label}
+                              </text>
+                              <text
+                                x={labelX}
+                                y={valueY}
+                                textAnchor={textAnchor}
+                                className="fill-muted-foreground text-[11px]"
+                              >
+                                {formatMuscleMetricValue(item.value, muscleMetricMode)}
+                              </text>
+                            </g>
+                          );
+                        })}
+
+                        {(() => {
+                          const points: RadarPoint[] = weeklyMuscleChart.items.map((item, index) => {
+                            const angle = (-120 + index * 60) * (Math.PI / 180);
+                            const ratio = weeklyMuscleChart.maxValue > 0 ? item.value / weeklyMuscleChart.maxValue : 0;
+                            const radius = 28 + ratio * 88;
+                            const x = 180 + Math.cos(angle) * radius;
+                            const y = 180 + Math.sin(angle) * radius;
+                            return { x, y };
+                          });
+                          const path = buildRoundedRadarPath(points, 2.5);
+
+                          return (
+                            <>
+                              <path
+                                d={path}
+                                fill="currentColor"
+                                className="text-primary/15"
+                                stroke="none"
+                              />
+                              <path
+                                d={path}
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                className="text-primary"
+                              />
+                            </>
+                          );
+                        })()}
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="rounded-md border bg-background px-3 py-3">
+                    <p className="text-sm text-muted-foreground">{t("noMuscleDataThisWeek")}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{t("noMuscleDataThisWeekHint")}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </section>
         </section>
       )}
 
