@@ -160,8 +160,8 @@ export function ExerciseInfoDialogButton({
             </section>
 
             <div className="flex items-center justify-between gap-2 border-t pt-3">
-              <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Sparkles className="h-3.5 w-3.5" />
+              <p className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/60">
+                <Sparkles className="h-3.5 w-3.5 text-muted-foreground/60" />
                 {t("exerciseInfoAiDisclaimerShort")}
               </p>
               <Button asChild variant="secondary" size="sm" className="h-7 gap-1 px-2 text-xs">
