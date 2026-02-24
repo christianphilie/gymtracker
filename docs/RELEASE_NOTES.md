@@ -6,6 +6,31 @@ No entries yet.
 
 ---
 
+## 1.0.0 - 2026-02-24
+
+### Added
+1. `2x` exercise flag support across workout templates, active sessions, and session history (including subtle `2x` tags in the UI).
+2. `2xEnabled` import support in the JSON import schema, repair pipeline, prompt templates, and direct Groq AI import instructions.
+3. Dedicated bottom-tab navigation with tabs for Workouts, Statistics, Settings, plus a contextual active-session tab when a session is running.
+
+### Changed
+1. App layout now uses a persistent mobile-style floating bottom tab bar and a unified top title row with route-aware icons/titles.
+2. Dashboard was split into separate Workouts and Statistics views, with weekly stats moved to `/statistics`.
+3. Footer content (GitHub/legal/privacy) moved out of the global shell and now appears in Settings only.
+4. Weekly/statistical calculations now respect the `2x` flag for set count, reps, total volume, and calorie estimates.
+5. Calorie values in dashboard/history are now prefixed with `~` to clarify they are rough estimates.
+6. Starter full-body workout marks the biceps exercise as `2x` by default.
+7. Active session behavior is now single-session-only: starting another workout while a session is active resumes the existing active session instead.
+8. Header rest timer and set-progress indicators were restyled into compact boxed widgets with bottom-edge progress bars.
+
+### Fixed
+1. Bottom-tab active-state width animation no longer causes the whole bar to "breathe" during transitions (fixed slot widths).
+
+### Docs
+1. `TRAINING_PLAN_IMPORT_SCHEMA_V1.json` now documents the optional `x2Enabled` boolean field for imported exercises.
+
+---
+
 ## 0.5.2 - 2026-02-23
 
 ### Added
