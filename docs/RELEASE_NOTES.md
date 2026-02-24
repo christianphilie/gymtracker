@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Changed
+1. Active session flow was polished: exercise order can be reversed from the header, auto-reordering after checking a set is now visibly animated, and "Resume session" jumps back to the most recently completed set.
+2. Navigation transitions now use a short lightweight page-enter animation, and the inactive Play tab icon now matches the muted styling of the other tabs.
+3. Workout duration estimates are now rounded to 5-minute steps and the rest-timer setting description clarifies that timer duration is also used for workout-duration estimates.
+4. Internal page architecture was refactored for readability: dashboard/statistics route entry files are now real page components, dashboard content was split into shared UI cards + data hooks, and settings tabs were split into focused subcomponents.
+5. Repository architecture was refactored by extracting settings and backup/import logic into dedicated modules while preserving the public `@/db/repository` API surface.
+
+### Fixed
+1. Decimal inputs now accept repeated separators more forgivingly (for example `57,,4`) without being snapped incorrectly to the step grid on blur.
+2. Active session auto-collapse now only triggers when a checkbox action completes all sets of an exercise (not when editing values afterwards).
+3. Active session dark-mode success/check colors are brighter and aligned better with the dashboard dark-mode green treatment.
+4. Session edit date/time fields no longer overflow their grid width on iPhone Safari.
+
 ---
 
 ## 1.2.1 - 2026-02-24

@@ -6,7 +6,8 @@ Consolidated status document replacing `IMPLEMENTATION_PLAN.md` and `IMPLEMENTAT
 
 1. Test coverage for import, session lifecycle, destructive flows, and backup/update-safety paths
 2. Security triage for dev-tooling `npm audit` findings
-3. General UX polish and hardening
+3. Continue modular refactors for remaining large feature files (`workout-editor-page`, `session-page`)
+4. General UX polish and hardening
 
 ## Completed Milestones
 
@@ -24,6 +25,7 @@ Consolidated status document replacing `IMPLEMENTATION_PLAN.md` and `IMPLEMENTAT
 12. `x2` exercise support across templates, sessions, history, and stats
 13. Weekly statistics view plus configurable weekly goals in settings
 14. Dark mode (Light / Dark / System) and broader settings polish (icons, grouped cards, dialogs)
+15. Ongoing maintainability refactor: dashboard/statistics pages, settings tabs, and repository domains were split into smaller focused modules without behavior changes
 
 ## Historical Phase Plan (Snapshot)
 
