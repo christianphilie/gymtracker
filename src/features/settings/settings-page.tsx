@@ -1,7 +1,22 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Database, DoorClosedLocked, Download, Globe, Settings, SunMoon, Timer, Upload, User, Weight, X } from "lucide-react";
+import {
+  type LucideIcon,
+  Database,
+  DoorClosedLocked,
+  Download,
+  Globe,
+  RotateCcw,
+  Settings,
+  SunMoon,
+  Target,
+  Timer,
+  Upload,
+  User,
+  Weight,
+  X
+} from "lucide-react";
 import { useSettings } from "@/app/settings-context";
 import { APP_VERSION } from "@/app/version";
 import { Button } from "@/components/ui/button";
@@ -32,6 +47,119 @@ import { createBackupPayload, parseBackupPayload, type AppBackupFile } from "@/f
 import { toast } from "sonner";
 
 const DISMISSED_SNAPSHOT_KEY = "gymtracker:dismissed-snapshot-id";
+type SettingsTabKey = "app" | "personal" | "data";
+
+interface SettingsCardTitleProps {
+  icon: LucideIcon;
+  children: ReactNode;
+}
+
+interface ToggleSettingRowProps {
+  id: string;
+  label: string;
+  hint: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}
+
+interface TabsOption {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+
+interface OptionTabsCardProps {
+  icon: LucideIcon;
+  title: string;
+  value: string;
+  options: TabsOption[];
+  onValueChange: (value: string) => void;
+}
+
+interface ConfirmDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description: string;
+  cancelLabel: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  confirmDisabled?: boolean;
+  confirmClassName?: string;
+}
+
+function SettingsCardTitle({ icon: Icon, children }: SettingsCardTitleProps) {
+  return (
+    <CardTitle className="inline-flex items-center gap-2">
+      <Icon className="h-4 w-4" />
+      {children}
+    </CardTitle>
+  );
+}
+
+function ToggleSettingRow({ id, label, hint, checked, onCheckedChange }: ToggleSettingRowProps) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
+      <div className="space-y-1">
+        <Label htmlFor={id} className="text-sm">
+          {label}
+        </Label>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+  );
+}
+
+function OptionTabsCard({ icon, title, value, options, onValueChange }: OptionTabsCardProps) {
+  return (
+    <Card>
+      <CardHeader>
+        <SettingsCardTitle icon={icon}>{title}</SettingsCardTitle>
+      </CardHeader>
+      <CardContent>
+        <Tabs value={value} onValueChange={onValueChange}>
+          <TabsList className="w-full">
+            {options.map((option) => (
+              <TabsTrigger key={option.value} value={option.value} className="flex-1" disabled={option.disabled}>
+                {option.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ConfirmDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  cancelLabel,
+  confirmLabel,
+  onConfirm,
+  confirmDisabled,
+  confirmClassName
+}: ConfirmDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{cancelLabel}</Button>
+          <Button className={confirmClassName} disabled={confirmDisabled} onClick={onConfirm}>
+            {confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export function SettingsPage() {
   const {
@@ -51,7 +179,7 @@ export function SettingsPage() {
   } = useSettings();
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState<"app" | "personal" | "data">(() =>
+  const [activeTab, setActiveTab] = useState<SettingsTabKey>(() =>
     location.hash === "#data-import" ? "data" : "app"
   );
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
@@ -69,6 +197,12 @@ export function SettingsPage() {
   const latestUpdateSnapshot = useLiveQuery(async () => getLatestUpdateSafetySnapshot(), []);
   const settingsRecord = useLiveQuery(async () => getSettings(), []);
   const [bodyWeightDraft, setBodyWeightDraft] = useState("");
+  const [weeklyWeightGoalDraft, setWeeklyWeightGoalDraft] = useState("");
+  const [weeklyCaloriesGoalDraft, setWeeklyCaloriesGoalDraft] = useState("");
+  const [weeklyWorkoutCountGoalDraft, setWeeklyWorkoutCountGoalDraft] = useState("");
+  const [weeklyWeightGoalEnabled, setWeeklyWeightGoalEnabled] = useState(false);
+  const [weeklyCaloriesGoalEnabled, setWeeklyCaloriesGoalEnabled] = useState(false);
+  const [weeklyWorkoutCountGoalEnabled, setWeeklyWorkoutCountGoalEnabled] = useState(false);
 
   const showSnapshotNotice = !!latestUpdateSnapshot && latestUpdateSnapshot.id !== dismissedSnapshotId;
 
@@ -76,10 +210,41 @@ export function SettingsPage() {
     const value = settingsRecord?.bodyWeight;
     if (typeof value !== "number" || !Number.isFinite(value)) {
       setBodyWeightDraft("");
-      return;
+    } else {
+      setBodyWeightDraft(`${value}`.replace(/\.0+$/, ""));
     }
-    setBodyWeightDraft(`${value}`.replace(/\.0+$/, ""));
-  }, [settingsRecord?.bodyWeight]);
+
+    const weeklyWeightGoal = settingsRecord?.weeklyWeightGoal;
+    setWeeklyWeightGoalEnabled(typeof weeklyWeightGoal === "number" && Number.isFinite(weeklyWeightGoal) && weeklyWeightGoal > 0);
+    setWeeklyWeightGoalDraft(
+      typeof weeklyWeightGoal === "number" && Number.isFinite(weeklyWeightGoal)
+        ? `${weeklyWeightGoal}`.replace(/\.0+$/, "")
+        : ""
+    );
+
+    const weeklyCaloriesGoal = settingsRecord?.weeklyCaloriesGoal;
+    setWeeklyCaloriesGoalEnabled(typeof weeklyCaloriesGoal === "number" && Number.isFinite(weeklyCaloriesGoal) && weeklyCaloriesGoal > 0);
+    setWeeklyCaloriesGoalDraft(
+      typeof weeklyCaloriesGoal === "number" && Number.isFinite(weeklyCaloriesGoal)
+        ? String(Math.round(weeklyCaloriesGoal))
+        : ""
+    );
+
+    const weeklyWorkoutCountGoal = settingsRecord?.weeklyWorkoutCountGoal;
+    setWeeklyWorkoutCountGoalEnabled(
+      typeof weeklyWorkoutCountGoal === "number" && Number.isFinite(weeklyWorkoutCountGoal) && weeklyWorkoutCountGoal > 0
+    );
+    setWeeklyWorkoutCountGoalDraft(
+      typeof weeklyWorkoutCountGoal === "number" && Number.isFinite(weeklyWorkoutCountGoal)
+        ? String(Math.round(weeklyWorkoutCountGoal))
+        : ""
+    );
+  }, [
+    settingsRecord?.bodyWeight,
+    settingsRecord?.weeklyWeightGoal,
+    settingsRecord?.weeklyCaloriesGoal,
+    settingsRecord?.weeklyWorkoutCountGoal
+  ]);
 
   useEffect(() => {
     if (location.hash === "#data-import") {
@@ -112,6 +277,12 @@ export function SettingsPage() {
     { value: "light", labelKey: "colorSchemeLight" },
     { value: "dark", labelKey: "colorSchemeDark" },
     { value: "system", labelKey: "colorSchemeSystem" }
+  ];
+  const restTimerLengthOptions: TabsOption[] = [
+    { value: "60", label: "1 min", disabled: !restTimerEnabled },
+    { value: "120", label: "2 min", disabled: !restTimerEnabled },
+    { value: "180", label: "3 min", disabled: !restTimerEnabled },
+    { value: "300", label: "5 min", disabled: !restTimerEnabled }
   ];
   const handleClearAllData = async () => {
     await clearAllData();
@@ -232,9 +403,99 @@ export function SettingsPage() {
     setBodyWeightDraft(String(rounded));
   };
 
+  const handleWeeklyWeightGoalCommit = async () => {
+    const normalized = weeklyWeightGoalDraft.replace(",", ".").trim();
+    if (!normalized) {
+      await updateSettings({ weeklyWeightGoal: undefined });
+      setWeeklyWeightGoalDraft("");
+      return;
+    }
+
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setWeeklyWeightGoalDraft(
+        typeof settingsRecord?.weeklyWeightGoal === "number" && Number.isFinite(settingsRecord.weeklyWeightGoal)
+          ? String(settingsRecord.weeklyWeightGoal).replace(/\.0+$/, "")
+          : ""
+      );
+      return;
+    }
+
+    const rounded = Math.round(parsed * 10) / 10;
+    await updateSettings({ weeklyWeightGoal: rounded });
+    setWeeklyWeightGoalDraft(String(rounded));
+  };
+
+  const handleWeeklyCaloriesGoalCommit = async () => {
+    const normalized = weeklyCaloriesGoalDraft.replace(",", ".").trim();
+    if (!normalized) {
+      await updateSettings({ weeklyCaloriesGoal: undefined });
+      setWeeklyCaloriesGoalDraft("");
+      return;
+    }
+
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setWeeklyCaloriesGoalDraft(
+        typeof settingsRecord?.weeklyCaloriesGoal === "number" && Number.isFinite(settingsRecord.weeklyCaloriesGoal)
+          ? String(Math.round(settingsRecord.weeklyCaloriesGoal))
+          : ""
+      );
+      return;
+    }
+
+    const rounded = Math.max(1, Math.round(parsed));
+    await updateSettings({ weeklyCaloriesGoal: rounded });
+    setWeeklyCaloriesGoalDraft(String(rounded));
+  };
+
+  const handleWeeklyWorkoutCountGoalCommit = async () => {
+    const normalized = weeklyWorkoutCountGoalDraft.trim();
+    if (!normalized) {
+      await updateSettings({ weeklyWorkoutCountGoal: undefined });
+      setWeeklyWorkoutCountGoalDraft("");
+      return;
+    }
+
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setWeeklyWorkoutCountGoalDraft(
+        typeof settingsRecord?.weeklyWorkoutCountGoal === "number" && Number.isFinite(settingsRecord.weeklyWorkoutCountGoal)
+          ? String(Math.round(settingsRecord.weeklyWorkoutCountGoal))
+          : ""
+      );
+      return;
+    }
+
+    const rounded = Math.max(1, Math.round(parsed));
+    await updateSettings({ weeklyWorkoutCountGoal: rounded });
+    setWeeklyWorkoutCountGoalDraft(String(rounded));
+  };
+
+  const handleWeeklyWorkoutGoalToggle = async (checked: boolean) => {
+    setWeeklyWorkoutCountGoalEnabled(checked);
+    if (!checked) {
+      await updateSettings({ weeklyWorkoutCountGoal: undefined });
+    }
+  };
+
+  const handleWeeklyCaloriesGoalToggle = async (checked: boolean) => {
+    setWeeklyCaloriesGoalEnabled(checked);
+    if (!checked) {
+      await updateSettings({ weeklyCaloriesGoal: undefined });
+    }
+  };
+
+  const handleWeeklyWeightGoalToggle = async (checked: boolean) => {
+    setWeeklyWeightGoalEnabled(checked);
+    if (!checked) {
+      await updateSettings({ weeklyWeightGoal: undefined });
+    }
+  };
+
   return (
     <section className="space-y-4">
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "app" | "personal" | "data")} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as SettingsTabKey)} className="space-y-4">
         <TabsList className="grid h-auto w-full grid-cols-3">
           <TabsTrigger value="app" className="flex gap-2">
             <Settings className="h-4 w-4" />
@@ -253,134 +514,84 @@ export function SettingsPage() {
         <TabsContent value="app" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="inline-flex items-center gap-2">
-                <Timer className="h-4 w-4" />
-                {t("restTimerDuration")}
-              </CardTitle>
+              <SettingsCardTitle icon={Timer}>{t("restTimerDuration")}</SettingsCardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
-                <div className="space-y-1">
-                  <Label htmlFor="rest-timer-enabled" className="text-sm">
-                    {t("restTimerShowToggle")}
-                  </Label>
-                  <p className="text-xs text-muted-foreground">{t("restTimerShowToggleHint")}</p>
+              <ToggleSettingRow
+                id="rest-timer-enabled"
+                label={t("restTimerShowToggle")}
+                hint={t("restTimerShowToggleHint")}
+                checked={restTimerEnabled}
+                onCheckedChange={(checked) => void setRestTimerEnabled(checked)}
+              />
+              <div className={`grid transition-all duration-200 ${restTimerEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                <div className="overflow-hidden">
+                  <div className="space-y-1 pb-1">
+                    <Label htmlFor="rest-timer-length">{t("restTimerLengthLabel")}</Label>
+                    <Tabs value={String(restTimerSeconds)} onValueChange={(value) => void setRestTimerSeconds(Number(value))}>
+                      <TabsList className="w-full">
+                        {restTimerLengthOptions.map((option) => (
+                          <TabsTrigger key={option.value} value={option.value} className="flex-1" disabled={option.disabled}>
+                            {option.label}
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
+                    </Tabs>
+                    <p className="text-xs text-muted-foreground">{t("restTimerDescription")}</p>
+                  </div>
                 </div>
-                <Switch
-                  id="rest-timer-enabled"
-                  checked={restTimerEnabled}
-                  onCheckedChange={(checked) => void setRestTimerEnabled(checked)}
-                />
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="rest-timer-length">{t("restTimerLengthLabel")}</Label>
-                <Tabs value={String(restTimerSeconds)} onValueChange={(value) => void setRestTimerSeconds(Number(value))}>
-                  <TabsList className="w-full">
-                    <TabsTrigger value="60" className="flex-1" disabled={!restTimerEnabled}>1 min</TabsTrigger>
-                    <TabsTrigger value="120" className="flex-1" disabled={!restTimerEnabled}>2 min</TabsTrigger>
-                    <TabsTrigger value="180" className="flex-1" disabled={!restTimerEnabled}>3 min</TabsTrigger>
-                    <TabsTrigger value="300" className="flex-1" disabled={!restTimerEnabled}>5 min</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-              <p className="text-xs text-muted-foreground">{t("restTimerDescription")}</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle className="inline-flex items-center gap-2">
-                <DoorClosedLocked className="h-4 w-4" />
-                {t("lockerNoteSettingTitle")}
-              </CardTitle>
+              <SettingsCardTitle icon={DoorClosedLocked}>{t("lockerNoteSettingTitle")}</SettingsCardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
-                <div className="space-y-1">
-                  <Label htmlFor="locker-note-enabled" className="text-sm">
-                    {t("lockerNoteToggle")}
-                  </Label>
-                  <p className="text-xs text-muted-foreground">{t("lockerNoteToggleHint")}</p>
-                </div>
-                <Switch
-                  id="locker-note-enabled"
-                  checked={lockerNoteEnabled}
-                  onCheckedChange={(checked) => void setLockerNoteEnabled(checked)}
-                />
-              </div>
+              <ToggleSettingRow
+                id="locker-note-enabled"
+                label={t("lockerNoteToggle")}
+                hint={t("lockerNoteToggleHint")}
+                checked={lockerNoteEnabled}
+                onCheckedChange={(checked) => void setLockerNoteEnabled(checked)}
+              />
             </CardContent>
           </Card>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="inline-flex items-center gap-2">
-                  <Globe className="h-4 w-4" />
-                  {t("language")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Tabs value={language} onValueChange={(value) => void setLanguage(value as AppLanguage)}>
-                  <TabsList className="w-full">
-                    {languageOptions.map((option) => (
-                      <TabsTrigger key={option.value} value={option.value} className="flex-1">
-                        {option.label}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </Tabs>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="inline-flex items-center gap-2">
-                  <Weight className="h-4 w-4" />
-                  {t("unit")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Tabs value={weightUnit} onValueChange={(value) => void setWeightUnit(value as WeightUnit)}>
-                  <TabsList className="w-full">
-                    {weightOptions.map((option) => (
-                      <TabsTrigger key={option.value} value={option.value} className="flex-1">
-                        {option.label}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </Tabs>
-              </CardContent>
-            </Card>
+            <OptionTabsCard
+              icon={Globe}
+              title={t("language")}
+              value={language}
+              onValueChange={(value) => void setLanguage(value as AppLanguage)}
+              options={languageOptions}
+            />
+            <OptionTabsCard
+              icon={Weight}
+              title={t("unit")}
+              value={weightUnit}
+              onValueChange={(value) => void setWeightUnit(value as WeightUnit)}
+              options={weightOptions}
+            />
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="inline-flex items-center gap-2">
-                <SunMoon className="h-4 w-4" />
-                {t("colorScheme")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Tabs value={colorScheme} onValueChange={(value) => void setColorScheme(value as ColorScheme)}>
-                <TabsList className="w-full">
-                  {colorSchemeOptions.map((option) => (
-                    <TabsTrigger key={option.value} value={option.value} className="flex-1">
-                      {t(option.labelKey)}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-            </CardContent>
-          </Card>
+          <OptionTabsCard
+            icon={SunMoon}
+            title={t("colorScheme")}
+            value={colorScheme}
+            onValueChange={(value) => void setColorScheme(value as ColorScheme)}
+            options={colorSchemeOptions.map((option) => ({
+              value: option.value,
+              label: t(option.labelKey)
+            }))}
+          />
         </TabsContent>
 
         <TabsContent value="personal" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="inline-flex items-center gap-2">
-                <Weight className="h-4 w-4" />
-                {t("bodyWeight")}
-              </CardTitle>
+              <SettingsCardTitle icon={Weight}>{t("bodyWeight")}</SettingsCardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center gap-2">
@@ -414,6 +625,144 @@ export function SettingsPage() {
               <p className="text-xs text-muted-foreground">{t("calorieEstimateInfo")}</p>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <SettingsCardTitle icon={Target}>{t("weeklyGoals")}</SettingsCardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="weekly-workout-goal-enabled" className="text-sm">
+                      {t("weeklyWorkoutGoal")}
+                    </Label>
+                  </div>
+                  <Switch
+                    id="weekly-workout-goal-enabled"
+                    checked={weeklyWorkoutCountGoalEnabled}
+                    onCheckedChange={(checked) => void handleWeeklyWorkoutGoalToggle(checked)}
+                  />
+                </div>
+                <div className={`grid transition-all duration-200 ${weeklyWorkoutCountGoalEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                  <div className="overflow-hidden">
+                    <div className="px-1 py-1.5">
+                      <Input
+                        id="weekly-workout-goal"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={weeklyWorkoutCountGoalDraft}
+                        onChange={(event) => {
+                          const next = event.currentTarget.value;
+                          if (/^[0-9]*$/.test(next)) {
+                            setWeeklyWorkoutCountGoalDraft(next);
+                          }
+                        }}
+                        onBlur={() => void handleWeeklyWorkoutCountGoalCommit()}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.currentTarget.blur();
+                          }
+                        }}
+                        placeholder="3"
+                        disabled={!weeklyWorkoutCountGoalEnabled}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="weekly-calories-goal-enabled" className="text-sm">
+                      {t("weeklyCaloriesGoal")}
+                    </Label>
+                  </div>
+                  <Switch
+                    id="weekly-calories-goal-enabled"
+                    checked={weeklyCaloriesGoalEnabled}
+                    onCheckedChange={(checked) => void handleWeeklyCaloriesGoalToggle(checked)}
+                  />
+                </div>
+                <div className={`grid transition-all duration-200 ${weeklyCaloriesGoalEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                  <div className="overflow-hidden">
+                    <div className="relative px-1 py-1.5">
+                      <Input
+                        id="weekly-calories-goal"
+                        inputMode="numeric"
+                        pattern="[0-9]*[.,]?[0-9]*"
+                        value={weeklyCaloriesGoalDraft}
+                        onChange={(event) => {
+                          const next = event.currentTarget.value;
+                          if (/^[0-9]*([.,][0-9]*)?$/.test(next) || next === "") {
+                            setWeeklyCaloriesGoalDraft(next);
+                          }
+                        }}
+                        onBlur={() => void handleWeeklyCaloriesGoalCommit()}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.currentTarget.blur();
+                          }
+                        }}
+                        placeholder="1800"
+                        className="pr-14"
+                        disabled={!weeklyCaloriesGoalEnabled}
+                      />
+                      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        kcal
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="weekly-weight-goal-enabled" className="text-sm">
+                      {t("weeklyWeightGoal")}
+                    </Label>
+                  </div>
+                  <Switch
+                    id="weekly-weight-goal-enabled"
+                    checked={weeklyWeightGoalEnabled}
+                    onCheckedChange={(checked) => void handleWeeklyWeightGoalToggle(checked)}
+                  />
+                </div>
+                <div className={`grid transition-all duration-200 ${weeklyWeightGoalEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                  <div className="overflow-hidden">
+                    <div className="relative px-1 py-1.5">
+                      <Input
+                        id="weekly-weight-goal"
+                        inputMode="decimal"
+                        pattern="[0-9]*[.,]?[0-9]*"
+                        value={weeklyWeightGoalDraft}
+                        onChange={(event) => {
+                          const next = event.currentTarget.value;
+                          if (/^[0-9]*([.,][0-9]*)?$/.test(next) || next === "") {
+                            setWeeklyWeightGoalDraft(next);
+                          }
+                        }}
+                        onBlur={() => void handleWeeklyWeightGoalCommit()}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.currentTarget.blur();
+                          }
+                        }}
+                        placeholder={weightUnit === "kg" ? "5000" : "11000"}
+                        className="pr-12"
+                        disabled={!weeklyWeightGoalEnabled}
+                      />
+                      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        {weightUnit}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="data" className="space-y-4">
@@ -443,7 +792,7 @@ export function SettingsPage() {
 
           <Card id="data-import" className="scroll-mt-20">
             <CardHeader>
-              <CardTitle>{t("dataExportImport")}</CardTitle>
+              <SettingsCardTitle icon={Database}>{t("dataExportImport")}</SettingsCardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">{t("dataExportHint")}</p>
@@ -479,7 +828,7 @@ export function SettingsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>{t("reset")}</CardTitle>
+              <SettingsCardTitle icon={RotateCcw}>{t("reset")}</SettingsCardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button
@@ -521,53 +870,38 @@ export function SettingsPage() {
         </div>
       </footer>
 
-      <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("clearAllData")}</DialogTitle>
-            <DialogDescription>{t("clearAllDataConfirm")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setClearDialogOpen(false)}>{t("cancel")}</Button>
-            <Button className="border-red-300 bg-red-600 text-white hover:bg-red-700" onClick={() => void handleClearAllData()}>
-              {t("clearAllData")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={clearDialogOpen}
+        onOpenChange={setClearDialogOpen}
+        title={t("clearAllData")}
+        description={t("clearAllDataConfirm")}
+        cancelLabel={t("cancel")}
+        confirmLabel={t("clearAllData")}
+        confirmClassName="border-red-300 bg-red-600 text-white hover:bg-red-700"
+        onConfirm={() => void handleClearAllData()}
+      />
 
-      <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("restoreUpdateSafetySnapshot")}</DialogTitle>
-            <DialogDescription>{t("restoreUpdateSafetySnapshotConfirm")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRestoreDialogOpen(false)}>{t("cancel")}</Button>
-            <Button
-              disabled={isRestoringSnapshot || !latestUpdateSnapshot?.id}
-              onClick={() => void handleRestoreUpdateSnapshot()}
-            >
-              {t("restoreUpdateSafetySnapshot")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={restoreDialogOpen}
+        onOpenChange={setRestoreDialogOpen}
+        title={t("restoreUpdateSafetySnapshot")}
+        description={t("restoreUpdateSafetySnapshotConfirm")}
+        cancelLabel={t("cancel")}
+        confirmLabel={t("restoreUpdateSafetySnapshot")}
+        confirmDisabled={isRestoringSnapshot || !latestUpdateSnapshot?.id}
+        onConfirm={() => void handleRestoreUpdateSnapshot()}
+      />
 
-      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("importAllData")}</DialogTitle>
-            <DialogDescription>{t("importAllDataConfirm")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>{t("cancel")}</Button>
-            <Button disabled={isImporting || !pendingImport} onClick={() => void handleImportAllData()}>
-              {t("importAllData")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        title={t("importAllData")}
+        description={t("importAllDataConfirm")}
+        cancelLabel={t("cancel")}
+        confirmLabel={t("importAllData")}
+        confirmDisabled={isImporting || !pendingImport}
+        onConfirm={() => void handleImportAllData()}
+      />
     </section>
   );
 }

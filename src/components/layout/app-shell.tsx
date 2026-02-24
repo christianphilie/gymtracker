@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
@@ -7,7 +7,6 @@ import {
   Dumbbell,
   Flag,
   House,
-  Pause,
   PenSquare,
   Play,
   Plus,
@@ -21,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { LockerNoteInput } from "@/components/forms/locker-note-input";
 import { useSettings } from "@/app/settings-context";
 import { db } from "@/db/db";
-import { formatDurationClock } from "@/lib/utils";
+import { cn, formatDurationClock } from "@/lib/utils";
 
 // iOS homescreen hint (temporarily disabled; keep for later re-enable)
 // const IOS_WEBAPP_HINT_DISMISSED_KEY = "gymtracker:ios-webapp-hint-dismissed";
@@ -59,6 +58,25 @@ interface HeaderActionsProps {
   onEditorSave: () => void;
 }
 
+interface HeaderProgressBadgeProps {
+  as?: "button" | "div";
+  onClick?: () => void;
+  ariaLabel?: string;
+  progressPercent: number;
+  progressBarClassName?: string;
+  progressBarStyle?: CSSProperties;
+  children: ReactNode;
+}
+
+interface BottomNavItemProps {
+  to: string;
+  isActive: boolean;
+  label: string;
+  icon: ReactNode;
+  activeClassName?: string;
+  inactiveClassName?: string;
+}
+
 function PlaySolidIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
@@ -73,6 +91,68 @@ function PauseSolidIcon({ className }: { className?: string }) {
       <rect x="7" y="6" width="4" height="12" rx="1" fill="currentColor" />
       <rect x="13" y="6" width="4" height="12" rx="1" fill="currentColor" />
     </svg>
+  );
+}
+
+function HeaderProgressBadge({
+  as = "div",
+  onClick,
+  ariaLabel,
+  progressPercent,
+  progressBarClassName,
+  progressBarStyle,
+  children
+}: HeaderProgressBadgeProps) {
+  const isButton = as === "button";
+  const className = cn(
+    "relative h-9 w-[4.5rem] overflow-hidden rounded-md border border-input bg-background/80 shadow-sm",
+    isButton && "m-0 p-0 text-left align-top [appearance:none]"
+  );
+  const progressStyle = { width: `${Math.round(Math.max(0, Math.min(progressPercent, 100)))}%`, ...progressBarStyle };
+
+  const content = (
+    <>
+      {children}
+      <div className="absolute inset-x-0 bottom-0 h-1.5 bg-secondary">
+        <div className={cn("h-full transition-all", progressBarClassName)} style={progressStyle} />
+      </div>
+    </>
+  );
+
+  if (isButton) {
+    return (
+      <button type="button" onClick={onClick} aria-label={ariaLabel} className={className}>
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={className}>{content}</div>;
+}
+
+function BottomNavItem({
+  to,
+  isActive,
+  label,
+  icon,
+  activeClassName,
+  inactiveClassName
+}: BottomNavItemProps) {
+  return (
+    <div className="flex w-[4.25rem] shrink-0 justify-center">
+      <Link
+        to={to}
+        aria-label={label}
+        title={label}
+        className={cn(
+          "inline-flex h-11 items-center justify-center rounded-full transition-[padding,background-color,color] duration-200",
+          isActive ? "px-6" : "px-4",
+          isActive ? activeClassName : inactiveClassName
+        )}
+      >
+        {icon}
+      </Link>
+    </div>
   );
 }
 
@@ -115,11 +195,12 @@ function HeaderActions({
     return (
       <div className="flex items-center gap-2">
         {sessionState.sinceIso && hasRestTimer && (
-          <button
-            type="button"
-            className="relative m-0 h-9 w-[4.5rem] overflow-hidden rounded-md border border-input bg-background/80 p-0 text-left align-top shadow-sm [appearance:none]"
+          <HeaderProgressBadge
+            as="button"
             onClick={onToggleTimer}
-            aria-label={timerPaused ? t("resumeSession") : t("pauseTimer")}
+            ariaLabel={timerPaused ? t("resumeSession") : t("pauseTimer")}
+            progressPercent={timerProgress * 100}
+            progressBarStyle={{ backgroundColor: timerBarColor }}
           >
             <div className="inline-flex h-full w-full items-start px-2 pt-1.5">
               <p className="inline-flex h-[16px] w-full items-center justify-center gap-1 text-center text-xs font-medium leading-none tabular-nums">
@@ -130,26 +211,17 @@ function HeaderActions({
                 <span>{formatDurationClock(sessionState.elapsedSeconds)}</span>
               </p>
             </div>
-            <div className="absolute inset-x-0 bottom-0 h-1.5 bg-secondary">
-              <div
-                className="h-full transition-all"
-                style={{ width: `${Math.round(timerProgress * 100)}%`, backgroundColor: timerBarColor }}
-              />
-            </div>
-          </button>
+          </HeaderProgressBadge>
         )}
 
-        <div className="relative h-9 w-[4.5rem] overflow-hidden rounded-md border border-input bg-background/80 shadow-sm">
+        <HeaderProgressBadge progressPercent={donePercent} progressBarClassName="bg-primary">
           <div className="inline-flex h-full w-full items-start px-2 pt-1.5">
             <p className="inline-flex h-[16px] w-full items-center justify-center text-center text-xs font-medium leading-none tabular-nums">
               <Check className="mr-1 h-3.5 w-3.5" />
               {sessionState.completed}/{sessionState.total}
             </p>
           </div>
-          <div className="absolute inset-x-0 bottom-0 h-1.5 bg-secondary">
-            <div className="h-full bg-primary" style={{ width: `${donePercent}%` }} />
-          </div>
-        </div>
+        </HeaderProgressBadge>
       </div>
     );
   }
@@ -169,10 +241,24 @@ function HeaderActions({
 export function AppShell() {
   const { t, restTimerSeconds, restTimerEnabled, lockerNoteEnabled } = useSettings();
   const location = useLocation();
+  const pathname = location.pathname;
   const sessionMatch = location.pathname.match(/^\/sessions\/(\d+)$/);
   const workoutEditMatch = location.pathname.match(/^\/workouts\/(\d+)\/edit$/);
   const activeSessionId = sessionMatch ? Number(sessionMatch[1]) : null;
   const isWorkoutEditRoute = !!workoutEditMatch;
+  const isHomeTabRoute =
+    pathname === "/" ||
+    pathname === "/import" ||
+    /^\/workouts\/add$/.test(pathname) ||
+    /^\/workouts\/new$/.test(pathname) ||
+    /^\/workouts\/\d+\/edit$/.test(pathname);
+  const isStatisticsTabRoute =
+    pathname === "/statistics" ||
+    /^\/workouts\/\d+\/history$/.test(pathname);
+  const isSettingsTabRoute =
+    pathname === "/settings" ||
+    pathname === "/legal" ||
+    pathname === "/privacy";
   const pageHeader = useMemo(() => {
     let title = t("appName");
     let Icon = Dumbbell;
@@ -370,64 +456,40 @@ export function AppShell() {
         <div className="relative mx-auto max-w-3xl">
           <nav className="pointer-events-auto flex justify-center" aria-label="Primary">
             <div className="flex items-center gap-0 rounded-full border border-white/50 bg-background/80 p-0.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08),0_22px_52px_rgba(15,23,42,0.14)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
-              <div className="flex w-[4.25rem] shrink-0 justify-center">
-                <Link
-                  to="/"
-                  aria-label={t("workouts")}
-                  title={t("workouts")}
-                  className={`inline-flex h-11 items-center justify-center rounded-full transition-[padding,background-color,color] duration-200 ${
-                    location.pathname === "/"
-                      ? "bg-primary px-6 text-primary-foreground"
-                      : "px-4 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  }`}
-                >
-                  <House className="h-5 w-5" />
-                </Link>
-              </div>
+              <BottomNavItem
+                to="/"
+                isActive={isHomeTabRoute}
+                label={t("workouts")}
+                icon={<House className="h-5 w-5" />}
+                activeClassName="bg-primary text-primary-foreground"
+                inactiveClassName="text-muted-foreground hover:bg-secondary hover:text-foreground"
+              />
               {activeSessionNav && (
-                <div className="flex w-[4.25rem] shrink-0 justify-center">
-                  <Link
-                    to={`/sessions/${activeSessionNav.sessionId}`}
-                    aria-label={t("resumeSession")}
-                    title={t("resumeSession")}
-                    className={`inline-flex h-11 items-center justify-center rounded-full transition-[padding,background-color,color] duration-200 ${
-                      location.pathname === `/sessions/${activeSessionNav.sessionId}`
-                        ? "bg-emerald-100 px-6 text-emerald-500"
-                        : "px-4 text-foreground hover:bg-secondary hover:text-foreground"
-                    }`}
-                  >
-                    <Play className="h-5 w-5" />
-                  </Link>
-                </div>
+                <BottomNavItem
+                  to={`/sessions/${activeSessionNav.sessionId}`}
+                  isActive={pathname === `/sessions/${activeSessionNav.sessionId}`}
+                  label={t("resumeSession")}
+                  icon={<Play className="h-5 w-5" />}
+                  activeClassName="bg-emerald-400 text-emerald-100"
+                  inactiveClassName="text-foreground hover:bg-secondary hover:text-foreground"
+                />
               )}
-              <div className="flex w-[4.25rem] shrink-0 justify-center">
-                <Link
-                  to="/statistics"
-                  aria-label={t("statistics")}
-                  title={t("statistics")}
-                  className={`inline-flex h-11 items-center justify-center rounded-full transition-[padding,background-color,color] duration-200 ${
-                    location.pathname === "/statistics"
-                      ? "bg-primary px-6 text-primary-foreground"
-                      : "px-4 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  }`}
-                >
-                  <ChartNoAxesCombined className="h-5 w-5" />
-                </Link>
-              </div>
-              <div className="flex w-[4.25rem] shrink-0 justify-center">
-                <Link
-                  to="/settings"
-                  aria-label={t("settings")}
-                  title={t("settings")}
-                  className={`inline-flex h-11 items-center justify-center rounded-full transition-[padding,background-color,color] duration-200 ${
-                    location.pathname === "/settings"
-                      ? "bg-primary px-6 text-primary-foreground"
-                      : "px-4 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  }`}
-                >
-                  <Settings className="h-5 w-5" />
-                </Link>
-              </div>
+              <BottomNavItem
+                to="/statistics"
+                isActive={isStatisticsTabRoute}
+                label={t("statistics")}
+                icon={<ChartNoAxesCombined className="h-5 w-5" />}
+                activeClassName="bg-primary text-primary-foreground"
+                inactiveClassName="text-muted-foreground hover:bg-secondary hover:text-foreground"
+              />
+              <BottomNavItem
+                to="/settings"
+                isActive={isSettingsTabRoute}
+                label={t("settings")}
+                icon={<Settings className="h-5 w-5" />}
+                activeClassName="bg-primary text-primary-foreground"
+                inactiveClassName="text-muted-foreground hover:bg-secondary hover:text-foreground"
+              />
             </div>
           </nav>
         </div>

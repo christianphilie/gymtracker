@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { BookSearch, ChevronDown, GripVertical, NotebookPen, PenSquare, Plus, Save, Trash2, X } from "lucide-react";
+import { BookSearch, ChevronDown, GripVertical, NotebookPen, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { Button } from "@/components/ui/button";
@@ -215,10 +215,10 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
           >
             <CardHeader className="space-y-3">
               <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-0.5">
+                <div className="min-w-0 flex-1">
                   <button
                     type="button"
-                    className="flex items-center gap-0.5"
+                    className="flex w-full items-start gap-0.5 text-left"
                     onClick={() =>
                       setCollapsedExercises((prev) => ({
                         ...prev,
@@ -227,32 +227,17 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                     }
                     aria-label={collapsed ? t("expandExercise") : t("collapseExercise")}
                   >
-                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${collapsed ? "-rotate-90" : ""}`} />
-                    <CardTitle>{title}</CardTitle>
+                    <ChevronDown className={`mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${collapsed ? "-rotate-90" : ""}`} />
+                    <CardTitle className="min-w-0 flex-1 text-left leading-tight">{title}</CardTitle>
                   </button>
-                  {exercise.x2Enabled && (
-                    <span className="ml-1 rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-                      2x
-                    </span>
-                  )}
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <label className="inline-flex items-center gap-1 rounded-full border border-transparent px-1.5 py-0.5 text-[10px] text-muted-foreground hover:border-border/60">
-                    <span>2x</span>
-                    <Switch
-                      checked={exercise.x2Enabled ?? false}
-                      onCheckedChange={(checked) => {
-                        setDraft((prev) => {
-                          const next = structuredClone(prev);
-                          next.exercises[exerciseIndex].x2Enabled = checked;
-                          return next;
-                        });
-                      }}
-                      aria-label={t("exerciseX2Toggle")}
-                      className="h-4 w-7 border-muted-foreground/30"
-                    />
-                  </label>
+                  {exercise.x2Enabled && (
+                    <span className="rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+                      ×2
+                    </span>
+                  )}
                   <button
                     type="button"
                     draggable={true}
@@ -309,7 +294,23 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                     />
                   </div>
 
-                  <p className="text-xs text-muted-foreground">{t("sets")}</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-muted-foreground">{t("sets")}</p>
+                    <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>×2</span>
+                      <Switch
+                        checked={exercise.x2Enabled ?? false}
+                        onCheckedChange={(checked) => {
+                          setDraft((prev) => {
+                            const next = structuredClone(prev);
+                            next.exercises[exerciseIndex].x2Enabled = checked;
+                            return next;
+                          });
+                        }}
+                        aria-label={t("exerciseX2Toggle")}
+                      />
+                    </label>
+                  </div>
                   {exercise.sets.map((set, setIndex) => (
                     <div key={`set-${setIndex}`} className="grid grid-cols-[1fr_1fr] items-center gap-2 py-1">
                       <div className="min-w-0">

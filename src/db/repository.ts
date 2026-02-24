@@ -51,6 +51,18 @@ function convertWeightValue(value: number, from: WeightUnit, to: WeightUnit) {
   return Math.round(converted * 10) / 10;
 }
 
+function normalizeOptionalPositive(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function normalizeOptionalPositiveInt(value: unknown) {
+  const normalized = normalizeOptionalPositive(value);
+  if (normalized === undefined) {
+    return undefined;
+  }
+  return Math.max(1, Math.round(normalized));
+}
+
 function isAppDataSnapshot(value: unknown): value is AppDataSnapshot {
   if (!value || typeof value !== "object") {
     return false;
@@ -210,6 +222,15 @@ export async function ensureDefaultSettings() {
     if (existing.bodyWeight !== undefined && !Number.isFinite(existing.bodyWeight)) {
       patch.bodyWeight = undefined;
     }
+    if (existing.weeklyWeightGoal !== normalizeOptionalPositive(existing.weeklyWeightGoal)) {
+      patch.weeklyWeightGoal = normalizeOptionalPositive(existing.weeklyWeightGoal);
+    }
+    if (existing.weeklyCaloriesGoal !== normalizeOptionalPositive(existing.weeklyCaloriesGoal)) {
+      patch.weeklyCaloriesGoal = normalizeOptionalPositive(existing.weeklyCaloriesGoal);
+    }
+    if (existing.weeklyWorkoutCountGoal !== normalizeOptionalPositiveInt(existing.weeklyWorkoutCountGoal)) {
+      patch.weeklyWorkoutCountGoal = normalizeOptionalPositiveInt(existing.weeklyWorkoutCountGoal);
+    }
     if (Object.keys(patch).length > 0) {
       const patched: Settings = { ...existing, ...patch, updatedAt: nowIso() };
       await db.settings.put(patched);
@@ -251,6 +272,9 @@ export async function updateSettings(
       | "lockerNumber"
       | "lockerNumberUpdatedAt"
       | "bodyWeight"
+      | "weeklyWeightGoal"
+      | "weeklyCaloriesGoal"
+      | "weeklyWorkoutCountGoal"
     >
   >
 ) {
@@ -333,6 +357,10 @@ export async function updateWeightUnitAndConvert(nextUnit: WeightUnit) {
           currentSettings.bodyWeight === undefined
             ? undefined
             : convertWeightValue(currentSettings.bodyWeight, currentSettings.weightUnit, nextUnit),
+        weeklyWeightGoal:
+          currentSettings.weeklyWeightGoal === undefined
+            ? undefined
+            : convertWeightValue(currentSettings.weeklyWeightGoal, currentSettings.weightUnit, nextUnit),
         updatedAt: nowIso()
       });
     }
@@ -535,30 +563,30 @@ export async function ensureDefaultWorkout() {
   }
 
   await createWorkout({
-    name: "Ganzkörpertraining",
+    name: "Oberkörper",
     exercises: [
-      {
-        name: "Beinpresse",
-        sets: [
-          { targetReps: 12, targetWeight: 50 },
-          { targetReps: 12, targetWeight: 50 },
-          { targetReps: 12, targetWeight: 50 }
-        ]
-      },
       {
         name: "Brustpresse (Maschine)",
         sets: [
-          { targetReps: 12, targetWeight: 30 },
-          { targetReps: 12, targetWeight: 30 },
-          { targetReps: 12, targetWeight: 30 }
+          { targetReps: 10, targetWeight: 35 },
+          { targetReps: 10, targetWeight: 35 },
+          { targetReps: 10, targetWeight: 35 }
+        ]
+      },
+      {
+        name: "Rudern sitzend (Maschine)",
+        sets: [
+          { targetReps: 10, targetWeight: 35 },
+          { targetReps: 10, targetWeight: 35 },
+          { targetReps: 10, targetWeight: 35 }
         ]
       },
       {
         name: "Latzug (Maschine)",
         sets: [
-          { targetReps: 12, targetWeight: 40 },
-          { targetReps: 12, targetWeight: 40 },
-          { targetReps: 12, targetWeight: 40 }
+          { targetReps: 10, targetWeight: 35 },
+          { targetReps: 10, targetWeight: 35 },
+          { targetReps: 10, targetWeight: 35 }
         ]
       },
       {
@@ -570,12 +598,20 @@ export async function ensureDefaultWorkout() {
         ]
       },
       {
-        name: "Bizepscurl (Maschine)",
+        name: "Seitheben (Kabel/Maschine)",
+        sets: [
+          { targetReps: 15, targetWeight: 7.5 },
+          { targetReps: 15, targetWeight: 7.5 },
+          { targetReps: 15, targetWeight: 7.5 }
+        ]
+      },
+      {
+        name: "Bizepscurl (Kabel oder Maschine)",
         x2Enabled: true,
         sets: [
-          { targetReps: 12, targetWeight: 15 },
-          { targetReps: 12, targetWeight: 15 },
-          { targetReps: 12, targetWeight: 15 }
+          { targetReps: 12, targetWeight: 12.5 },
+          { targetReps: 12, targetWeight: 12.5 },
+          { targetReps: 12, targetWeight: 12.5 }
         ]
       },
       {
@@ -584,6 +620,61 @@ export async function ensureDefaultWorkout() {
           { targetReps: 12, targetWeight: 15 },
           { targetReps: 12, targetWeight: 15 },
           { targetReps: 12, targetWeight: 15 }
+        ]
+      }
+    ]
+  });
+
+  await createWorkout({
+    name: "Unterkörper",
+    exercises: [
+      {
+        name: "Beinpresse",
+        sets: [
+          { targetReps: 10, targetWeight: 70 },
+          { targetReps: 10, targetWeight: 70 },
+          { targetReps: 10, targetWeight: 70 }
+        ]
+      },
+      {
+        name: "Rumänisches Kreuzheben (Kurzhantel)",
+        sets: [
+          { targetReps: 10, targetWeight: 20 },
+          { targetReps: 10, targetWeight: 20 },
+          { targetReps: 10, targetWeight: 20 }
+        ]
+      },
+      {
+        name: "Beinstrecker (Maschine)",
+        sets: [
+          { targetReps: 12, targetWeight: 35 },
+          { targetReps: 12, targetWeight: 35 },
+          { targetReps: 12, targetWeight: 35 }
+        ]
+      },
+      {
+        name: "Beinbeuger (Maschine)",
+        sets: [
+          { targetReps: 12, targetWeight: 30 },
+          { targetReps: 12, targetWeight: 30 },
+          { targetReps: 12, targetWeight: 30 }
+        ]
+      },
+      {
+        name: "Glute Kickback (Kabel)",
+        x2Enabled: true,
+        sets: [
+          { targetReps: 15, targetWeight: 12.5 },
+          { targetReps: 15, targetWeight: 12.5 },
+          { targetReps: 15, targetWeight: 12.5 }
+        ]
+      },
+      {
+        name: "Wadenheben (Maschine)",
+        sets: [
+          { targetReps: 15, targetWeight: 40 },
+          { targetReps: 15, targetWeight: 40 },
+          { targetReps: 15, targetWeight: 40 }
         ]
       }
     ]

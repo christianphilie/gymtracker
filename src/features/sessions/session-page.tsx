@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { BookSearch, Check, ChevronDown, Flag, NotebookPen, OctagonX, Play, Plus, Trash2, X } from "lucide-react";
+import { BookSearch, Check, ChevronDown, Flag, NotebookPen, OctagonX, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { DecimalInput } from "@/components/forms/decimal-input";
@@ -238,17 +238,17 @@ export function SessionPage() {
             : undefined;
         const lastSessionSetSummary = lastTemplateSets
           ?.sort((a, b) => a.templateSetOrder - b.templateSetOrder)
-          .map((set) => `${set.actualReps ?? set.targetReps} x ${set.actualWeight ?? set.targetWeight} ${weightUnitLabel}`)
+          .map((set) => `${set.actualReps ?? set.targetReps} × ${set.actualWeight ?? set.targetWeight} ${weightUnitLabel}`)
           .join(" | ");
 
         return (
           <Card key={exercise.sessionExerciseKey} className={`transition-all duration-200`}>
             <CardHeader className="space-y-2">
               <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-0.5">
+                <div className="min-w-0 flex flex-1 items-start gap-0.5">
                   <button
                     type="button"
-                    className="flex items-center gap-0.5"
+                    className="flex min-w-0 flex-1 items-start gap-0.5 text-left"
                     aria-label={isCollapsed ? t("expandExercise") : t("collapseExercise")}
                     onClick={() =>
                       setCollapsedExercises((prev) => ({
@@ -257,12 +257,12 @@ export function SessionPage() {
                       }))
                     }
                   >
-                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
-                    <CardTitle>{exercise.exerciseName}</CardTitle>
+                    <ChevronDown className={`mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                    <CardTitle className="min-w-0 flex-1 text-left leading-tight">{exercise.exerciseName}</CardTitle>
                   </button>
                   {exercise.x2Enabled && (
                     <span className="ml-1 rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-                      2x
+                      ×2
                     </span>
                   )}
                 </div>

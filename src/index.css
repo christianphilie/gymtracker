@@ -4,59 +4,63 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: 0 0% 97%;
-  --foreground: 0 0% 7%;
-  --card: 0 0% 100%;
-  --card-foreground: 0 0% 7%;
-  --primary: 0 0% 7%;
-  --primary-foreground: 0 0% 98%;
-  --secondary: 0 0% 95%;
-  --secondary-foreground: 0 0% 12%;
-  --muted: 0 0% 96%;
-  --muted-foreground: 0 0% 42%;
-  --border: 0 0% 89%;
-  --input: 0 0% 88%;
-  --ring: 0 0% 10%;
+@layer base {
+  :root {
+    --background: 0 0% 97%;
+    --foreground: 0 0% 7%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 7%;
+    --primary: 0 0% 7%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 95%;
+    --secondary-foreground: 0 0% 12%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 42%;
+    --border: 0 0% 89%;
+    --input: 0 0% 88%;
+    --ring: 0 0% 10%;
+  }
+
+  .dark {
+    --background: 0 0% 9%;
+    --foreground: 0 0% 93%;
+    --card: 0 0% 13%;
+    --card-foreground: 0 0% 93%;
+    --primary: 0 0% 93%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 18%;
+    --secondary-foreground: 0 0% 88%;
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 0% 58%;
+    --border: 0 0% 23%;
+    --input: 0 0% 23%;
+    --ring: 0 0% 80%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
+    min-height: 100vh;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  /* Prevent iOS focus-zoom in form fields and keep app-like scale. */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
-.dark {
-  --background: 0 0% 9%;
-  --foreground: 0 0% 93%;
-  --card: 0 0% 13%;
-  --card-foreground: 0 0% 93%;
-  --primary: 0 0% 93%;
-  --primary-foreground: 0 0% 9%;
-  --secondary: 0 0% 18%;
-  --secondary-foreground: 0 0% 88%;
-  --muted: 0 0% 16%;
-  --muted-foreground: 0 0% 58%;
-  --border: 0 0% 23%;
-  --input: 0 0% 23%;
-  --ring: 0 0% 80%;
-}
-
-* {
-  @apply border-border;
-}
-
-body {
-  @apply bg-background text-foreground antialiased;
-  font-family: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
-  min-height: 100vh;
-}
-
-#root {
-  min-height: 100vh;
-}
-
-.mono-text {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-
-/* Prevent iOS focus-zoom in form fields and keep app-like scale. */
-input,
-textarea,
-select {
-  font-size: 16px;
+@layer utilities {
+  .mono-text {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
 }

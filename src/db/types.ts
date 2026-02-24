@@ -9,6 +9,9 @@ export interface Settings {
   restTimerSeconds?: number;
   restTimerEnabled?: boolean;
   bodyWeight?: number;
+  weeklyWeightGoal?: number;
+  weeklyCaloriesGoal?: number;
+  weeklyWorkoutCountGoal?: number;
   lockerNoteEnabled?: boolean;
   lockerNumber?: string;
   lockerNumberUpdatedAt?: string;

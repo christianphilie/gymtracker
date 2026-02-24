@@ -1,5 +1,4 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useSettings } from "@/app/settings-context";
 
 const ISC_LICENSE = `ISC License
 
@@ -42,8 +41,6 @@ const APACHE_DEPS: LicenseEntry[] = [
 ];
 
 export function LegalPage() {
-  const { t } = useSettings();
-
   return (
     <section className="space-y-4">
       {/* App */}

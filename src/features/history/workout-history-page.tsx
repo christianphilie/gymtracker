@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ChartNoAxesCombined, Check, Pencil, Trash2 } from "lucide-react";
+import { Check, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { DecimalInput } from "@/components/forms/decimal-input";
@@ -289,11 +289,11 @@ export function WorkoutHistoryPage() {
               return (
                 <div key={firstSet.sessionExerciseKey} className="space-y-1">
                   <div className="rounded-md border bg-card px-2 py-1.5">
-                    <div className="inline-flex items-center gap-1">
-                      <p className="text-xs font-medium">{firstSet.exerciseName}</p>
+                    <div className="flex min-w-0 items-start gap-1">
+                      <p className="min-w-0 text-left text-xs font-medium leading-tight">{firstSet.exerciseName}</p>
                       {firstSet.x2Enabled && (
                         <span className="rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-                          2x
+                          ×2
                         </span>
                       )}
                     </div>
@@ -358,11 +358,11 @@ export function WorkoutHistoryPage() {
               return (
                 <Card key={firstSet.sessionExerciseKey}>
                   <CardHeader className="pb-2">
-                    <div className="inline-flex items-center gap-1">
-                      <CardTitle>{firstSet.exerciseName}</CardTitle>
+                    <div className="flex min-w-0 items-start gap-1">
+                      <CardTitle className="min-w-0 text-left leading-tight">{firstSet.exerciseName}</CardTitle>
                       {firstSet.x2Enabled && (
                         <span className="rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-                          2x
+                          ×2
                         </span>
                       )}
                     </div>

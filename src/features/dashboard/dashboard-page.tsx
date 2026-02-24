@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ChartNoAxesCombined, Download, Dumbbell, OctagonX, PenSquare, Plus, Sparkles } from "lucide-react";
@@ -51,6 +51,9 @@ interface WeeklyDashboardStats {
   caloriesTotal: number | null;
   usesDefaultBodyWeightForCalories: boolean;
   completedWorkouts: WeeklyStatsWorkoutEntry[];
+  weeklyWeightGoal?: number;
+  weeklyCaloriesGoal?: number;
+  weeklyWorkoutCountGoal?: number;
 }
 
 const ACTIVE_SESSION_PILL_CLASS = "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500";
@@ -62,7 +65,10 @@ const EMPTY_WEEKLY_STATS: WeeklyDashboardStats = {
   totalWeight: 0,
   caloriesTotal: null,
   usesDefaultBodyWeightForCalories: false,
-  completedWorkouts: []
+  completedWorkouts: [],
+  weeklyWeightGoal: undefined,
+  weeklyCaloriesGoal: undefined,
+  weeklyWorkoutCountGoal: undefined
 };
 
 function getWeekStart(date: Date) {
@@ -72,6 +78,10 @@ function getWeekStart(date: Date) {
   target.setHours(0, 0, 0, 0);
   target.setDate(target.getDate() + diff);
   return target;
+}
+
+function normalizeWeeklyGoal(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
 function PlayFilledIcon({ className }: { className?: string }) {
@@ -93,9 +103,15 @@ export function StatisticsPage() {
 function DashboardPageContent({ section }: { section: "workouts" | "statistics" }) {
   const { t, language, weightUnit } = useSettings();
   const navigate = useNavigate();
-  const weekStart = useMemo(() => getWeekStart(new Date()), []);
+  const [clockTick, setClockTick] = useState(() => Date.now());
+  const weekStart = useMemo(() => getWeekStart(new Date(clockTick)), [clockTick]);
   const [discardConfirmSessionId, setDiscardConfirmSessionId] = useState<number | null>(null);
   const [isCreatingStarterWorkout, setIsCreatingStarterWorkout] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockTick(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const workouts = useLiveQuery(async () => {
     const list = await db.workouts.toArray();
@@ -162,6 +178,10 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
   }, []);
 
   const weeklyStats = useLiveQuery<WeeklyDashboardStats>(async () => {
+    const settings = await db.settings.get(1);
+    const weeklyWeightGoal = normalizeWeeklyGoal(settings?.weeklyWeightGoal);
+    const weeklyCaloriesGoal = normalizeWeeklyGoal(settings?.weeklyCaloriesGoal);
+    const weeklyWorkoutCountGoal = normalizeWeeklyGoal(settings?.weeklyWorkoutCountGoal);
     const completedSessions = (await db.sessions.where("status").equals("completed").toArray())
       .filter((session) => new Date(session.finishedAt ?? session.startedAt) >= weekStart)
       .sort(
@@ -170,16 +190,20 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
       );
 
     if (completedSessions.length === 0) {
-      return EMPTY_WEEKLY_STATS;
+      return {
+        ...EMPTY_WEEKLY_STATS,
+        weeklyWeightGoal,
+        weeklyCaloriesGoal,
+        weeklyWorkoutCountGoal
+      };
     }
 
     const sessionIds = completedSessions.map((session) => session.id).filter((id): id is number => id !== undefined);
     const workoutIds = [...new Set(completedSessions.map((session) => session.workoutId))];
 
-    const [allSets, workoutsForStats, settings] = await Promise.all([
+    const [allSets, workoutsForStats] = await Promise.all([
       sessionIds.length ? db.sessionExerciseSets.where("sessionId").anyOf(sessionIds).toArray() : [],
       workoutIds.length ? db.workouts.where("id").anyOf(workoutIds).toArray() : [],
-      db.settings.get(1)
     ]);
 
     const setsBySessionId = new Map<number, SessionExerciseSet[]>();
@@ -256,9 +280,12 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
       totalWeight,
       caloriesTotal,
       usesDefaultBodyWeightForCalories: usesDefaultBodyWeight,
-      completedWorkouts
+      completedWorkouts,
+      weeklyWeightGoal,
+      weeklyCaloriesGoal,
+      weeklyWorkoutCountGoal
     };
-  }, [language, weekStart, weightUnit]);
+  }, [language, weekStart.getTime(), weightUnit]);
 
   const { activeWorkouts, inactiveWorkouts } = useMemo(() => {
     const active = (workouts ?? [])
@@ -281,6 +308,66 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
   const showWorkoutsSection = section === "workouts";
   const showStatsSection = section === "statistics";
   const hasActiveWorkout = activeWorkouts.length > 0;
+  const weeklyGoalItems = useMemo(() => {
+    if (!weeklyStats) {
+      return [];
+    }
+
+    const formatWithUnit = (value: number, unitLabel?: string) => {
+      const base = formatNumber(value, 0);
+      return unitLabel ? `${base} ${unitLabel}` : base;
+    };
+
+    const items: Array<{
+      key: "workouts" | "calories" | "weight";
+      label: string;
+      currentLabel: string;
+      targetLabel: string;
+      progressPercent: number;
+      isComplete: boolean;
+    }> = [];
+
+    if (weeklyStats.weeklyWorkoutCountGoal) {
+      const current = weeklyStats.workoutCount;
+      const target = weeklyStats.weeklyWorkoutCountGoal;
+      items.push({
+        key: "workouts",
+        label: t("workouts"),
+        currentLabel: formatWithUnit(current),
+        targetLabel: formatWithUnit(target),
+        progressPercent: Math.max(0, Math.min(100, Math.round((current / target) * 100))),
+        isComplete: current >= target
+      });
+    }
+
+    if (weeklyStats.weeklyCaloriesGoal) {
+      const current = weeklyStats.caloriesTotal ?? 0;
+      const target = weeklyStats.weeklyCaloriesGoal;
+      items.push({
+        key: "calories",
+        label: t("calories"),
+        currentLabel: formatWithUnit(current, "kcal"),
+        targetLabel: formatWithUnit(target, "kcal"),
+        progressPercent: Math.max(0, Math.min(100, Math.round((current / target) * 100))),
+        isComplete: current >= target
+      });
+    }
+
+    if (weeklyStats.weeklyWeightGoal) {
+      const current = weeklyStats.totalWeight;
+      const target = weeklyStats.weeklyWeightGoal;
+      items.push({
+        key: "weight",
+        label: t("totalWeight"),
+        currentLabel: formatWithUnit(current, weightUnit),
+        targetLabel: formatWithUnit(target, weightUnit),
+        progressPercent: Math.max(0, Math.min(100, Math.round((current / target) * 100))),
+        isComplete: current >= target
+      });
+    }
+
+    return items;
+  }, [weeklyStats, t, weightUnit]);
 
   const handleStartSession = async (workoutId: number) => {
     try {
@@ -560,6 +647,32 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
               </div>
             </CardContent>
           </Card>
+
+          {weeklyGoalItems.length > 0 && (
+            <section className="space-y-3">
+              <p className="text-base font-semibold leading-tight text-foreground/75">{t("weeklyGoals")}</p>
+              <Card>
+                <CardContent className="space-y-2 pt-4">
+                  {weeklyGoalItems.map((goal) => (
+                    <div key={goal.key} className="rounded-md border bg-background px-2.5 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs text-muted-foreground">{goal.label}</p>
+                        <p className="text-xs font-medium tabular-nums">
+                          {goal.currentLabel} / {goal.targetLabel}
+                        </p>
+                      </div>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
+                        <div
+                          className={`h-full rounded-full transition-all ${goal.isComplete ? "bg-emerald-500" : "bg-primary"}`}
+                          style={{ width: `${goal.progressPercent}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </section>
+          )}
         </section>
       )}
 
