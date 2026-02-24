@@ -7,6 +7,7 @@ import { useSettings } from "@/app/settings-context";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { Button } from "@/components/ui/button";
+import { WorkoutNameLabel } from "@/components/workouts/workout-name-label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -252,7 +253,9 @@ export function SessionPage() {
     <section className="space-y-4 pb-6">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <p className="text-base font-semibold leading-tight text-foreground/75">{payload.workout.workout.name}</p>
+          <p className="text-base font-semibold leading-tight text-foreground/75">
+            <WorkoutNameLabel name={payload.workout.workout.name} icon={payload.workout.workout.icon} />
+          </p>
           {!isCompleted && (
             <div className="flex flex-wrap items-center gap-2">
               <span className={ACTIVE_SESSION_PILL_CLASS}>

@@ -7,6 +7,12 @@ import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-d
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -17,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { WorkoutIconGlyph } from "@/components/workouts/workout-name-label";
 import {
   createWorkout,
   deleteWorkout,
@@ -33,6 +40,7 @@ import {
   matchExerciseCatalogEntry
 } from "@/lib/exercise-catalog";
 import { isCanonicalMuscleKey } from "@/lib/muscle-taxonomy";
+import { WORKOUT_ICON_OPTIONS } from "@/lib/workout-icons";
 
 interface WorkoutEditorPageProps {
   mode: "create" | "edit";
@@ -56,6 +64,7 @@ interface GenerateExerciseInfoOptions {
 function createEmptyDraft(): WorkoutDraft {
   return {
     name: "",
+    icon: undefined,
     exercises: [
       {
         name: "",
@@ -230,6 +239,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
 
       setDraft({
         name: existing.workout.name,
+        icon: existing.workout.icon,
         exercises: existing.exercises.map((item) => ({
           name: item.exercise.name,
           notes: item.exercise.notes ?? "",
@@ -625,24 +635,97 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
     };
   }, [mode, handleSave]);
 
+  const hasExercises = draft.exercises.length > 0;
+  const areAllExercisesCollapsed =
+    hasExercises && draft.exercises.every((_, exerciseIndex) => collapsedExercises[exerciseIndex] ?? false);
+
+  const handleToggleAllExercisesCollapsed = () => {
+    setCollapsedExercises(() => {
+      if (areAllExercisesCollapsed) {
+        return {};
+      }
+
+      const next: Record<number, boolean> = {};
+      for (let exerciseIndex = 0; exerciseIndex < draft.exercises.length; exerciseIndex += 1) {
+        next[exerciseIndex] = true;
+      }
+      return next;
+    });
+  };
+
   return (
     <section className="space-y-4">
 
       <Card>
         <CardContent className="space-y-2 pt-2">
-          <label className="text-xs text-muted-foreground">{t("workoutName")}</label>
-          <Input
-            id="workout-name"
-            value={draft.name}
-            onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
-            placeholder={t("workoutNamePlaceholder")}
-          />
+          <label className="text-xs text-muted-foreground" htmlFor="workout-name">
+            {t("workoutName")}
+          </label>
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={t("workoutIcon")}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-input bg-background text-sm ring-offset-background transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <WorkoutIconGlyph icon={draft.icon} className={!draft.icon ? "opacity-0" : undefined} />
+                  {!draft.icon && <span className="text-muted-foreground">+</span>}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[9.5rem]">
+                <div className="grid grid-cols-3 gap-1">
+                  <DropdownMenuItem
+                    aria-label={t("workoutIconNone")}
+                    onSelect={() => setDraft((prev) => ({ ...prev, icon: undefined }))}
+                    className={`h-11 w-11 cursor-pointer justify-center rounded-md p-0 ${
+                      !draft.icon ? "bg-secondary text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </DropdownMenuItem>
+                  {WORKOUT_ICON_OPTIONS.map((option) => (
+                    <DropdownMenuItem
+                      key={option.value}
+                      aria-label={option.label[language]}
+                      onSelect={() => setDraft((prev) => ({ ...prev, icon: option.value }))}
+                      className={`h-11 w-11 cursor-pointer justify-center rounded-md p-0 ${
+                        draft.icon === option.value ? "bg-secondary text-foreground" : "text-muted-foreground"
+                      }`}
+                    >
+                      <WorkoutIconGlyph icon={option.value} className="h-4 w-4 text-inherit" />
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Input
+              id="workout-name"
+              value={draft.name}
+              onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
+              placeholder={t("workoutNamePlaceholder")}
+              className="min-w-0 flex-1"
+            />
+          </div>
         </CardContent>
       </Card>
 
-      <h2 className="inline-flex items-center gap-2 text-base font-semibold">
-        {t("exercises")}
-      </h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="inline-flex items-center gap-2 text-base font-semibold">
+          {t("exercises")}
+        </h2>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="h-7 gap-1 px-2 text-xs"
+          onClick={handleToggleAllExercisesCollapsed}
+          disabled={!hasExercises}
+        >
+          <ChevronDown className={`h-3 w-3 shrink-0 ${areAllExercisesCollapsed ? "-rotate-90" : ""}`} />
+          {areAllExercisesCollapsed ? t("expandAllExercises") : t("collapseAllExercises")}
+        </Button>
+      </div>
 
       {draft.exercises.map((exercise, exerciseIndex) => {
         const collapsed = collapsedExercises[exerciseIndex] ?? false;

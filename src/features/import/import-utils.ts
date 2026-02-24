@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { WorkoutDraft } from "@/db/repository";
 import type { AppLanguage } from "@/db/types";
+import { WORKOUT_ICON_OPTIONS, normalizeWorkoutIconKey, type WorkoutIconKey } from "@/lib/workout-icons";
 
 const setSchema = z.object({
   targetReps: z.number().int().positive(),
@@ -16,6 +17,7 @@ const exerciseSchema = z.object({
 
 const workoutSchema = z.object({
   name: z.string().min(1),
+  icon: z.custom<WorkoutIconKey>((value) => normalizeWorkoutIconKey(value) !== undefined).optional(),
   exercises: z.array(exerciseSchema).min(1)
 });
 
@@ -26,6 +28,8 @@ export const importSchema = z.object({
 });
 
 export type TrainingPlanImportV1 = z.infer<typeof importSchema>;
+
+const importIconKeyList = WORKOUT_ICON_OPTIONS.map((option) => option.value).join(", ");
 
 function toNumber(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -95,10 +99,21 @@ export function repairImportPayload(raw: unknown): RepairResult {
 
     const workoutSource = rawWorkout as Record<string, unknown>;
     const workoutName = typeof workoutSource.name === "string" ? workoutSource.name.trim() : "";
+    const rawWorkoutIcon = workoutSource.icon;
+    const workoutIcon = normalizeWorkoutIconKey(rawWorkoutIcon);
 
     if (!workoutName) {
       changes.push(`workout[${workoutIndex}] removed (missing name)`);
       return;
+    }
+    if (rawWorkoutIcon !== undefined) {
+      if (typeof rawWorkoutIcon === "string" && !workoutIcon) {
+        changes.push(`workout[${workoutIndex}].icon removed (unsupported icon)`);
+      } else if (typeof rawWorkoutIcon !== "string") {
+        changes.push(`workout[${workoutIndex}].icon removed (must be string)`);
+      } else if (rawWorkoutIcon.trim() !== workoutIcon) {
+        changes.push(`workout[${workoutIndex}].icon normalized to "${workoutIcon}"`);
+      }
     }
 
     if (!Array.isArray(workoutSource.exercises)) {
@@ -203,6 +218,7 @@ export function repairImportPayload(raw: unknown): RepairResult {
 
     repairedWorkouts.push({
       name: workoutName,
+      ...(workoutIcon ? { icon: workoutIcon } : {}),
       exercises: repairedExercises
     });
   });
@@ -234,6 +250,7 @@ export function repairImportPayload(raw: unknown): RepairResult {
 
   const drafts: WorkoutDraft[] = validation.data.workouts.map((workout) => ({
     name: workout.name,
+    icon: workout.icon,
     exercises: workout.exercises.map((exercise) => ({
       name: exercise.name,
       notes: exercise.notes,
@@ -262,9 +279,10 @@ Regeln:
 2) targetReps und targetWeight müssen Zahlen sein (kein String, kein null).
 3) targetWeight darf 0 sein, wenn kein Gewicht angegeben ist.
 4) Optional: "x2Enabled": true nur setzen, wenn die Übung als 2x markiert ist (sonst Feld weglassen)
-5) Das Feld "notes" nur einfügen, wenn wirklich eine Anmerkung vorhanden ist – sonst weglassen.
-6) Nur die Felder aus dem Schema verwenden – keine Extrafelder.
-7) Jede Übung braucht mindestens einen Satz.
+5) Optional: "icon" nur auf Workout-Ebene setzen. Erlaubte Werte: ${importIconKeyList}
+6) Das Feld "notes" nur einfügen, wenn wirklich eine Anmerkung vorhanden ist – sonst weglassen.
+7) Nur die Felder aus dem Schema verwenden – keine Extrafelder.
+8) Jede Übung braucht mindestens einen Satz.
 
 Schema:
 {
@@ -273,6 +291,7 @@ Schema:
   "workouts": [
     {
       "name": "Oberkörper A",
+      "icon": "dumbbell",
       "exercises": [
         {
           "name": "Bankdrücken",
@@ -302,9 +321,10 @@ Rules:
 2) targetReps and targetWeight must be numbers (not strings, not null).
 3) targetWeight may be 0 if no weight is specified.
 4) Optional: include "x2Enabled": true only if the exercise is marked as 2x (otherwise omit the field).
-5) Only include the "notes" field if there is an actual note – omit it otherwise.
-6) Use only the schema fields – no extra fields.
-7) Every exercise needs at least one set.
+5) Optional: include "icon" only at workout level. Allowed values: ${importIconKeyList}
+6) Only include the "notes" field if there is an actual note – omit it otherwise.
+7) Use only the schema fields – no extra fields.
+8) Every exercise needs at least one set.
 
 Schema:
 {
@@ -313,6 +333,7 @@ Schema:
   "workouts": [
     {
       "name": "Upper Body A",
+      "icon": "dumbbell",
       "exercises": [
         {
           "name": "Bench Press",

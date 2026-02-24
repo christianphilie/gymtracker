@@ -1,4 +1,5 @@
 import Dexie, { type Table } from "dexie";
+import { isWorkoutIconKey } from "@/lib/workout-icons";
 import type {
   Exercise,
   ExerciseTemplateSet,
@@ -235,6 +236,25 @@ class GymTrackerDB extends Dexie {
         await tx.table("sessionExerciseSets").toCollection().modify((set: Record<string, unknown>) => {
           if (set.x2Enabled === undefined) {
             set.x2Enabled = false;
+          }
+        });
+      });
+
+    this.version(10)
+      .stores({
+        settings: "id, language, weightUnit",
+        workouts: "++id, name, createdAt, updatedAt",
+        exercises: "++id, workoutId, name, order, isTemplate, x2Enabled",
+        exerciseTemplateSets: "++id, exerciseId, order",
+        sessions: "++id, workoutId, status, startedAt, finishedAt",
+        sessionExerciseSets:
+          "++id, sessionId, templateExerciseId, sessionExerciseKey, isTemplateExercise, completed, x2Enabled",
+        updateSafetySnapshots: "++id, createdAt, appVersion, previousAppVersion"
+      })
+      .upgrade(async (tx) => {
+        await tx.table("workouts").toCollection().modify((workout: Record<string, unknown>) => {
+          if (workout.icon !== undefined && !isWorkoutIconKey(workout.icon)) {
+            delete workout.icon;
           }
         });
       });

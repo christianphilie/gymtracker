@@ -20,6 +20,7 @@ import type {
 
 interface WorkoutDraft {
   name: string;
+  icon?: Workout["icon"];
   exercises: Array<{
     name: string;
     notes?: string;
@@ -439,6 +440,7 @@ async function createWorkoutRecord(draft: WorkoutDraft) {
   const now = nowIso();
   const workout: Workout = {
     name: draft.name.trim(),
+    icon: draft.icon,
     createdAt: now,
     updatedAt: now,
     archivedAt: null
@@ -503,6 +505,7 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
     async () => {
       await db.workouts.update(workoutId, {
         name: draft.name.trim(),
+        icon: draft.icon,
         updatedAt: nowIso()
       });
 
@@ -590,6 +593,7 @@ export async function ensureDefaultWorkout() {
 
   await createWorkout({
     name: "Oberkörper",
+    icon: "dumbbell",
     exercises: [
       {
         name: "Brustpresse (Maschine)",
@@ -653,6 +657,7 @@ export async function ensureDefaultWorkout() {
 
   await createWorkout({
     name: "Unterkörper",
+    icon: "footprints",
     exercises: [
       {
         name: "Beinpresse",
@@ -1302,6 +1307,7 @@ export async function seedDemoDataIfEmpty() {
 
   await createWorkout({
     name: "Upper Body A",
+    icon: "dumbbell",
     exercises: [
       {
         name: "Bench Press",

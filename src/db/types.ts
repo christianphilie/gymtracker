@@ -3,6 +3,24 @@ import type { CanonicalMuscleKey } from "../lib/muscle-taxonomy";
 export type AppLanguage = "de" | "en";
 export type WeightUnit = "kg" | "lb";
 export type ColorScheme = "light" | "dark" | "system";
+export type WorkoutIconKey =
+  | "dumbbell"
+  | "target"
+  | "flame"
+  | "zap"
+  | "heart-pulse"
+  | "shield"
+  | "footprints"
+  | "mountain"
+  | "activity"
+  | "repeat"
+  | "arrow-up"
+  | "arrow-down"
+  | "chevrons-up"
+  | "chevrons-down"
+  | "shirt"
+  | "person-standing"
+  | "swords";
 
 export interface Settings {
   id: number;
@@ -26,6 +44,7 @@ export interface Settings {
 export interface Workout {
   id?: number;
   name: string;
+  icon?: WorkoutIconKey;
   createdAt: string;
   updatedAt: string;
   archivedAt?: string | null;

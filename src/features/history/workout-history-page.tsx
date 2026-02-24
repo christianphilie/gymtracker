@@ -5,6 +5,7 @@ import { Check, Pencil, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
+import { WorkoutNameLabel } from "@/components/workouts/workout-name-label";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -310,7 +311,9 @@ export function WorkoutHistoryPage() {
     <section className="space-y-4">
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-1">
-          <p className="text-sm font-medium">{payload.workout.workout.name}</p>
+          <p className="text-sm font-medium">
+            <WorkoutNameLabel name={payload.workout.workout.name} icon={payload.workout.workout.icon} />
+          </p>
         </div>
         <p className="text-xs text-muted-foreground">
           {t("completedThisWeek")}: {completedThisWeek}

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { WorkoutNameLabel } from "@/components/workouts/workout-name-label";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
@@ -37,7 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { db } from "@/db/db";
 import { discardSession, ensureDefaultWorkout, startSession } from "@/db/repository";
-import type { ExerciseAiInfo, SessionExerciseSet } from "@/db/types";
+import type { ExerciseAiInfo, SessionExerciseSet, Workout } from "@/db/types";
 import { useSettings } from "@/app/settings-context";
 import {
   estimateStrengthTrainingCalories,
@@ -66,6 +67,7 @@ import {
 interface WorkoutListItem {
   id?: number;
   name: string;
+  icon?: Workout["icon"];
   exerciseCount: number;
   estimatedDurationMinutes: number;
   lastSessionAt?: string;
@@ -673,7 +675,9 @@ function DashboardPageContent({ section }: { section: "workouts" | "statistics" 
       <Card key={workout.id}>
         <CardHeader className="flex-row items-start justify-between space-y-0">
           <div className="space-y-1">
-            <CardTitle>{workout.name}</CardTitle>
+            <CardTitle>
+              <WorkoutNameLabel name={workout.name} icon={workout.icon} />
+            </CardTitle>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>
                 {workout.exerciseCount} {t("exercises")}

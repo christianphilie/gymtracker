@@ -5,6 +5,7 @@ import { ArrowRight, Copy, File, Sparkles, Type } from "lucide-react";
 import { useSettings } from "@/app/settings-context";
 import { APP_VERSION } from "@/app/version";
 import { Button } from "@/components/ui/button";
+import { WorkoutNameLabel } from "@/components/workouts/workout-name-label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -215,7 +216,9 @@ export function ImportPage() {
                   <p className="text-sm font-medium">{t("previewImport")}</p>
                   {repairResult.drafts.map((workout) => (
                     <div key={workout.name} className="rounded-md border p-2 text-sm">
-                      <p className="font-medium">{workout.name}</p>
+                      <p className="font-medium">
+                        <WorkoutNameLabel name={workout.name} icon={workout.icon} />
+                      </p>
                       <p className="text-xs text-muted-foreground">{workout.exercises.length} {t("exercises")}</p>
                     </div>
                   ))}
