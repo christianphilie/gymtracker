@@ -4,6 +4,19 @@
 
 ---
 
+## 1.1.1 - 2026-02-24
+
+### Added
+1. Workout editor now asks in an in-app dialog before removing and regenerating exercise AI info when all exercises already have info.
+
+### Changed
+1. Exercise-info generation wording now frames the action as creating info with AI (instead of loading) and adds a short UI notice that workout data is briefly sent to an AI API for processing.
+2. Muscle-groups empty-state hint copy was rewritten, centered, and padded directly inside the card for clearer guidance.
+3. AI import privacy hint no longer claims that submitted text is not stored permanently.
+
+### Fixed
+1. Exercise-info AI prompts now enforce the selected app language more explicitly, including informal German (`du/dein`) in generated execution tips and coaching tips.
+
 ## 1.1.0 - 2026-02-24
 
 ### Added
