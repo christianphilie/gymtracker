@@ -4,6 +4,17 @@
 
 ---
 
+## 1.2.3 - 2026-02-25
+
+### Changed
+1. Active-session resume behavior now restores the exact previous scroll position of the session view (per session) instead of relying on the earlier set-jump resume behavior.
+2. Dashboard/Home warning-style accents were aligned by reusing shared amber CSS variables for the rest-timer expiry bar and the recommended-workout badge.
+3. Small onboarding/import wording tweaks were applied in DE/EN copy (manual workout creation hint and AI import entry hint).
+
+### Fixed
+1. Active-session auto-reorder animation and scroll compensation now run after the reordered exercise list is actually rendered, which prevents abrupt/no-op movement in some cases.
+2. Resume navigation into an active session no longer lands at the top because route-transition cleanup briefly overwrote the stored position.
+
 ## 1.2.2 - 2026-02-24
 
 ### Changed
