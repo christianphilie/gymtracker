@@ -9,7 +9,7 @@
 6. zod validation for import schema.
 7. vite-plugin-pwa for installability/offline shell.
 8. zod validation for full-app backup import payload.
-9. Optional Vercel serverless function for AI import (`/api/ai-import`).
+9. AI helper endpoints in `api/` (`/api/ai-import`, `/api/exercise-info`) for server-side Groq-backed features (local dev via Vite middleware, production via server runtime).
 10. Lucide React for icons (ISC license).
 
 ## App Architecture
@@ -24,6 +24,9 @@
 
 4. `src/features/`:
 - dashboard, workouts, sessions, history, import, settings, legal, privacy.
+
+5. `api/`:
+- Server-side handlers used in local dev (via Vite middleware) and production runtime (`/api/ai-import`, `/api/exercise-info`).
 
 ## Data Model (Dexie)
 1. `settings`: language, weightUnit, colorScheme, restTimerSeconds.
@@ -51,7 +54,7 @@
 9. Previous-session comparison hints must be derived from completed sets only.
 10. On app version change, the app stores one full safety snapshot before users continue normal usage.
 11. Unit switch (`kg/lb`) converts stored template/session weights; no unit relabel-only mode.
-12. Rest timer starts after first checked set and uses configurable duration from settings (2/3/5 minutes).
+12. Rest timer starts after the first checked set and uses a configurable duration from settings (1/2/3/5 minutes), with a separate on/off toggle.
 13. Rest timer can be paused/resumed manually and resets when a newer set completion timestamp appears.
 14. Completed sessions are mutable via history tooling (edit values/check-state or delete whole session with confirmation).
 
@@ -101,10 +104,11 @@
 3. Restore is replace-mode only (existing local data is fully overwritten after explicit confirmation).
 4. Backup transfer is the V1 mechanism for cross-device migration without accounts/backend.
 
-## AI Import Endpoint
+## AI Endpoints
 1. Client can submit plain plan text to `/api/ai-import`.
-2. Endpoint uses deployment secret `GROQ_API_KEY` and model `llama-3.3-70b-versatile`; returns JSON text.
-3. Frontend still runs local preview/validation flow before import persistence.
+2. Workout editor can request exercise metadata enrichment via `/api/exercise-info`.
+3. Endpoints use deployment secret `GROQ_API_KEY` and model `llama-3.3-70b-versatile`.
+4. Frontend keeps local validation/preview behavior for import and has local fallback handling when AI endpoints are unavailable.
 
 ## Conservative Auto-Repair Rules
 1. Allowed:
@@ -121,4 +125,4 @@
 1. No backend means no real-time cross-device sync (backup transfer is manual).
 2. PWA offline is intentionally basic for V1.
 3. Import merge policy may create duplicates by design.
-4. Session/template model plus operational safety checkpoints add migration complexity (Dexie schema v5).
+4. Session/template model plus operational safety checkpoints add migration complexity (versioned Dexie migrations; see `src/app/version.ts` for the current schema constant).

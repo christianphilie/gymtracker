@@ -15,6 +15,7 @@ People who already have a training plan (e.g., from coach/PDF) and want fast log
 6. Resume active sessions safely after app/page exit.
 7. Export all local data and import it on another device.
 8. Review and edit completed session history per workout.
+9. Optionally enrich exercise entries with AI-generated info (muscle targeting/coaching tips) without requiring an account.
 
 ## Out of Scope (V1)
 1. Login and backend sync.
@@ -57,7 +58,7 @@ People who already have a training plan (e.g., from coach/PDF) and want fast log
 - Language: DE/EN.
 - Weight unit: kg/lb.
 - Color scheme: Light / Dark / System.
-- Rest timer duration: 2 / 3 / 5 minutes.
+- Rest timer visibility toggle and duration: 1 / 2 / 3 / 5 minutes.
 - Show current app version in settings.
 - Keep legal/license page reachable from app navigation/footer.
 - Export/import full app backup (all local entities) with explicit overwrite confirmation.

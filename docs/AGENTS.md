@@ -1,12 +1,5 @@
 # Agent & Handoff Notes
 
-This document consolidates the former root `AGENTS.md` notes and `docs/AGENT_HANDOFF.md`.
-
-## UI Copy Style
-
-- UI strings that consist of a single sentence should not end with a period
-- Keep periods for multi-sentence text and numbered step instructions
-
 ## Quick Start
 
 1. `npm install`
@@ -69,6 +62,11 @@ This document consolidates the former root `AGENTS.md` notes and `docs/AGENT_HAN
 13. The app must not auto-seed starter workouts on launch
 14. `ensureDefaultWorkout` is an explicit dashboard intro action and must be idempotent when workouts already exist
 15. `clearAllData` must not silently recreate starter workouts
+
+## UI Copy Style
+
+- UI strings that consist of a single sentence should not end with a period
+- Keep periods for multi-sentence text and numbered step instructions
 
 ## Extension Guidelines
 

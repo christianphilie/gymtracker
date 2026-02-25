@@ -69,7 +69,7 @@ A minimalist workout tracking app built as a PWA — for people who already have
 | PWA        | vite-plugin-pwa                                      |
 | Toasts     | Sonner                                               |
 
-All data is stored locally in the browser (IndexedDB) — no server, no account.
+All workout/session data is stored locally in the browser (IndexedDB) — no account required. Optional AI features use server endpoints.
 
 ## 🚀 Installation & Development
 
@@ -99,17 +99,17 @@ The app is designed as a Progressive Web App and can be installed on the home sc
 **Android:** Chrome → Menu → “Install app”
 **Desktop:** Click the install icon in the address bar
 
-## 🤖 AI Import (optional)
+## 🤖 AI Features (optional)
 
-The AI-powered import tab requires a server endpoint (`/api/ai-import`).
-It uses `GROQ_API_KEY` as an environment variable and the model `llama-3.3-70b-versatile`.
+AI-powered import and exercise-info enrichment require server endpoints (`/api/ai-import`, `/api/exercise-info`).
+Both use `GROQ_API_KEY` as an environment variable and the model `llama-3.3-70b-versatile`.
 
-Without this endpoint, the manual import (copy prompt → use your own AI → paste JSON) continues to work fully without any configuration.
+Without these endpoints, the manual import flow (copy prompt → use your own AI → paste JSON) continues to work without extra configuration.
 
 ## 📁 Project Structure
 
 ```
-api/             # Optional AI import endpoint
+api/             # Optional AI helper endpoints (/api/ai-import, /api/exercise-info)
 src/
 ├── app/          # Router, Settings context
 ├── components/   # Shared UI primitives, App shell
@@ -123,7 +123,6 @@ docs/             # Product requirements, tech spec, release notes, ...
 * [`docs/AGENTS.md`](docs/AGENTS.md) (agent/handoff notes)
 * [`docs/PRODUCT_REQUIREMENTS.md`](docs/PRODUCT_REQUIREMENTS.md)
 * [`docs/TECH_SPEC.md`](docs/TECH_SPEC.md)
-* [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)
-* [`docs/TODO.md`](docs/TODO.md)
+* [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) (current focus + backlog)
 * [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md)
 * [`docs/TRAINING_PLAN_IMPORT_SCHEMA_V1.json`](docs/TRAINING_PLAN_IMPORT_SCHEMA_V1.json)

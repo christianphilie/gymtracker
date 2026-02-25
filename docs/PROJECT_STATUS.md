@@ -1,14 +1,29 @@
 # Project Status
 
-Consolidated status document replacing `IMPLEMENTATION_PLAN.md` and `IMPLEMENTATION_STATUS.md`.
+Consolidated status and backlog document replacing the older split between implementation/status planning docs and `docs/TODO.md`.
+
+`docs/RELEASE_NOTES.md` is the source of truth for shipped changes. This file should track current focus and open backlog, not duplicate a long "Done" list.
 
 ## Current Focus
 
 1. Test coverage for import, session lifecycle, destructive flows, and backup/update-safety paths
 2. Security triage for dev-tooling `npm audit` findings
-3. Xcode/iOS wrapper migration prep (WebView storage/API parity, file import/export behavior, routing behavior)
-4. Continue modular refactors for remaining large feature files (`workout-editor-page`, `session-page`)
-5. General UX polish and hardening
+3. Add a basic ErrorBoundary and user-friendly fallback UI
+4. Xcode/iOS wrapper migration prep (WebView storage/API parity, file import/export behavior, routing behavior)
+5. Continue modular refactors for remaining large feature files (`workout-editor-page`, `session-page`)
+6. General UX polish and hardening
+
+## Next Up (Prioritized Backlog)
+
+1. Add targeted tests for active-session resume/discard/template-overwrite flows
+2. Add tests for destructive flows (`deleteWorkout`, `clearAllData`) and confirm-dialog behavior
+3. Add tests for backup export/import integrity across all IndexedDB tables
+4. Add tests for automatic update safety snapshots (create, retain latest 3, restore)
+5. Add tests for weight-unit conversion behavior across template and session values
+6. Add tests for `/api/ai-import` and `/api/exercise-info`, plus fallback UX when backend env is missing
+7. Add tests for history session edit/delete actions (including DB integrity after remove)
+8. Add tests for rest-timer behavior (starts on first completed set, configurable 1/2/3/5 minute threshold)
+9. Add tests for top-bar timer pause/resume interactions and reset-on-new-check behavior
 
 ## Completed Milestones
 
@@ -28,45 +43,17 @@ Consolidated status document replacing `IMPLEMENTATION_PLAN.md` and `IMPLEMENTAT
 14. Dark mode (Light / Dark / System) and broader settings polish (icons, grouped cards, dialogs)
 15. Ongoing maintainability refactor: dashboard/statistics pages, settings tabs, and repository domains were split into smaller focused modules without behavior changes
 
-## Historical Phase Plan (Snapshot)
+## Later / Optional Backlog
 
-### Phase 1: Foundation
-Status: Completed
-- Vite + React + TypeScript setup
-- Tailwind theme tokens
-- Shared app shell and router
+1. Workout archive/delete
+2. Richer history filters (date ranges, PR highlights, volume rollups)
+3. Optional cloud/login phase (V2+): evaluate a lightweight backend path (for example Vercel serverless + Supabase) and a first-login Dexie migration strategy
+4. Revisit the `x2` concept only if current semantics/UX prove confusing in real use (otherwise keep current model)
+5. Home page enhancement ideas (today card, quick actions, recently used shortcuts, weekly highlights, recommended next workout, unfinished drafts, reminders)
 
-### Phase 2: Local Data Layer
-Status: Completed
-- Dexie schema
-- Repository abstraction
-- Settings bootstrap
+## References
 
-### Phase 3: Core Workflows
-Status: Completed
-- Dashboard and workout cards
-- Workout editor
-- Session tracking with target/actual and check-off
-- Last session snapshot in active flow
-
-### Phase 4: Import Differentiator
-Status: Completed
-- LLM prompt copy helper
-- JSON paste/manual import flow
-- Validation + conservative repair + preview before import
-- Import persistence
-
-### Phase 5: Stabilization
-Status: In Progress
-- Automated tests
-- Security triage for dev tooling vulnerabilities
-- UX copy cleanup and state polish
-- Data portability hardening (backup export/import validation)
-
-### Phase 6: Optional V1.1
-Status: Planned
-- Workout archive/delete
-
-## Backlog Reference
-
-See `docs/TODO.md` for the full backlog and detailed next tasks.
+1. `docs/RELEASE_NOTES.md` for shipped features and fixes (chronological)
+2. `docs/SECURITY_NOTES.md` for audit snapshot + triage guidance
+3. `docs/PRODUCT_REQUIREMENTS.md` for functional scope expectations
+4. `docs/TECH_SPEC.md` for implementation-level architecture notes
