@@ -4,6 +4,18 @@
 
 ---
 
+## 1.2.4 - 2026-02-25
+
+### Added
+1. Completed-session edit dialog in session history now supports adding and removing sets per exercise (matching the active session/workout editing flow more closely).
+
+### Changed
+1. Exercise info `(i)` buttons in session-history exercise rows and the history edit dialog are now inline with the exercise name and scale with the surrounding text size.
+
+### Fixed
+1. Session-history edit dialog `Beginn der Session` / `Ende der Session` datetime inputs now keep a stable mobile-friendly size on iPhone Safari (preventing oversized field rendering/zoom-like layout issues).
+2. Saving edits to completed sessions now persists set-count changes correctly (new sets are created and removed sets are deleted, not only existing sets updated).
+
 ## 1.2.3 - 2026-02-25
 
 ### Changed
