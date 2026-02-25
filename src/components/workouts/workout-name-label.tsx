@@ -1,6 +1,9 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
+  ArrowLeft,
+  ArrowLeftRight,
+  ArrowRight,
   ArrowDown,
   ArrowUp,
   ChevronsDown,
@@ -34,6 +37,9 @@ const workoutIconMap: Record<WorkoutIconKey, LucideIcon> = {
   repeat: Repeat,
   "arrow-up": ArrowUp,
   "arrow-down": ArrowDown,
+  "arrow-right": ArrowRight,
+  "arrow-left": ArrowLeft,
+  "arrow-left-right": ArrowLeftRight,
   "chevrons-up": ChevronsUp,
   "chevrons-down": ChevronsDown,
   shirt: Shirt,
