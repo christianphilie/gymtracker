@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, Pencil, Save, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
@@ -37,11 +37,14 @@ import {
 import { formatNumber, formatSessionDateLabel, getSetStatsMultiplier } from "@/lib/utils";
 
 interface EditableSessionSet {
-  id: number;
+  id?: number;
+  templateExerciseId?: number;
   sessionExerciseKey: string;
   exerciseName: string;
+  exerciseNotes?: string;
   exerciseAiInfo?: ExerciseAiInfo;
   exerciseOrder: number;
+  isTemplateExercise: boolean;
   templateSetOrder: number;
   x2Enabled: boolean;
   actualReps: number;
@@ -137,6 +140,7 @@ export function WorkoutHistoryPage() {
   const [editingSessionStartedAtDraft, setEditingSessionStartedAtDraft] = useState("");
   const [editingSessionFinishedAtDraft, setEditingSessionFinishedAtDraft] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const nextEditingDraftSetIdRef = useRef(-1);
 
   const payload = useLiveQuery(async () => {
     if (Number.isNaN(numericWorkoutId)) {
@@ -229,9 +233,12 @@ export function WorkoutHistoryPage() {
     setEditingSets([]);
     setEditingSessionStartedAtDraft("");
     setEditingSessionFinishedAtDraft("");
+    nextEditingDraftSetIdRef.current = -1;
   };
 
   const startEditSession = (entry: WorkoutSessionHistoryItem) => {
+    nextEditingDraftSetIdRef.current = -1;
+
     const editable = entry.sets
       .filter((set): set is typeof set & { id: number } => set.id !== undefined)
       .sort((a, b) => {
@@ -240,12 +247,15 @@ export function WorkoutHistoryPage() {
       })
       .map((set) => ({
         id: set.id,
+        templateExerciseId: set.templateExerciseId,
         sessionExerciseKey: set.sessionExerciseKey,
         exerciseName: set.exerciseName,
+        exerciseNotes: set.exerciseNotes,
         exerciseAiInfo:
           set.exerciseAiInfo ??
           (set.templateExerciseId !== undefined ? templateExerciseInfoMap?.get(set.templateExerciseId) : undefined),
         exerciseOrder: set.exerciseOrder,
+        isTemplateExercise: set.isTemplateExercise,
         templateSetOrder: set.templateSetOrder,
         x2Enabled: set.x2Enabled ?? false,
         actualReps: set.actualReps ?? set.targetReps,
@@ -272,6 +282,52 @@ export function WorkoutHistoryPage() {
       .sort((a, b) => a[0].exerciseOrder - b[0].exerciseOrder);
   }, [editingSets]);
 
+  const addEditingSet = (sessionExerciseKey: string) => {
+    setEditingSets((prev) => {
+      const exerciseSets = prev
+        .filter((set) => set.sessionExerciseKey === sessionExerciseKey)
+        .sort((a, b) => a.templateSetOrder - b.templateSetOrder);
+      const lastSet = exerciseSets[exerciseSets.length - 1];
+      if (!lastSet) {
+        return prev;
+      }
+
+      const nextTemplateSetOrder = lastSet.templateSetOrder + 1;
+      const nextDraftSetId = nextEditingDraftSetIdRef.current;
+      nextEditingDraftSetIdRef.current -= 1;
+
+      return [
+        ...prev,
+        {
+          ...lastSet,
+          id: nextDraftSetId,
+          templateSetOrder: nextTemplateSetOrder,
+          actualReps: lastSet.actualReps,
+          actualWeight: lastSet.actualWeight,
+          completed: false
+        }
+      ];
+    });
+  };
+
+  const removeLastEditingSet = (sessionExerciseKey: string) => {
+    setEditingSets((prev) => {
+      const exerciseSets = prev
+        .filter((set) => set.sessionExerciseKey === sessionExerciseKey)
+        .sort((a, b) => a.templateSetOrder - b.templateSetOrder);
+      const lastSet = exerciseSets[exerciseSets.length - 1];
+      if (!lastSet) {
+        return prev;
+      }
+
+      if (exerciseSets.length <= 1) {
+        return prev.filter((set) => set.sessionExerciseKey !== sessionExerciseKey);
+      }
+
+      return prev.filter((set) => set.id !== lastSet.id);
+    });
+  };
+
   const handleSaveSessionEdit = async () => {
     if (!editingSessionId) return;
 
@@ -284,10 +340,29 @@ export function WorkoutHistoryPage() {
 
     setIsSavingEdit(true);
     try {
+      const normalizedEditingSets = groupedEditingSets.flatMap((sets, exerciseIndex) =>
+        [...sets]
+          .sort((a, b) => a.templateSetOrder - b.templateSetOrder)
+          .map((set, templateSetOrder) => ({
+            ...set,
+            exerciseOrder: exerciseIndex,
+            templateSetOrder
+          }))
+      );
+
       await updateCompletedSessionSets(
         editingSessionId,
-        editingSets.map((set) => ({
+        normalizedEditingSets.map((set) => ({
           id: set.id,
+          templateExerciseId: set.templateExerciseId,
+          sessionExerciseKey: set.sessionExerciseKey,
+          exerciseName: set.exerciseName,
+          exerciseNotes: set.exerciseNotes,
+          exerciseAiInfo: set.exerciseAiInfo,
+          exerciseOrder: set.exerciseOrder,
+          isTemplateExercise: set.isTemplateExercise,
+          x2Enabled: set.x2Enabled,
+          templateSetOrder: set.templateSetOrder,
           actualReps: set.actualReps,
           actualWeight: set.actualWeight,
           completed: set.completed
@@ -364,22 +439,24 @@ export function WorkoutHistoryPage() {
                 <div key={firstSet.sessionExerciseKey} className="space-y-1">
                   <div className="rounded-md border bg-card px-2 py-1.5">
                     <div className="flex min-w-0 items-start gap-1">
-                      <p className="min-w-0 text-left text-xs font-medium leading-tight">{firstSet.exerciseName}</p>
+                      <div className="inline-flex min-w-0 items-center gap-1 text-xs font-medium leading-tight">
+                        <p className="min-w-0 text-left">{firstSet.exerciseName}</p>
+                        <ExerciseInfoDialogButton
+                          exerciseName={firstSet.exerciseName}
+                          aiInfo={
+                            firstSet.exerciseAiInfo ??
+                            (firstSet.templateExerciseId !== undefined
+                              ? templateExerciseInfoMap?.get(firstSet.templateExerciseId)
+                              : undefined)
+                          }
+                          className="h-[1.25em] w-[1.25em] shrink-0 text-inherit"
+                        />
+                      </div>
                       {firstSet.x2Enabled && (
                         <span className="rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
                           ×2
                         </span>
                       )}
-                      <ExerciseInfoDialogButton
-                        exerciseName={firstSet.exerciseName}
-                        aiInfo={
-                          firstSet.exerciseAiInfo ??
-                          (firstSet.templateExerciseId !== undefined
-                            ? templateExerciseInfoMap?.get(firstSet.templateExerciseId)
-                            : undefined)
-                        }
-                        className="mt-0.5 h-5 w-5"
-                      />
                     </div>
                     <div className="mt-1 space-y-1">
                       {sets.map((set, index) => (
@@ -448,7 +525,7 @@ export function WorkoutHistoryPage() {
                   <Input
                     id="edit-session-started-at"
                     type="datetime-local"
-                    className="block min-w-0 max-w-full"
+                    className="block min-w-0 max-w-full text-base sm:text-sm"
                     value={editingSessionStartedAtDraft}
                     onChange={(event) => setEditingSessionStartedAtDraft(event.currentTarget.value)}
                   />
@@ -458,7 +535,7 @@ export function WorkoutHistoryPage() {
                   <Input
                     id="edit-session-finished-at"
                     type="datetime-local"
-                    className="block min-w-0 max-w-full"
+                    className="block min-w-0 max-w-full text-base sm:text-sm"
                     value={editingSessionFinishedAtDraft}
                     onChange={(event) => setEditingSessionFinishedAtDraft(event.currentTarget.value)}
                   />
@@ -471,13 +548,19 @@ export function WorkoutHistoryPage() {
                 <Card key={firstSet.sessionExerciseKey}>
                   <CardHeader className="pb-2">
                     <div className="flex min-w-0 items-start gap-1">
-                      <CardTitle className="min-w-0 text-left leading-tight">{firstSet.exerciseName}</CardTitle>
+                      <CardTitle className="inline-flex min-w-0 items-center gap-1 text-left leading-tight">
+                        <span className="min-w-0">{firstSet.exerciseName}</span>
+                        <ExerciseInfoDialogButton
+                          exerciseName={firstSet.exerciseName}
+                          aiInfo={firstSet.exerciseAiInfo}
+                          className="h-[1.25em] w-[1.25em] shrink-0 text-inherit"
+                        />
+                      </CardTitle>
                       {firstSet.x2Enabled && (
                         <span className="rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
                           ×2
                         </span>
                       )}
-                      <ExerciseInfoDialogButton exerciseName={firstSet.exerciseName} aiInfo={firstSet.exerciseAiInfo} />
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2">
@@ -526,6 +609,25 @@ export function WorkoutHistoryPage() {
                         </Button>
                       </div>
                     ))}
+                    <div className="flex items-center justify-end gap-2 border-t pt-2">
+                      <button
+                        type="button"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
+                        aria-label={t("removeSet")}
+                        onClick={() => removeLastEditingSet(firstSet.sessionExerciseKey)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="rounded-md"
+                        onClick={() => addEditingSet(firstSet.sessionExerciseKey)}
+                        aria-label={t("addSet")}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               );

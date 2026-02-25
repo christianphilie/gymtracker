@@ -821,7 +821,16 @@ export interface WorkoutSessionHistoryItem {
 }
 
 export interface SessionSetUpdateDraft {
-  id: number;
+  id?: number;
+  templateExerciseId?: number;
+  sessionExerciseKey: string;
+  exerciseName: string;
+  exerciseNotes?: string;
+  exerciseAiInfo?: Exercise["aiInfo"];
+  exerciseOrder: number;
+  isTemplateExercise: boolean;
+  x2Enabled?: boolean;
+  templateSetOrder: number;
   actualReps: number;
   actualWeight: number;
   completed: boolean;
@@ -895,6 +904,8 @@ export async function updateCompletedSessionSets(
   }
 
   await db.transaction("rw", db.sessions, db.sessionExerciseSets, async () => {
+    const completedAtFallback = timingUpdate?.finishedAt ?? session.finishedAt ?? nowIso();
+
     if (timingUpdate) {
       await db.sessions.update(sessionId, {
         startedAt: timingUpdate.startedAt,
@@ -902,17 +913,66 @@ export async function updateCompletedSessionSets(
       });
     }
 
+    const currentSets = await db.sessionExerciseSets.where("sessionId").equals(sessionId).toArray();
+    const currentSetById = new Map(
+      currentSets
+        .filter((set): set is SessionExerciseSet & { id: number } => set.id !== undefined)
+        .map((set) => [set.id, set])
+    );
+    const keptSetIds = new Set(
+      updates
+        .map((draft) => draft.id)
+        .filter((id): id is number => typeof id === "number" && id > 0)
+    );
+    const deletedSetIds = currentSets
+      .map((set) => set.id)
+      .filter((id): id is number => id !== undefined && !keptSetIds.has(id));
+
+    if (deletedSetIds.length > 0) {
+      await db.sessionExerciseSets.where("id").anyOf(deletedSetIds).delete();
+    }
+
     for (const draft of updates) {
-      const current = await db.sessionExerciseSets.get(draft.id);
-      if (!current || current.sessionId !== sessionId) {
+      if (draft.id !== undefined && draft.id > 0) {
+        const current = currentSetById.get(draft.id);
+        if (!current || current.sessionId !== sessionId) {
+          continue;
+        }
+
+        await db.sessionExerciseSets.update(draft.id, {
+          sessionExerciseKey: draft.sessionExerciseKey,
+          exerciseName: draft.exerciseName,
+          exerciseNotes: draft.exerciseNotes,
+          exerciseAiInfo: draft.exerciseAiInfo,
+          exerciseOrder: draft.exerciseOrder,
+          isTemplateExercise: draft.isTemplateExercise,
+          x2Enabled: draft.x2Enabled ?? false,
+          templateSetOrder: draft.templateSetOrder,
+          actualReps: draft.actualReps,
+          actualWeight: draft.actualWeight,
+          completed: draft.completed,
+          completedAt: draft.completed ? current.completedAt ?? completedAtFallback : undefined
+        });
         continue;
       }
 
-      await db.sessionExerciseSets.update(draft.id, {
+      await db.sessionExerciseSets.add({
+        sessionId,
+        templateExerciseId: draft.templateExerciseId,
+        sessionExerciseKey: draft.sessionExerciseKey,
+        exerciseName: draft.exerciseName,
+        exerciseNotes: draft.exerciseNotes,
+        exerciseAiInfo: draft.exerciseAiInfo,
+        exerciseOrder: draft.exerciseOrder,
+        isTemplateExercise: draft.isTemplateExercise,
+        x2Enabled: draft.x2Enabled ?? false,
+        templateSetOrder: draft.templateSetOrder,
+        targetReps: draft.actualReps,
+        targetWeight: draft.actualWeight,
         actualReps: draft.actualReps,
         actualWeight: draft.actualWeight,
         completed: draft.completed,
-        completedAt: draft.completed ? current.completedAt ?? nowIso() : undefined
+        completedAt: draft.completed ? completedAtFallback : undefined
       });
     }
   });
