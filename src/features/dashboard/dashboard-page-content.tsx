@@ -265,12 +265,10 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     return { dayLabels, ticks, items, nowTick };
   }, [clockTick, language, weekStart, weeklyStats?.completedWorkouts]);
 
-  const handleStartSession = async (workoutId: number, jumpToLastCompletedSet = false) => {
+  const handleStartSession = async (workoutId: number) => {
     try {
       const sessionId = await startSession(workoutId);
-      navigate(`/sessions/${sessionId}`, {
-        state: jumpToLastCompletedSet ? { jumpToLastCompletedSet: true } : undefined
-      });
+      navigate(`/sessions/${sessionId}`);
     } catch {
       toast.error("Session start failed");
     }

@@ -10,7 +10,11 @@ import { formatSessionDateLabel } from "@/lib/utils";
 const ACTIVE_SESSION_PILL_CLASS =
   "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500 dark:bg-emerald-950 dark:text-emerald-200";
 const RECOMMENDED_PILL_CLASS =
-  "rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground";
+  "rounded-full px-2 py-0.5 text-[11px] font-medium";
+const RECOMMENDED_PILL_STYLE = {
+  backgroundColor: "var(--gt-rest-timer-expired-pill-bg)",
+  color: "var(--gt-rest-timer-expired)"
+} as const;
 
 function PlayFilledIcon({ className }: { className?: string }) {
   return (
@@ -64,7 +68,7 @@ interface WorkoutListCardProps {
   onOpenHistory: (workoutId: number) => void;
   onEditWorkout: (workoutId: number) => void;
   onDiscardActiveSession: (sessionId: number) => void;
-  onStartOrResume: (workoutId: number, jumpToLastCompletedSet: boolean) => void;
+  onStartOrResume: (workoutId: number) => void;
 }
 
 export function WeeklyGoalCard({ goal, compact = false }: WeeklyGoalCardProps) {
@@ -132,7 +136,11 @@ export function WorkoutListCard({
             </>
           ) : (
             <>
-              {isRecommended && <span className={RECOMMENDED_PILL_CLASS}>{t("recommended")}</span>}
+              {isRecommended && (
+                <span className={RECOMMENDED_PILL_CLASS} style={RECOMMENDED_PILL_STYLE}>
+                  {t("recommended")}
+                </span>
+              )}
               <p className="pr-2 text-xs text-muted-foreground whitespace-nowrap">
                 {t("lastSeen")}: {workout.lastSessionAt ? formatCompactDateTimeLabel(workout.lastSessionAt, language) : "-"}
               </p>
@@ -180,7 +188,7 @@ export function WorkoutListCard({
                 : undefined
             }
             disabled={disableStartBecauseOtherActive}
-            onClick={() => workout.id !== undefined && onStartOrResume(workout.id, isActive)}
+            onClick={() => workout.id !== undefined && onStartOrResume(workout.id)}
           >
             <PlayFilledIcon
               className={`mr-2 shrink-0 ${isActive ? "h-[1.375rem] w-[1.375rem]" : "h-[1.125rem] w-[1.125rem]"}`}

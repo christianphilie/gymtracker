@@ -39,6 +39,14 @@ const ACTIVE_SESSION_PILL_CLASS =
 const SUCCESS_CIRCLE_CLASS =
   "inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-500 dark:bg-emerald-800 dark:text-emerald-100";
 const SESSION_COLLAPSED_STORAGE_KEY_PREFIX = "gymtracker:session-collapsed:";
+const SESSION_SCROLL_STORAGE_KEY_PREFIX = "gymtracker:session-scroll:";
+
+interface PendingReorderAnimation {
+  expectedOrderKey: string;
+  beforeTops: Map<string, number>;
+  followExerciseKey: string | null;
+  followExerciseBeforeTop: number | null;
+}
 
 function formatInlineValue(value: number) {
   return `${value}`;
@@ -58,8 +66,9 @@ export function SessionPage() {
   const [loadedCollapsedStateSessionId, setLoadedCollapsedStateSessionId] = useState<number | null>(null);
   const [deleteExerciseTarget, setDeleteExerciseTarget] = useState<{ key: string } | null>(null);
   const exerciseCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const setRowRefs = useRef<Record<number, HTMLDivElement | null>>({});
-  const handledResumeJumpLocationKeyRef = useRef<string | null>(null);
+  const pendingReorderAnimationRef = useRef<PendingReorderAnimation | null>(null);
+  const restoredScrollLocationKeyRef = useRef<string | null>(null);
+  const lastSavedScrollTopRef = useRef<number | null>(null);
 
   const payload = useLiveQuery(async () => {
     if (Number.isNaN(numericSessionId)) {
@@ -194,31 +203,85 @@ export function SessionPage() {
 
   const isCompleted = payload?.session.status === "completed";
   const orderedSets = useMemo(() => sessionExercises.flatMap((exercise) => exercise.sets), [sessionExercises]);
+  const sessionExerciseOrderKey = useMemo(
+    () => sessionExercises.map((exercise) => exercise.sessionExerciseKey).join("|"),
+    [sessionExercises]
+  );
 
-  const scrollToSet = (setId: number, behavior: ScrollBehavior = "auto") => {
-    const element = setRowRefs.current[setId];
-    if (!element) {
-      return;
+  const findNextActionableSet = (sets: SessionExerciseSet[]) => {
+    if (sets.length === 0) {
+      return null;
     }
-    element.scrollIntoView({ block: "center", behavior });
+
+    let lastCompletedIndex = -1;
+    for (let index = 0; index < sets.length; index += 1) {
+      if (sets[index].completed) {
+        lastCompletedIndex = index;
+      }
+    }
+
+    const nextIncomplete =
+      lastCompletedIndex >= 0
+        ? sets.slice(lastCompletedIndex + 1).find((set) => !set.completed)
+        : sets.find((set) => !set.completed);
+
+    return nextIncomplete ?? sets.find((set) => !set.completed) ?? null;
   };
 
-  const animateWindowScrollBy = (deltaY: number, durationMs = 220) => {
+  const getSessionScrollStorageKey = (id: number) => `${SESSION_SCROLL_STORAGE_KEY_PREFIX}${id}`;
+
+  const getPageScrollRoot = (): HTMLElement | null => {
+    const candidate = document.scrollingElement ?? document.documentElement ?? document.body;
+    return candidate instanceof HTMLElement ? candidate : null;
+  };
+
+  const readSavedSessionScrollTop = (id: number) => {
+    try {
+      const raw = window.localStorage.getItem(getSessionScrollStorageKey(id));
+      if (!raw) {
+        return null;
+      }
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeSavedSessionScrollTop = (id: number, scrollTop: number) => {
+    const normalized = Math.max(0, Math.round(scrollTop));
+    if (lastSavedScrollTopRef.current === normalized) {
+      return;
+    }
+    lastSavedScrollTopRef.current = normalized;
+    try {
+      window.localStorage.setItem(getSessionScrollStorageKey(id), String(normalized));
+    } catch {
+      // Ignore storage errors.
+    }
+  };
+
+  const animatePageScrollBy = (deltaY: number, durationMs = 220) => {
     if (Math.abs(deltaY) < 1) {
       return;
     }
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const scrollRoot = getPageScrollRoot();
+    if (!scrollRoot) {
       window.scrollBy(0, deltaY);
       return;
     }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      scrollRoot.scrollTop += deltaY;
+      return;
+    }
 
-    const startY = window.scrollY;
+    const startY = scrollRoot.scrollTop;
     const start = performance.now();
     const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
 
     const frame = (now: number) => {
       const progress = Math.min(1, (now - start) / durationMs);
-      window.scrollTo({ top: startY + deltaY * easeOut(progress), behavior: "auto" });
+      scrollRoot.scrollTop = startY + deltaY * easeOut(progress);
       if (progress < 1) {
         window.requestAnimationFrame(frame);
       }
@@ -226,6 +289,102 @@ export function SessionPage() {
 
     window.requestAnimationFrame(frame);
   };
+
+  useEffect(() => {
+    if (Number.isNaN(numericSessionId)) {
+      return;
+    }
+
+    lastSavedScrollTopRef.current = readSavedSessionScrollTop(numericSessionId);
+    let rafId = 0;
+    const saveScrollPosition = () => {
+      rafId = 0;
+      const scrollRoot = getPageScrollRoot();
+      if (!scrollRoot) {
+        return;
+      }
+      writeSavedSessionScrollTop(numericSessionId, scrollRoot.scrollTop);
+    };
+
+    const onScroll = () => {
+      if (rafId) {
+        return;
+      }
+      rafId = window.requestAnimationFrame(saveScrollPosition);
+    };
+
+    const scrollRoot = getPageScrollRoot();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    document.addEventListener("scroll", onScroll, { passive: true });
+    if (scrollRoot && scrollRoot !== document.documentElement && scrollRoot !== document.body) {
+      scrollRoot.addEventListener("scroll", onScroll, { passive: true });
+    }
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      document.removeEventListener("scroll", onScroll);
+      if (scrollRoot && scrollRoot !== document.documentElement && scrollRoot !== document.body) {
+        scrollRoot.removeEventListener("scroll", onScroll);
+      }
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+      // Do not write here: some route transitions can briefly reset page scroll to 0
+      // before this cleanup runs, which would overwrite the last valid in-session position.
+    };
+  }, [numericSessionId]);
+
+  useEffect(() => {
+    if (
+      Number.isNaN(numericSessionId) ||
+      !payload ||
+      loadedCollapsedStateSessionId !== numericSessionId ||
+      restoredScrollLocationKeyRef.current === location.key
+    ) {
+      return;
+    }
+
+    const savedScrollTop = readSavedSessionScrollTop(numericSessionId);
+    if (savedScrollTop === null) {
+      return;
+    }
+
+    let frameId = 0;
+    let attempts = 0;
+    const maxAttempts = 20;
+    const tryRestore = () => {
+      attempts += 1;
+      const scrollRoot = getPageScrollRoot();
+      if (!scrollRoot) {
+        restoredScrollLocationKeyRef.current = location.key;
+        return;
+      }
+
+      const viewportHeight = window.innerHeight || scrollRoot.clientHeight || 0;
+      const maxTop = Math.max(0, scrollRoot.scrollHeight - viewportHeight);
+      const targetTop = Math.min(savedScrollTop, maxTop);
+      scrollRoot.scrollTop = targetTop;
+
+      const reached = Math.abs(scrollRoot.scrollTop - targetTop) < 2;
+      const enoughHeight = maxTop >= savedScrollTop || attempts >= maxAttempts;
+      if (reached && enoughHeight) {
+        restoredScrollLocationKeyRef.current = location.key;
+        return;
+      }
+
+      frameId = window.requestAnimationFrame(tryRestore);
+    };
+
+    frameId = window.requestAnimationFrame(() => {
+      frameId = window.requestAnimationFrame(tryRestore);
+    });
+
+    return () => {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, [loadedCollapsedStateSessionId, location.key, numericSessionId, payload, sessionExerciseOrderKey]);
 
   const animateExerciseReorder = (beforeTops: Map<string, number>) => {
     if (beforeTops.size === 0 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -286,24 +445,19 @@ export function SessionPage() {
 
   const animateReorderAndKeepExerciseInView = (
     beforeTops: Map<string, number>,
-    sessionExerciseKey: string,
+    sessionExerciseKey: string | null,
     beforeTop: number | null
   ) => {
+    animateExerciseReorder(beforeTops);
 
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        animateExerciseReorder(beforeTops);
-
-        if (beforeTop === null) {
-          return;
-        }
-        const afterTop = exerciseCardRefs.current[sessionExerciseKey]?.getBoundingClientRect().top;
-        if (typeof afterTop !== "number") {
-          return;
-        }
-        animateWindowScrollBy(afterTop - beforeTop);
-      });
-    });
+    if (!sessionExerciseKey || beforeTop === null) {
+      return;
+    }
+    const afterTop = exerciseCardRefs.current[sessionExerciseKey]?.getBoundingClientRect().top;
+    if (typeof afterTop !== "number") {
+      return;
+    }
+    animatePageScrollBy(afterTop - beforeTop);
   };
 
   const handleSetCompletedToggle = async (
@@ -359,8 +513,18 @@ export function SessionPage() {
     nextOrder.splice(firstUnstartedIndex, 0, movedKey);
 
     const beforeCardTops = captureExerciseCardTops();
-    await reorderSessionExercises(numericSessionId, nextOrder);
-    animateReorderAndKeepExerciseInView(beforeCardTops, exercise.sessionExerciseKey, beforeExerciseTop);
+    pendingReorderAnimationRef.current = {
+      expectedOrderKey: nextOrder.join("|"),
+      beforeTops: beforeCardTops,
+      followExerciseKey: exercise.sessionExerciseKey,
+      followExerciseBeforeTop: beforeExerciseTop
+    };
+    try {
+      await reorderSessionExercises(numericSessionId, nextOrder);
+    } catch (error) {
+      pendingReorderAnimationRef.current = null;
+      throw error;
+    }
   };
 
   const handleReverseExerciseOrder = async () => {
@@ -369,30 +533,33 @@ export function SessionPage() {
     }
 
     const nextOrder = sessionExercises.map((entry) => entry.sessionExerciseKey).reverse();
-    await reorderSessionExercises(numericSessionId, nextOrder);
+    pendingReorderAnimationRef.current = {
+      expectedOrderKey: nextOrder.join("|"),
+      beforeTops: captureExerciseCardTops(),
+      followExerciseKey: null,
+      followExerciseBeforeTop: null
+    };
+    try {
+      await reorderSessionExercises(numericSessionId, nextOrder);
+    } catch (error) {
+      pendingReorderAnimationRef.current = null;
+      throw error;
+    }
   };
 
   useEffect(() => {
-    const navigationState = location.state as { jumpToLastCompletedSet?: boolean } | null;
-    if (!navigationState?.jumpToLastCompletedSet || handledResumeJumpLocationKeyRef.current === location.key) {
+    const pending = pendingReorderAnimationRef.current;
+    if (!pending || pending.expectedOrderKey !== sessionExerciseOrderKey) {
       return;
     }
 
-    handledResumeJumpLocationKeyRef.current = location.key;
-    const lastCompletedSet = [...orderedSets]
-      .filter((set): set is SessionExerciseSet & { id: number } => set.completed && set.id !== undefined)
-      .sort((a, b) => new Date(b.completedAt ?? 0).getTime() - new Date(a.completedAt ?? 0).getTime())[0];
-
-    if (!lastCompletedSet) {
-      return;
-    }
-
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        scrollToSet(lastCompletedSet.id, "auto");
-      });
-    });
-  }, [location.key, location.state, orderedSets, scrollToSet]);
+    pendingReorderAnimationRef.current = null;
+    animateReorderAndKeepExerciseInView(
+      pending.beforeTops,
+      pending.followExerciseKey,
+      pending.followExerciseBeforeTop
+    );
+  }, [sessionExerciseOrderKey]);
 
   useEffect(() => {
     const onCompleteNextSetRequest = (event: Event) => {
@@ -405,18 +572,7 @@ export function SessionPage() {
         return;
       }
 
-      let lastCompletedIndex = -1;
-      for (let index = 0; index < orderedSets.length; index += 1) {
-        if (orderedSets[index].completed) {
-          lastCompletedIndex = index;
-        }
-      }
-
-      const targetSet =
-        lastCompletedIndex >= 0
-          ? orderedSets.slice(lastCompletedIndex + 1).find((set) => !set.completed)
-          : orderedSets.find((set) => !set.completed);
-
+      const targetSet = findNextActionableSet(orderedSets);
       if (!targetSet?.id) {
         return;
       }
@@ -568,11 +724,6 @@ export function SessionPage() {
                   return (
                     <div
                       key={set.id}
-                      ref={(node) => {
-                        if (set.id !== undefined) {
-                          setRowRefs.current[set.id] = node;
-                        }
-                      }}
                       className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 py-1"
                     >
                       <div className="min-w-0">

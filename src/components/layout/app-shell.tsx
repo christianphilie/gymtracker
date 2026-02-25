@@ -70,7 +70,6 @@ interface HeaderProgressBadgeProps {
 
 interface BottomNavItemProps {
   to: string;
-  state?: unknown;
   isActive: boolean;
   label: string;
   icon: ReactNode;
@@ -133,7 +132,6 @@ function HeaderProgressBadge({
 
 function BottomNavItem({
   to,
-  state,
   isActive,
   label,
   icon,
@@ -144,7 +142,6 @@ function BottomNavItem({
     <div className="flex w-[4.8875rem] shrink-0 justify-center">
       <Link
         to={to}
-        state={state}
         aria-label={label}
         title={label}
         className={cn(
@@ -193,7 +190,7 @@ function HeaderActions({
     const hasRestTimer = restTimerEnabled && restTimerSeconds > 0;
     const timerProgress = hasRestTimer ? Math.min(sessionState.elapsedSeconds, restTimerSeconds) / restTimerSeconds : 0;
     const timerExceeded = hasRestTimer && sessionState.elapsedSeconds >= restTimerSeconds;
-    const timerBarColor = timerExceeded ? "#f59e0b" : "#10b981";
+    const timerBarColor = timerExceeded ? "var(--gt-rest-timer-expired)" : "#10b981";
 
     return (
       <div className="flex items-center gap-2">
@@ -482,7 +479,6 @@ export function AppShell() {
               {activeSessionNav && (
                 <BottomNavItem
                   to={`/sessions/${activeSessionNav.sessionId}`}
-                  state={{ jumpToLastCompletedSet: true }}
                   isActive={pathname === `/sessions/${activeSessionNav.sessionId}`}
                   label={t("resumeSession")}
                   icon={<Play className="h-[23px] w-[23px]" />}
