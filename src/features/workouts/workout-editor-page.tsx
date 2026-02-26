@@ -933,18 +933,6 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
           <Button
             type="button"
             variant="secondary"
-            size="icon"
-            className="h-7 w-7"
-            onClick={handleReverseExerciseOrder}
-            disabled={draft.exercises.length < 2}
-            aria-label={t("reverseSessionExerciseOrder")}
-            title={t("reverseSessionExerciseOrder")}
-          >
-            <ArrowUpDown className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
             size="sm"
             className="h-7 gap-1 px-2 text-xs"
             onClick={handleToggleAllExercisesCollapsed}
@@ -1275,16 +1263,28 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
       })}
 
       {!isAddExerciseExpanded && (
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-2">
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
-            className="w-full"
+            className="h-8 gap-1.5 px-3"
             onClick={() => setIsAddExerciseExpanded(true)}
             aria-label={t("addExercise")}
           >
-            <Plus className="mr-1 h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" />
             {t("addExercise")}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={handleReverseExerciseOrder}
+            disabled={draft.exercises.length < 2}
+            aria-label={t("reverseSessionExerciseOrder")}
+            title={t("reverseSessionExerciseOrder")}
+          >
+            <ArrowUpDown className="h-4 w-4" />
           </Button>
         </div>
       )}

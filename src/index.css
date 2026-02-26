@@ -21,6 +21,7 @@
     --ring: 0 0% 10%;
     --gt-rest-timer-expired: #f59e0b;
     --gt-rest-timer-expired-pill-bg: rgb(245 158 11 / 0.15);
+    --gt-session-complete-box: #3b82f6;
   }
 
   .dark {
@@ -38,6 +39,7 @@
     --input: 0 0% 23%;
     --ring: 0 0% 80%;
     --gt-rest-timer-expired-pill-bg: rgb(245 158 11 / 0.2);
+    --gt-session-complete-box: #2563eb;
   }
 
   * {

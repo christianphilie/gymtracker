@@ -5,7 +5,6 @@ import {
   ChartNoAxesCombined,
   Check,
   Dumbbell,
-  Flag,
   House,
   PenSquare,
   Play,
@@ -21,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { LockerNoteInput } from "@/components/forms/locker-note-input";
 import { useSettings } from "@/app/settings-context";
 import { db } from "@/db/db";
-import { cn, formatDurationClock } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 // iOS homescreen hint (temporarily disabled; keep for later re-enable)
 // const IOS_WEBAPP_HINT_DISMISSED_KEY = "gymtracker:ios-webapp-hint-dismissed";
@@ -44,6 +43,7 @@ interface SessionHeaderState {
   sessionId: number;
   total: number;
   completed: number;
+  elapsedMs: number;
   elapsedSeconds: number;
   sinceIso: string | null;
   doneAndReady: boolean;
@@ -77,23 +77,6 @@ interface BottomNavItemProps {
   icon: ReactNode;
   activeClassName?: string;
   inactiveClassName?: string;
-}
-
-function PlaySolidIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <path d="M8 6v12l10-6z" fill="currentColor" />
-    </svg>
-  );
-}
-
-function PauseSolidIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <rect x="7" y="6" width="4" height="12" rx="1" fill="currentColor" />
-      <rect x="13" y="6" width="4" height="12" rx="1" fill="currentColor" />
-    </svg>
-  );
 }
 
 function HeaderProgressBadge({
@@ -170,53 +153,11 @@ function HeaderActions({
 }: HeaderActionsProps) {
   const { t } = useSettings();
 
-  if (sessionState?.doneAndReady) {
-    return (
-      <Button
-        size="icon"
-        aria-label={t("completeSession")}
-        onClick={() =>
-          window.dispatchEvent(
-            new CustomEvent("gymtracker:complete-session", {
-              detail: { sessionId: sessionState.sessionId }
-            })
-          )
-        }
-      >
-        <Flag className="h-4 w-4" />
-      </Button>
-    );
-  }
-
   if (sessionState) {
     const donePercent = sessionState.total > 0 ? Math.round((sessionState.completed / sessionState.total) * 100) : 0;
-    const hasRestTimer = restTimerEnabled && restTimerSeconds > 0;
-    const timerProgress = hasRestTimer ? Math.min(sessionState.elapsedSeconds, restTimerSeconds) / restTimerSeconds : 0;
-    const timerExceeded = hasRestTimer && sessionState.elapsedSeconds >= restTimerSeconds;
-    const timerBarColor = timerExceeded ? "var(--gt-rest-timer-expired)" : "#10b981";
 
     return (
       <div className="flex items-center gap-2">
-        {sessionState.sinceIso && hasRestTimer && (
-          <HeaderProgressBadge
-            as="button"
-            onClick={onToggleTimer}
-            ariaLabel={timerPaused ? t("resumeSession") : t("pauseTimer")}
-            progressPercent={timerProgress * 100}
-            progressBarStyle={{ backgroundColor: timerBarColor }}
-          >
-            <div className="inline-flex h-full w-full items-start px-2 pt-1.5">
-              <p className="inline-flex h-[16px] w-full items-center justify-center gap-1 text-center text-xs font-medium leading-none tabular-nums">
-                {timerPaused
-                  ? <PlaySolidIcon className="h-4 w-4 shrink-0" />
-                  : <PauseSolidIcon className="h-4 w-4 shrink-0" />
-                }
-                <span>{formatDurationClock(sessionState.elapsedSeconds)}</span>
-              </p>
-            </div>
-          </HeaderProgressBadge>
-        )}
-
         <HeaderProgressBadge
           as="button"
           onClick={() =>
@@ -407,41 +348,84 @@ export function AppShell() {
       return null;
     }
 
-    const elapsedSeconds = sessionMeta.sinceIso
+    const elapsedMs = sessionMeta.sinceIso
       ? (() => {
           const rawElapsedMs = now - new Date(sessionMeta.sinceIso).getTime();
           const activePauseMs = timerPaused && timerPauseStartedAt ? now - timerPauseStartedAt : 0;
-          const adjustedMs = Math.max(0, rawElapsedMs - timerPausedTotalMs - activePauseMs);
-          return Math.floor(adjustedMs / 1000);
+          return Math.max(0, rawElapsedMs - timerPausedTotalMs - activePauseMs);
         })()
       : 0;
+    const elapsedSeconds = Math.floor(elapsedMs / 1000);
     return {
       sessionId: sessionMeta.sessionId,
       total: sessionMeta.total,
       completed: sessionMeta.completed,
+      elapsedMs,
       elapsedSeconds,
       sinceIso: sessionMeta.sinceIso,
       doneAndReady: sessionMeta.total > 0 && sessionMeta.completed === sessionMeta.total
     };
   }, [sessionMeta, now, timerPaused, timerPauseStartedAt, timerPausedTotalMs]);
+
+  useEffect(() => {
+    if (!sessionState) {
+      return;
+    }
+
+    const emittedAtMs = Date.now();
+    window.dispatchEvent(
+      new CustomEvent("gymtracker:rest-timer-state", {
+        detail: {
+          sessionId: sessionState.sessionId,
+          elapsedMs: sessionState.elapsedMs,
+          elapsedSeconds: sessionState.elapsedSeconds,
+          paused: timerPaused,
+          sinceIso: sessionState.sinceIso ?? null,
+          emittedAtMs
+        }
+      })
+    );
+  }, [sessionState, timerPaused]);
   const showLockerNote = lockerNoteEnabled && !isWorkoutEditRoute;
   const handleToggleTimer = () => {
     if (!sessionState?.sinceIso) {
       return;
     }
 
+    const toggleAtMs = Date.now();
+    setNow(toggleAtMs);
+
     if (timerPaused) {
       if (timerPauseStartedAt) {
-        setTimerPausedTotalMs((prev) => prev + (Date.now() - timerPauseStartedAt));
+        setTimerPausedTotalMs((prev) => prev + (toggleAtMs - timerPauseStartedAt));
       }
       setTimerPauseStartedAt(null);
       setTimerPaused(false);
       return;
     }
 
-    setTimerPauseStartedAt(Date.now());
+    setTimerPauseStartedAt(toggleAtMs);
     setTimerPaused(true);
   };
+
+  useEffect(() => {
+    if (!sessionMeta?.sessionId) {
+      return;
+    }
+
+    const onToggleRestTimerRequest = (event: Event) => {
+      const customEvent = event as CustomEvent<{ sessionId?: number }>;
+      if (customEvent.detail?.sessionId !== sessionMeta.sessionId) {
+        return;
+      }
+      handleToggleTimer();
+    };
+
+    window.addEventListener("gymtracker:toggle-rest-timer", onToggleRestTimerRequest as EventListener);
+    return () => {
+      window.removeEventListener("gymtracker:toggle-rest-timer", onToggleRestTimerRequest as EventListener);
+    };
+  }, [handleToggleTimer, sessionMeta?.sessionId]);
 
   const handleEditorSave = () => {
     window.dispatchEvent(new CustomEvent("gymtracker:save-workout-editor"));
@@ -501,7 +485,7 @@ export function AppShell() {
                   isActive={pathname === `/sessions/${activeSessionNav.sessionId}`}
                   label={t("resumeSession")}
                   icon={<Play className="h-[23px] w-[23px]" />}
-                  activeClassName="bg-emerald-400 text-emerald-100"
+                  activeClassName="bg-emerald-500 text-emerald-100"
                   inactiveClassName="text-muted-foreground"
                 />
               )}

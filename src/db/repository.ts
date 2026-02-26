@@ -737,9 +737,22 @@ export async function completeSession(sessionId: number, useAsTemplate = false) 
     await applySessionAsTemplate(sessionId);
   }
 
+  const sets = await db.sessionExerciseSets.where("sessionId").equals(sessionId).toArray();
+  const latestCompletedAt = sets
+    .filter((set) => set.completed && typeof set.completedAt === "string")
+    .reduce<string | null>((latest, set) => {
+      if (!set.completedAt) {
+        return latest;
+      }
+      if (!latest) {
+        return set.completedAt;
+      }
+      return new Date(set.completedAt).getTime() > new Date(latest).getTime() ? set.completedAt : latest;
+    }, null);
+
   await db.sessions.update(sessionId, {
     status: "completed",
-    finishedAt: nowIso()
+    finishedAt: latestCompletedAt ?? nowIso()
   });
 }
 

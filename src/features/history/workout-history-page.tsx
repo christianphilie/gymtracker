@@ -130,6 +130,19 @@ function fromDateTimeLocalValue(value: string) {
   return date.toISOString();
 }
 
+function formatHistoryDurationLabel(durationMinutes: number, language: "de" | "en") {
+  const roundedMinutes = Math.max(0, Math.round(durationMinutes));
+  if (roundedMinutes < 60) {
+    return language === "de" ? `${roundedMinutes} Minuten` : `${roundedMinutes} min`;
+  }
+
+  const hours = Math.floor(roundedMinutes / 60);
+  const minutes = roundedMinutes % 60;
+  return language === "de"
+    ? `${hours}:${String(minutes).padStart(2, "0")} Stunden`
+    : `${hours}:${String(minutes).padStart(2, "0")} h`;
+}
+
 export function WorkoutHistoryPage() {
   const { workoutId } = useParams();
   const { t, weightUnit, language } = useSettings();
@@ -204,18 +217,27 @@ export function WorkoutHistoryPage() {
             getSetStatsMultiplier(set),
         0
       );
+      const durationMinutes = getSessionDurationMinutes(entry.session.startedAt, entry.session.finishedAt);
       const { bodyWeightKg, usesDefaultBodyWeight } = resolveCaloriesBodyWeightKg(settings?.bodyWeight, weightUnit);
       const calories = estimateStrengthTrainingCalories({
-        durationMinutes: getSessionDurationMinutes(entry.session.startedAt, entry.session.finishedAt),
+        durationMinutes,
         bodyWeightKg,
-          completedSetCount: setCount,
-          repsTotal
-        });
+        completedSetCount: setCount,
+        repsTotal
+      });
 
       return {
         ...entry,
         exercises,
-        stats: { exerciseCount, setCount, repsTotal, totalWeight, calories, usesDefaultBodyWeightForCalories: usesDefaultBodyWeight }
+        stats: {
+          exerciseCount,
+          setCount,
+          repsTotal,
+          totalWeight,
+          calories,
+          durationMinutes,
+          usesDefaultBodyWeightForCalories: usesDefaultBodyWeight
+        }
       };
     });
   }, [payload?.history, settings?.bodyWeight, weightUnit]);
@@ -502,6 +524,10 @@ export function WorkoutHistoryPage() {
                   )}
                 </div>
                 <p className="text-xs font-semibold">~{formatNumber(entry.stats.calories, 0)} kcal</p>
+              </div>
+              <div className="rounded-md border bg-card px-2 py-1.5">
+                <p className="text-[10px] text-muted-foreground">{t("duration")}</p>
+                <p className="text-xs font-semibold">{formatHistoryDurationLabel(entry.stats.durationMinutes, language)}</p>
               </div>
             </div>
           </CardContent>

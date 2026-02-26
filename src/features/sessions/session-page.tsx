@@ -7,6 +7,7 @@ import { useSettings } from "@/app/settings-context";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { Button } from "@/components/ui/button";
+import { InfoHint } from "@/components/ui/info-hint";
 import { WorkoutNameLabel } from "@/components/workouts/workout-name-label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -32,7 +33,12 @@ import {
   removeSessionSet,
   updateSessionSet
 } from "@/db/repository";
-import { formatSessionDateLabel } from "@/lib/utils";
+import {
+  estimateStrengthTrainingCalories,
+  getSessionDurationMinutes,
+  resolveCaloriesBodyWeightKg
+} from "@/lib/calorie-estimation";
+import { formatDurationClock, formatNumber, formatSessionDateLabel, getSetStatsMultiplier } from "@/lib/utils";
 
 const ACTIVE_SESSION_PILL_CLASS =
   "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500 dark:bg-emerald-950 dark:text-emerald-200";
@@ -43,12 +49,24 @@ const SESSION_SCROLL_STORAGE_KEY_PREFIX = "gymtracker:session-scroll:";
 const EXERCISE_DONE_BADGE_DELAY_MS = 500;
 const EXERCISE_AUTO_COLLAPSE_DELAY_MS = 1500;
 const EXERCISE_DONE_BADGE_POP_DURATION_MS = 1500;
+const UP_NEXT_BOX_CLASS = "relative overflow-hidden rounded-[20px] border";
+const UP_NEXT_BOX_RADIUS_PX = 20;
+const UP_NEXT_CARD_OVERLAP_PX = 33;
 
 type ExerciseCompletionFeedbackState = "pending-badge" | "show-badge";
 
 interface ExerciseCompletionFeedbackTimers {
   badgeTimerId?: number;
   collapseTimerId?: number;
+}
+
+interface SharedRestTimerUiState {
+  sessionId: number;
+  elapsedMs: number;
+  elapsedSeconds: number;
+  paused: boolean;
+  sinceIso: string | null;
+  emittedAtMs: number;
 }
 
 interface PendingReorderAnimation {
@@ -60,6 +78,23 @@ interface PendingReorderAnimation {
 
 function formatInlineValue(value: number) {
   return `${value}`;
+}
+
+function PlaySolidIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path d="M8 6v12l10-6z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function PauseSolidIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <rect x="7" y="6" width="4" height="12" rx="1" fill="currentColor" />
+      <rect x="13" y="6" width="4" height="12" rx="1" fill="currentColor" />
+    </svg>
+  );
 }
 
 function animateDoneBadgePop(node: HTMLSpanElement | null) {
@@ -81,11 +116,24 @@ function animateDoneBadgePop(node: HTMLSpanElement | null) {
   );
 }
 
+function formatFinishedDurationLabel(durationMinutes: number, language: "de" | "en") {
+  const roundedMinutes = Math.max(0, Math.round(durationMinutes));
+  if (roundedMinutes < 60) {
+    return language === "de" ? `${roundedMinutes} Minuten` : `${roundedMinutes} min`;
+  }
+
+  const hours = Math.floor(roundedMinutes / 60);
+  const minutes = roundedMinutes % 60;
+  return language === "de"
+    ? `${hours}:${String(minutes).padStart(2, "0")} Stunden`
+    : `${hours}:${String(minutes).padStart(2, "0")} h`;
+}
+
 export function SessionPage() {
   const { sessionId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { t, weightUnitLabel, language } = useSettings();
+  const { t, weightUnit, weightUnitLabel, language, restTimerEnabled, restTimerSeconds } = useSettings();
   const numericSessionId = Number(sessionId);
   const [newExerciseName, setNewExerciseName] = useState("");
   const [isAddExerciseExpanded, setIsAddExerciseExpanded] = useState(false);
@@ -102,6 +150,8 @@ export function SessionPage() {
   const lastSavedScrollTopRef = useRef<number | null>(null);
   const exerciseCompletionTimersRef = useRef<Record<string, ExerciseCompletionFeedbackTimers>>({});
   const previousExerciseCompletionFeedbackRef = useRef<Record<string, ExerciseCompletionFeedbackState>>({});
+  const [liveNowMs, setLiveNowMs] = useState(() => Date.now());
+  const [sharedRestTimerUiState, setSharedRestTimerUiState] = useState<SharedRestTimerUiState | null>(null);
 
   const payload = useLiveQuery(async () => {
     if (Number.isNaN(numericSessionId)) {
@@ -137,6 +187,7 @@ export function SessionPage() {
         .map((exercise) => [exercise.id, exercise.aiInfo!])
     );
   }, [payload?.sets]);
+  const settings = useLiveQuery(async () => db.settings.get(1), []);
 
   useEffect(() => {
     if (Number.isNaN(numericSessionId)) {
@@ -186,6 +237,45 @@ export function SessionPage() {
 
     previousExerciseCompletionFeedbackRef.current = exerciseCompletionFeedback;
   }, [exerciseCompletionFeedback]);
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => setLiveNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timerId);
+  }, []);
+
+  useEffect(() => {
+    const onRestTimerState = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        sessionId?: number;
+        elapsedMs?: number;
+        elapsedSeconds?: number;
+        paused?: boolean;
+        sinceIso?: string | null;
+        emittedAtMs?: number;
+      }>;
+      if (customEvent.detail?.sessionId !== numericSessionId) {
+        return;
+      }
+
+      setSharedRestTimerUiState({
+        sessionId: numericSessionId,
+        elapsedMs: Math.max(0, Math.floor(customEvent.detail.elapsedMs ?? 0)),
+        elapsedSeconds: Math.max(0, Math.floor(customEvent.detail.elapsedSeconds ?? 0)),
+        paused: customEvent.detail.paused === true,
+        sinceIso: customEvent.detail.sinceIso ?? null,
+        emittedAtMs: Math.max(0, Math.floor(customEvent.detail.emittedAtMs ?? Date.now()))
+      });
+    };
+
+    window.addEventListener("gymtracker:rest-timer-state", onRestTimerState as EventListener);
+    return () => {
+      window.removeEventListener("gymtracker:rest-timer-state", onRestTimerState as EventListener);
+    };
+  }, [numericSessionId]);
+
+  useEffect(() => {
+    setSharedRestTimerUiState(null);
+  }, [numericSessionId]);
 
   useEffect(() => {
     if (Number.isNaN(numericSessionId) || loadedCollapsedStateSessionId !== numericSessionId) {
@@ -286,6 +376,149 @@ export function SessionPage() {
 
     return nextIncomplete ?? sets.find((set) => !set.completed) ?? null;
   };
+
+  const nextActionableSet = useMemo(() => findNextActionableSet(orderedSets), [orderedSets]);
+  const nextActionableExercise = useMemo(
+    () =>
+      nextActionableSet
+        ? sessionExercises.find((exercise) => exercise.sessionExerciseKey === nextActionableSet.sessionExerciseKey) ?? null
+        : null,
+    [nextActionableSet, sessionExercises]
+  );
+  const nextActionableSetIndex = useMemo(() => {
+    if (!nextActionableSet) {
+      return -1;
+    }
+    return orderedSets.findIndex((set) => set.id === nextActionableSet.id);
+  }, [nextActionableSet, orderedSets]);
+  const followingActionableSet = useMemo(() => {
+    if (nextActionableSetIndex < 0) {
+      return null;
+    }
+    return orderedSets.slice(nextActionableSetIndex + 1).find((set) => !set.completed) ?? null;
+  }, [nextActionableSetIndex, orderedSets]);
+  const followingActionableExercise = useMemo(
+    () =>
+      followingActionableSet
+        ? sessionExercises.find((exercise) => exercise.sessionExerciseKey === followingActionableSet.sessionExerciseKey) ?? null
+        : null,
+    [followingActionableSet, sessionExercises]
+  );
+  const allSetsChecked = useMemo(
+    () => orderedSets.length > 0 && orderedSets.every((set) => set.completed),
+    [orderedSets]
+  );
+  const latestCompletedSet = useMemo(() => {
+    let latest: SessionExerciseSet | null = null;
+    let latestMs = -1;
+    for (const set of orderedSets) {
+      if (!set.completed || !set.completedAt) {
+        continue;
+      }
+      const ms = new Date(set.completedAt).getTime();
+      if (!Number.isFinite(ms) || ms <= latestMs) {
+        continue;
+      }
+      latestMs = ms;
+      latest = set;
+    }
+    return latest;
+  }, [orderedSets]);
+  const restTimerPanelState = useMemo(() => {
+    if (
+      isCompleted ||
+      allSetsChecked ||
+      !restTimerEnabled ||
+      restTimerSeconds <= 0 ||
+      !latestCompletedSet?.completedAt ||
+      !nextActionableSet ||
+      !nextActionableExercise
+    ) {
+      return null;
+    }
+
+    const completedAtMs = new Date(latestCompletedSet.completedAt).getTime();
+    if (!Number.isFinite(completedAtMs)) {
+      return null;
+    }
+
+    const sharedTimerStateMatches =
+      sharedRestTimerUiState &&
+      sharedRestTimerUiState.sessionId === numericSessionId &&
+      sharedRestTimerUiState.sinceIso === latestCompletedSet.completedAt;
+    const paused = sharedTimerStateMatches ? sharedRestTimerUiState.paused : false;
+    const elapsedMs = sharedTimerStateMatches
+      ? Math.max(
+          0,
+          sharedRestTimerUiState.elapsedMs +
+            (sharedRestTimerUiState.paused ? 0 : Math.max(0, liveNowMs - sharedRestTimerUiState.emittedAtMs))
+        )
+      : Math.max(0, liveNowMs - completedAtMs);
+    const elapsedSeconds = Math.floor(elapsedMs / 1000);
+
+    if (!Number.isFinite(elapsedMs) || elapsedMs >= restTimerSeconds * 1000) {
+      return null;
+    }
+
+    const progressPercent = Math.max(0, Math.min(100, (elapsedMs / (restTimerSeconds * 1000)) * 100));
+    return {
+      elapsedSeconds,
+      progressPercent,
+      paused
+    };
+  }, [
+    allSetsChecked,
+    isCompleted,
+    latestCompletedSet?.completedAt,
+    liveNowMs,
+    numericSessionId,
+    nextActionableExercise,
+    nextActionableSet,
+    restTimerEnabled,
+    restTimerSeconds,
+    sharedRestTimerUiState
+  ]);
+  const completionStats = useMemo(() => {
+    if (!payload) {
+      return null;
+    }
+
+    const completedSets = orderedSets.filter((set) => set.completed);
+    const setsForExerciseCount = completedSets.length > 0 ? completedSets : orderedSets;
+    const exerciseCount = new Set(setsForExerciseCount.map((set) => set.sessionExerciseKey)).size;
+    const setCount = completedSets.reduce((sum, set) => sum + getSetStatsMultiplier(set), 0);
+    const repsTotal = completedSets.reduce(
+      (sum, set) => sum + (set.actualReps ?? set.targetReps) * getSetStatsMultiplier(set),
+      0
+    );
+    const totalWeight = completedSets.reduce(
+      (sum, set) =>
+        sum +
+        (set.actualWeight ?? set.targetWeight) *
+          (set.actualReps ?? set.targetReps) *
+          getSetStatsMultiplier(set),
+      0
+    );
+    const finishedAt = payload.session.finishedAt ?? latestCompletedSet?.completedAt ?? new Date(liveNowMs).toISOString();
+    const durationMinutes = getSessionDurationMinutes(payload.session.startedAt, finishedAt);
+    const { bodyWeightKg, usesDefaultBodyWeight } = resolveCaloriesBodyWeightKg(settings?.bodyWeight, weightUnit);
+    const calories = estimateStrengthTrainingCalories({
+      durationMinutes,
+      bodyWeightKg,
+      completedSetCount: setCount,
+      repsTotal
+    });
+
+    return {
+      durationMinutes,
+      exerciseCount,
+      setCount,
+      repsTotal,
+      totalWeight,
+      calories,
+      usesDefaultBodyWeightForCalories: usesDefaultBodyWeight
+    };
+  }, [latestCompletedSet?.completedAt, liveNowMs, orderedSets, payload, settings?.bodyWeight, weightUnit]);
 
   const getSessionScrollStorageKey = (id: number) => `${SESSION_SCROLL_STORAGE_KEY_PREFIX}${id}`;
 
@@ -757,6 +990,147 @@ export function SessionPage() {
     };
   }, [handleSetCompletedToggle, isCompleted, numericSessionId, orderedSets, sessionExercises]);
 
+  const handleCompleteUpNextSet = () => {
+    if (!nextActionableSet?.id || !nextActionableExercise) {
+      return;
+    }
+    void handleSetCompletedToggle(nextActionableExercise, nextActionableSet, true);
+  };
+
+  const getSetPositionLabel = (
+    exercise: (typeof sessionExercises)[number] | null,
+    set: SessionExerciseSet | null
+  ) => {
+    if (!exercise || !set) {
+      return "";
+    }
+    const index = exercise.sets.findIndex((entry) => entry.id === set.id);
+    if (index < 0) {
+      return "";
+    }
+    return `${index + 1}/${exercise.sets.length}`;
+  };
+
+  const renderSetCardContent = ({
+    exercise,
+    set,
+    compact = false,
+    previewOnly = false,
+    onDone,
+    tone = "colored",
+    inlineNoteInTitle = false
+  }: {
+    exercise: (typeof sessionExercises)[number] | null;
+    set: SessionExerciseSet | null;
+    compact?: boolean;
+    previewOnly?: boolean;
+    onDone?: () => void;
+    tone?: "colored" | "neutral" | "neutral-muted";
+    inlineNoteInTitle?: boolean;
+  }) => {
+    if (!exercise || !set) {
+      return null;
+    }
+
+    const repsValue = set.actualReps ?? set.targetReps;
+    const weightValue = set.actualWeight ?? set.targetWeight;
+    const setPositionLabel = getSetPositionLabel(exercise, set);
+    const isNeutralTone = tone !== "colored";
+    const isMutedNeutralTone = tone === "neutral-muted";
+    const titleClassName = compact ? "text-sm" : "text-[15px]";
+    const metaClassName = compact ? "text-[11px]" : "text-xs";
+    const valueClassName = compact ? "text-sm" : "text-base";
+    const mainTextColorClass = isMutedNeutralTone ? "text-foreground/55" : "";
+    const metaTextColorClass = isMutedNeutralTone ? "text-foreground/40" : "opacity-80";
+    const noteLineTextColorClass = isMutedNeutralTone ? "text-foreground/45" : "opacity-85";
+    const valueTextColorClass = isMutedNeutralTone ? "text-foreground/50" : "";
+    const dotClassName = "mx-2 inline-block";
+
+    return (
+      <div className="flex items-stretch justify-between gap-3">
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className={`${titleClassName} min-w-0 truncate font-semibold leading-tight ${mainTextColorClass}`}>
+            <span className="truncate">{exercise.exerciseName}</span>
+            {(setPositionLabel || (!previewOnly && inlineNoteInTitle && exercise.exerciseNotes)) && (
+              <span className={`${metaClassName} min-w-0 font-medium ${metaTextColorClass}`}>
+                {setPositionLabel ? <><span className={dotClassName} aria-hidden="true">·</span>{setPositionLabel}</> : null}
+                {!previewOnly && inlineNoteInTitle && exercise.exerciseNotes ? (
+                  <>
+                    <span className={dotClassName} aria-hidden="true">·</span>
+                    <span className="inline-flex min-w-0 max-w-[11rem] items-center gap-1 align-middle">
+                      <NotebookPen className="h-[0.9em] w-[0.9em] shrink-0" />
+                      <span className="min-w-0 truncate">{exercise.exerciseNotes}</span>
+                    </span>
+                  </>
+                ) : null}
+              </span>
+            )}
+          </p>
+          {!previewOnly && !inlineNoteInTitle && exercise.exerciseNotes && (
+            <p className={`${metaClassName} inline-flex min-w-0 items-center gap-1 leading-snug ${noteLineTextColorClass}`}>
+              <NotebookPen className="h-[0.9em] w-[0.9em] shrink-0" />
+              <span className="min-w-0 truncate">{exercise.exerciseNotes}</span>
+            </p>
+          )}
+          {!previewOnly && (
+            <p className={`${valueClassName} font-semibold tabular-nums ${valueTextColorClass}`}>
+              {repsValue} × {formatNumber(weightValue, 0)} {weightUnitLabel}
+            </p>
+          )}
+        </div>
+        {!previewOnly && (
+          <Button
+            type="button"
+            size="icon"
+            onClick={onDone ?? handleCompleteUpNextSet}
+            disabled={!set.id}
+            aria-label={t("done")}
+            className={`shrink-0 self-end rounded-full ${
+              isNeutralTone
+                ? "border border-input bg-background text-foreground hover:bg-secondary"
+                : "border border-white/20 bg-white/15 text-white hover:bg-white/25"
+            } ${
+              compact ? "h-9 w-9" : "h-10 w-10"
+            }`}
+          >
+            <Check className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+    );
+  };
+
+  const handleToggleRestTimerFromPanel = () => {
+    window.dispatchEvent(
+      new CustomEvent("gymtracker:toggle-rest-timer", {
+        detail: { sessionId: numericSessionId }
+      })
+    );
+  };
+
+  const upNextMode: "complete" | "rest" | "next" | null =
+    isCompleted
+      ? null
+      : allSetsChecked
+        ? "complete"
+        : restTimerPanelState && nextActionableSet && nextActionableExercise
+          ? "rest"
+          : nextActionableSet && nextActionableExercise
+            ? "next"
+            : null;
+  const upNextBottomCardPaddingTopPx = 12 + UP_NEXT_CARD_OVERLAP_PX;
+  const currentCardTitle =
+    upNextMode === "next"
+      ? t("nextSet")
+      : upNextMode === "rest"
+        ? t("rest")
+        : null;
+  const showAfterCardTitle = upNextMode === "next" || upNextMode === "rest";
+  const afterCardClassName =
+    upNextMode === "complete"
+      ? "text-blue-950 dark:text-blue-100"
+      : "border-border bg-secondary/90 text-foreground backdrop-blur supports-[backdrop-filter]:bg-secondary/70";
+
   if (!payload) {
     return <p className="text-sm text-muted-foreground">Session not found.</p>;
   }
@@ -785,20 +1159,184 @@ export function SessionPage() {
             </p>
           )}
         </div>
-        {!isCompleted && (
-          <Button
-            variant="secondary"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            aria-label={t("reverseSessionExerciseOrder")}
-            title={t("reverseSessionExerciseOrder")}
-            onClick={() => void handleReverseExerciseOrder()}
-            disabled={unstartedExerciseCount < 2}
-          >
-            <ArrowUpDown className="h-4 w-4" />
-          </Button>
-        )}
       </div>
+
+      {!isCompleted && upNextMode && (
+        <section className="sticky top-16 z-10 isolate">
+          <div
+            className={`z-20 ${UP_NEXT_BOX_CLASS} ${
+              upNextMode === "next"
+                ? "border-emerald-400/40 bg-emerald-500 text-emerald-50"
+                : upNextMode === "complete"
+                  ? "border-white/15 text-white"
+                  : "border-orange-200/80 bg-orange-100 text-orange-950 dark:border-orange-900/40 dark:bg-orange-950 dark:text-orange-100"
+            }`}
+            style={{
+              ...(upNextMode === "complete" ? { backgroundColor: "var(--gt-session-complete-box)" } : {})
+            }}
+          >
+            {upNextMode === "rest" && restTimerPanelState && (
+              <div
+                className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-orange-200/70 to-orange-400/75 transition-[width] ease-linear dark:from-orange-700/35 dark:to-orange-500/40"
+                style={{
+                  width: `${restTimerPanelState.progressPercent}%`,
+                  transitionDuration: restTimerPanelState.paused ? "150ms" : "500ms"
+                }}
+                aria-hidden="true"
+              />
+            )}
+
+            <div className="relative z-[1] flex flex-col px-4 py-3">
+              {currentCardTitle && (
+                <p className={`${upNextMode === "rest" ? "mb-0" : "mb-2"} text-[11px] font-medium uppercase tracking-wide ${
+                  upNextMode === "complete"
+                    ? "text-white/80"
+                    : upNextMode === "next"
+                      ? "text-emerald-50/80"
+                      : "text-orange-900/75 dark:text-orange-100/80"
+                }`}>
+                  {currentCardTitle}
+                </p>
+              )}
+              {upNextMode === "complete" && completionStats ? (
+                <>
+                  <div className="grid grid-cols-3 gap-1">
+                    <div className="rounded-md border border-white/15 bg-white/10 px-2 py-1">
+                      <p className="text-[10px] text-white/75">{t("exercises")}</p>
+                      <p className="text-[11px] font-semibold">{completionStats.exerciseCount}</p>
+                    </div>
+                    <div className="rounded-md border border-white/15 bg-white/10 px-2 py-1">
+                      <p className="text-[10px] text-white/75">{t("sets")}</p>
+                      <p className="text-[11px] font-semibold">{completionStats.setCount}</p>
+                    </div>
+                    <div className="rounded-md border border-white/15 bg-white/10 px-2 py-1">
+                      <p className="text-[10px] text-white/75">{t("repsTotal")}</p>
+                      <p className="text-[11px] font-semibold">{completionStats.repsTotal}</p>
+                    </div>
+                    <div className="rounded-md border border-white/15 bg-white/10 px-2 py-1">
+                      <p className="text-[10px] text-white/75">{t("totalWeight")}</p>
+                      <p className="text-[11px] font-semibold">{formatNumber(completionStats.totalWeight, 0)} {weightUnit}</p>
+                    </div>
+                    <div className="relative rounded-md border border-white/15 bg-white/10 px-2 py-1">
+                      <div className="flex items-start justify-between gap-1">
+                        <p className="text-[10px] text-white/75">{t("calories")}</p>
+                        {completionStats.usesDefaultBodyWeightForCalories && (
+                          <InfoHint
+                            ariaLabel={t("calories")}
+                            text={t("caloriesEstimateAverageHint")}
+                            className="-mr-1 -mt-0.5 shrink-0"
+                          />
+                        )}
+                      </div>
+                      <p className="text-[11px] font-semibold">~{formatNumber(completionStats.calories, 0)} kcal</p>
+                    </div>
+                    <div className="rounded-md border border-white/15 bg-white/10 px-2 py-1">
+                      <p className="text-[10px] text-white/75">{t("duration")}</p>
+                      <p className="text-[11px] font-semibold tabular-nums">
+                        {formatFinishedDurationLabel(completionStats.durationMinutes, language)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-end">
+                    <Button
+                      type="button"
+                      className="w-full rounded-full border text-white hover:opacity-95"
+                      style={{
+                        backgroundColor: "color-mix(in srgb, var(--gt-session-complete-box) 88%, black)",
+                        borderColor: "color-mix(in srgb, var(--gt-session-complete-box) 70%, white)"
+                      }}
+                      onClick={() => setIsCompleteDialogOpen(true)}
+                    >
+                      <Flag className="mr-2 h-4 w-4" />
+                      {t("completeSession")}
+                    </Button>
+                  </div>
+                </>
+              ) : upNextMode === "rest" && restTimerPanelState ? (
+                <>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="secondary"
+                    className="absolute right-4 top-1/2 z-[2] h-10 w-10 -translate-y-1/2 shrink-0 border-orange-800/15 bg-white/45 text-orange-950 hover:bg-white/60 dark:border-orange-100/10 dark:bg-black/20 dark:text-orange-100 dark:hover:bg-black/30"
+                    aria-label={restTimerPanelState.paused ? t("resumeSession") : t("pauseTimer")}
+                    onClick={handleToggleRestTimerFromPanel}
+                  >
+                    {restTimerPanelState.paused ? <PlaySolidIcon className="h-4 w-4" /> : <PauseSolidIcon className="h-4 w-4" />}
+                  </Button>
+                  <div className="flex min-h-8 flex-1 items-center pr-12">
+                    <div className="min-w-0">
+                      <p className="text-[15px] font-semibold leading-tight tabular-nums text-orange-900/75 dark:text-orange-100/80">
+                        {formatDurationClock(restTimerPanelState.elapsedSeconds)} / {formatDurationClock(restTimerSeconds)}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-1 items-end overflow-hidden">
+                    <div className="w-full">
+                      {renderSetCardContent({
+                        exercise: nextActionableExercise,
+                        set: nextActionableSet,
+                        onDone: handleCompleteUpNextSet,
+                        inlineNoteInTitle: true
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {upNextMode !== "complete" && (
+            <div
+              className={`relative z-10 -mt-[33px] ${UP_NEXT_BOX_CLASS} px-4 pb-3 ${afterCardClassName}`}
+              style={{
+                paddingTop: `${upNextBottomCardPaddingTopPx}px`,
+              }}
+            >
+              {showAfterCardTitle && (
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-foreground/35">
+                  {t("afterward")}
+                </p>
+              )}
+
+              {upNextMode === "next" && (
+                <div className="overflow-hidden">
+                  {followingActionableExercise && followingActionableSet ? (
+                    renderSetCardContent({
+                      exercise: followingActionableExercise,
+                      set: followingActionableSet,
+                      compact: true,
+                      previewOnly: true,
+                      tone: "neutral-muted"
+                    })
+                  ) : (
+                    <div className="flex items-center gap-1 text-sm font-semibold text-foreground/45">
+                      <Flag className="h-3 w-3 shrink-0" />
+                      <span className="leading-tight">{t("completeSession")}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {upNextMode === "rest" && (
+                <div className="overflow-hidden">
+                  {renderSetCardContent({
+                    exercise: nextActionableExercise,
+                    set: nextActionableSet,
+                    compact: true,
+                    inlineNoteInTitle: true,
+                    onDone: handleCompleteUpNextSet,
+                    tone: "neutral-muted"
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       {sessionExercises.map((exercise) => {
         const isCollapsed = collapsedExercises[exercise.sessionExerciseKey] ?? false;
@@ -884,8 +1422,8 @@ export function SessionPage() {
               <div className="overflow-hidden">
               {exercise.exerciseNotes && (
                 <div className="px-6 pt-0.5">
-                  <p className="inline-flex items-start gap-1 text-xs text-muted-foreground">
-                    <NotebookPen className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <NotebookPen className="h-3 w-3 shrink-0" />
                     <span>{exercise.exerciseNotes}</span>
                   </p>
                 </div>
@@ -1013,7 +1551,7 @@ export function SessionPage() {
       })}
 
       {!isCompleted && !isAddExerciseExpanded && (
-        <div className="flex">
+        <div className="flex items-center justify-between gap-2">
           <Button
             variant="secondary"
             size="sm"
@@ -1023,6 +1561,17 @@ export function SessionPage() {
           >
             <Plus className="h-3.5 w-3.5" />
             {t("addExercise")}
+          </Button>
+          <Button
+            variant="secondary"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            aria-label={t("reverseSessionExerciseOrder")}
+            title={t("reverseSessionExerciseOrder")}
+            onClick={() => void handleReverseExerciseOrder()}
+            disabled={unstartedExerciseCount < 2}
+          >
+            <ArrowUpDown className="h-4 w-4" />
           </Button>
         </div>
       )}
