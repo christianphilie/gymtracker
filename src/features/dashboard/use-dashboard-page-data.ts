@@ -6,7 +6,7 @@ import {
   getSessionDurationMinutes,
   resolveCaloriesBodyWeightKg
 } from "@/lib/calorie-estimation";
-import { getSetStatsMultiplier } from "@/lib/utils";
+import { getEffectiveSetWeight, getSetStatsMultiplier } from "@/lib/utils";
 import type { WorkoutListItem } from "@/features/dashboard/dashboard-page-cards";
 import {
   addMuscleContributionFromSet,
@@ -259,7 +259,7 @@ export function useWeeklyStatsData(params: {
       const sessionTotalWeight = completedSets.reduce(
         (sum, set) =>
           sum +
-          (set.actualWeight ?? set.targetWeight) *
+          getEffectiveSetWeight(set.actualWeight ?? set.targetWeight, bodyWeightKg) *
             (set.actualReps ?? set.targetReps) *
             getSetStatsMultiplier(set),
         0

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowUpDown, Check, ChevronDown, Flag, NotebookPen, OctagonX, Plus, Trash2, X } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, Flag, NotebookPen, OctagonX, PersonStanding, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
@@ -38,7 +38,7 @@ import {
   getSessionDurationMinutes,
   resolveCaloriesBodyWeightKg
 } from "@/lib/calorie-estimation";
-import { formatDurationClock, formatNumber, formatSessionDateLabel, getSetStatsMultiplier } from "@/lib/utils";
+import { formatDurationClock, formatNumber, formatSessionDateLabel, getEffectiveSetWeight, getSetStatsMultiplier } from "@/lib/utils";
 
 const ACTIVE_SESSION_PILL_CLASS =
   "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500 dark:bg-emerald-950 dark:text-emerald-200";
@@ -151,6 +151,7 @@ export function SessionPage() {
   const exerciseCompletionTimersRef = useRef<Record<string, ExerciseCompletionFeedbackTimers>>({});
   const previousExerciseCompletionFeedbackRef = useRef<Record<string, ExerciseCompletionFeedbackState>>({});
   const [liveNowMs, setLiveNowMs] = useState(() => Date.now());
+  const [focusedWeightSetId, setFocusedWeightSetId] = useState<number | null>(null);
   const [sharedRestTimerUiState, setSharedRestTimerUiState] = useState<SharedRestTimerUiState | null>(null);
 
   const payload = useLiveQuery(async () => {
@@ -491,17 +492,17 @@ export function SessionPage() {
       (sum, set) => sum + (set.actualReps ?? set.targetReps) * getSetStatsMultiplier(set),
       0
     );
+    const finishedAt = payload.session.finishedAt ?? latestCompletedSet?.completedAt ?? new Date(liveNowMs).toISOString();
+    const durationMinutes = getSessionDurationMinutes(payload.session.startedAt, finishedAt);
+    const { bodyWeightKg, usesDefaultBodyWeight } = resolveCaloriesBodyWeightKg(settings?.bodyWeight, weightUnit);
     const totalWeight = completedSets.reduce(
       (sum, set) =>
         sum +
-        (set.actualWeight ?? set.targetWeight) *
+        getEffectiveSetWeight(set.actualWeight ?? set.targetWeight, bodyWeightKg) *
           (set.actualReps ?? set.targetReps) *
           getSetStatsMultiplier(set),
       0
     );
-    const finishedAt = payload.session.finishedAt ?? latestCompletedSet?.completedAt ?? new Date(liveNowMs).toISOString();
-    const durationMinutes = getSessionDurationMinutes(payload.session.startedAt, finishedAt);
-    const { bodyWeightKg, usesDefaultBodyWeight } = resolveCaloriesBodyWeightKg(settings?.bodyWeight, weightUnit);
     const calories = estimateStrengthTrainingCalories({
       durationMinutes,
       bodyWeightKg,
@@ -1044,7 +1045,7 @@ export function SessionPage() {
     const metaTextColorClass = isMutedNeutralTone ? "text-foreground/40" : "opacity-80";
     const noteLineTextColorClass = isMutedNeutralTone ? "text-foreground/45" : "opacity-85";
     const valueTextColorClass = isMutedNeutralTone ? "text-foreground/50" : "";
-    const dotClassName = "mx-2 inline-block";
+    const dotClassName = "mx-1 inline-block";
 
     return (
       <div className="flex items-stretch justify-between gap-3">
@@ -1162,7 +1163,7 @@ export function SessionPage() {
       </div>
 
       {!isCompleted && upNextMode && (
-        <section className="sticky top-16 z-10 isolate">
+        <section className="sticky top-2 z-10 isolate">
           <div
             className={`z-20 ${UP_NEXT_BOX_CLASS} ${
               upNextMode === "next"
@@ -1421,7 +1422,7 @@ export function SessionPage() {
             <div className={`grid transition-all duration-200 ${isCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}>
               <div className="overflow-hidden">
               {exercise.exerciseNotes && (
-                <div className="px-6 pt-0.5">
+                <div className="px-6 pb-2">
                   <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                     <NotebookPen className="h-3 w-3 shrink-0" />
                     <span>{exercise.exerciseNotes}</span>
@@ -1466,24 +1467,41 @@ export function SessionPage() {
                       </div>
 
                       <div className="min-w-0">
-                        <div className="relative">
-                          <DecimalInput
-                            value={actualWeightValue}
-                            min={0}
-                            step={0.5}
-                            disabled={isCompleted}
-                            className={`pr-16 ${set.completed ? "border-muted bg-muted/70 text-muted-foreground opacity-75" : ""}`}
-                            onCommit={(value) => {
-                              void updateSessionSet(set.id!, {
-                                actualWeight: value
-                              });
-                            }}
-                          />
-                          <div className={`pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-base text-muted-foreground ${set.completed ? "opacity-50" : ""}`}>
-                            {showTargetWeightHint && <span className="line-through">{formatInlineValue(set.targetWeight)}</span>}
-                            <span>{weightUnitLabel}</span>
-                          </div>
-                        </div>
+                        {(() => {
+                          const isBwSet = actualWeightValue === 0;
+                          const isNegativeSet = actualWeightValue < 0;
+                          const showBwOverlay = (isBwSet || isNegativeSet) && focusedWeightSetId !== set.id && !set.completed;
+                          return (
+                            <div className="relative">
+                              <DecimalInput
+                                value={actualWeightValue}
+                                min={-999}
+                                step={0.5}
+                                disabled={isCompleted}
+                                className={`pr-16 ${set.completed ? "border-muted bg-muted/70 text-muted-foreground opacity-75" : ""} ${showBwOverlay ? "text-transparent" : ""}`}
+                                onFocus={() => setFocusedWeightSetId(set.id ?? null)}
+                                onBlur={() => setFocusedWeightSetId(null)}
+                                onCommit={(value) => {
+                                  void updateSessionSet(set.id!, {
+                                    actualWeight: value
+                                  });
+                                }}
+                              />
+                              {showBwOverlay && (
+                                <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center gap-1 text-base">
+                                  <PersonStanding className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                  {isNegativeSet && (
+                                    <span className="text-sm text-foreground">{formatInlineValue(actualWeightValue)}</span>
+                                  )}
+                                </div>
+                              )}
+                              <div className={`pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-base text-muted-foreground ${set.completed ? "opacity-50" : ""}`}>
+                                {showTargetWeightHint && <span className="line-through">{formatInlineValue(set.targetWeight)}</span>}
+                                <span>{weightUnitLabel}</span>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       <div className="flex items-center justify-end">
@@ -1595,6 +1613,7 @@ export function SessionPage() {
               <Input
                 id="new-session-exercise"
                 value={newExerciseName}
+                noSelectAll
                 onChange={(event) => setNewExerciseName(event.target.value)}
                 placeholder={t("exerciseNamePlaceholder")}
               />
