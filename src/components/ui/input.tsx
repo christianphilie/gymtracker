@@ -1,8 +1,26 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+function isTextSelectableInput(input: HTMLInputElement) {
+  const type = (input.type || "text").toLowerCase();
+  return ["", "text", "search", "tel", "url", "email", "password", "number"].includes(type);
+}
+
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, ...props }, ref) => {
+  ({ className, type, onFocus, onClick, onMouseUp, ...props }, ref) => {
+    const selectAll = (target: HTMLInputElement) => {
+      if (target.disabled || target.readOnly || !isTextSelectableInput(target)) {
+        return;
+      }
+      window.setTimeout(() => {
+        try {
+          target.select();
+        } catch {
+          // Ignore unsupported input types/platform quirks.
+        }
+      }, 0);
+    };
+
     return (
       <input
         type={type}
@@ -11,6 +29,22 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
           className
         )}
         ref={ref}
+        onFocus={(event) => {
+          onFocus?.(event);
+          selectAll(event.currentTarget);
+        }}
+        onClick={(event) => {
+          onClick?.(event);
+          selectAll(event.currentTarget);
+        }}
+        onMouseUp={(event) => {
+          onMouseUp?.(event);
+          if (event.defaultPrevented) {
+            return;
+          }
+          event.preventDefault();
+          selectAll(event.currentTarget);
+        }}
         {...props}
       />
     );

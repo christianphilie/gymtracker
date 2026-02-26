@@ -474,7 +474,7 @@ export function AppShell() {
                 label={t("workouts")}
                 icon={<House className="h-[23px] w-[23px]" />}
                 activeClassName="bg-primary text-primary-foreground"
-                inactiveClassName="text-muted-foreground hover:bg-secondary hover:text-foreground"
+                inactiveClassName="text-muted-foreground"
               />
               {activeSessionNav && (
                 <BottomNavItem
@@ -483,7 +483,7 @@ export function AppShell() {
                   label={t("resumeSession")}
                   icon={<Play className="h-[23px] w-[23px]" />}
                   activeClassName="bg-emerald-400 text-emerald-100"
-                  inactiveClassName="text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  inactiveClassName="text-muted-foreground"
                 />
               )}
               <BottomNavItem
@@ -492,7 +492,7 @@ export function AppShell() {
                 label={t("statistics")}
                 icon={<ChartNoAxesCombined className="h-[23px] w-[23px]" />}
                 activeClassName="bg-primary text-primary-foreground"
-                inactiveClassName="text-muted-foreground hover:bg-secondary hover:text-foreground"
+                inactiveClassName="text-muted-foreground"
               />
               <BottomNavItem
                 to="/settings"
@@ -500,7 +500,7 @@ export function AppShell() {
                 label={t("settings")}
                 icon={<Settings className="h-[23px] w-[23px]" />}
                 activeClassName="bg-primary text-primary-foreground"
-                inactiveClassName="text-muted-foreground hover:bg-secondary hover:text-foreground"
+                inactiveClassName="text-muted-foreground"
               />
             </div>
           </nav>

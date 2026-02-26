@@ -624,7 +624,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                 {t("muscleGroupsThisWeek")}
               </p>
               <div className="inline-flex items-center rounded-lg border bg-background p-0.5">
-                {(["reps", "sets", "weight"] as const).map((mode) => (
+                {(["sets", "reps", "weight"] as const).map((mode) => (
                   <button
                     key={mode}
                     type="button"

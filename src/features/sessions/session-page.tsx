@@ -40,6 +40,16 @@ const SUCCESS_CIRCLE_CLASS =
   "inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-500 dark:bg-emerald-800 dark:text-emerald-100";
 const SESSION_COLLAPSED_STORAGE_KEY_PREFIX = "gymtracker:session-collapsed:";
 const SESSION_SCROLL_STORAGE_KEY_PREFIX = "gymtracker:session-scroll:";
+const EXERCISE_DONE_BADGE_DELAY_MS = 500;
+const EXERCISE_AUTO_COLLAPSE_DELAY_MS = 1500;
+const EXERCISE_DONE_BADGE_POP_DURATION_MS = 1500;
+
+type ExerciseCompletionFeedbackState = "pending-badge" | "show-badge";
+
+interface ExerciseCompletionFeedbackTimers {
+  badgeTimerId?: number;
+  collapseTimerId?: number;
+}
 
 interface PendingReorderAnimation {
   expectedOrderKey: string;
@@ -50,6 +60,25 @@ interface PendingReorderAnimation {
 
 function formatInlineValue(value: number) {
   return `${value}`;
+}
+
+function animateDoneBadgePop(node: HTMLSpanElement | null) {
+  if (!node || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    return;
+  }
+
+  node.animate(
+    [
+      { transform: "scale(0.45)", opacity: 0 },
+      { transform: "scale(1.32)", opacity: 1, offset: 0.55 },
+      { transform: "scale(0.92)", opacity: 1, offset: 0.82 },
+      { transform: "scale(1)", opacity: 1 }
+    ],
+    {
+      duration: EXERCISE_DONE_BADGE_POP_DURATION_MS,
+      easing: "cubic-bezier(0.18, 0.95, 0.2, 1)"
+    }
+  );
 }
 
 export function SessionPage() {
@@ -63,12 +92,16 @@ export function SessionPage() {
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const [collapsedExercises, setCollapsedExercises] = useState<Record<string, boolean>>({});
+  const [exerciseCompletionFeedback, setExerciseCompletionFeedback] = useState<Record<string, ExerciseCompletionFeedbackState>>({});
   const [loadedCollapsedStateSessionId, setLoadedCollapsedStateSessionId] = useState<number | null>(null);
   const [deleteExerciseTarget, setDeleteExerciseTarget] = useState<{ key: string } | null>(null);
   const exerciseCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const exerciseDoneBadgeRefs = useRef<Record<string, HTMLSpanElement | null>>({});
   const pendingReorderAnimationRef = useRef<PendingReorderAnimation | null>(null);
   const restoredScrollLocationKeyRef = useRef<string | null>(null);
   const lastSavedScrollTopRef = useRef<number | null>(null);
+  const exerciseCompletionTimersRef = useRef<Record<string, ExerciseCompletionFeedbackTimers>>({});
+  const previousExerciseCompletionFeedbackRef = useRef<Record<string, ExerciseCompletionFeedbackState>>({});
 
   const payload = useLiveQuery(async () => {
     if (Number.isNaN(numericSessionId)) {
@@ -109,6 +142,8 @@ export function SessionPage() {
     if (Number.isNaN(numericSessionId)) {
       return;
     }
+    clearAllExerciseCompletionFeedback();
+    exerciseDoneBadgeRefs.current = {};
     setLoadedCollapsedStateSessionId(null);
 
     try {
@@ -131,6 +166,26 @@ export function SessionPage() {
       setLoadedCollapsedStateSessionId(numericSessionId);
     }
   }, [numericSessionId]);
+
+  useEffect(() => {
+    return () => {
+      clearAllExerciseCompletionFeedback(false);
+      exerciseDoneBadgeRefs.current = {};
+    };
+  }, []);
+
+  useEffect(() => {
+    const previous = previousExerciseCompletionFeedbackRef.current;
+
+    for (const [sessionExerciseKey, state] of Object.entries(exerciseCompletionFeedback)) {
+      if (state !== "show-badge" || previous[sessionExerciseKey] === "show-badge") {
+        continue;
+      }
+      animateDoneBadgePop(exerciseDoneBadgeRefs.current[sessionExerciseKey] ?? null);
+    }
+
+    previousExerciseCompletionFeedbackRef.current = exerciseCompletionFeedback;
+  }, [exerciseCompletionFeedback]);
 
   useEffect(() => {
     if (Number.isNaN(numericSessionId) || loadedCollapsedStateSessionId !== numericSessionId) {
@@ -261,6 +316,75 @@ export function SessionPage() {
     }
   };
 
+  const clearExerciseCompletionFeedbackTimers = (sessionExerciseKey: string) => {
+    const timers = exerciseCompletionTimersRef.current[sessionExerciseKey];
+    if (!timers) {
+      return;
+    }
+    if (timers.badgeTimerId) {
+      window.clearTimeout(timers.badgeTimerId);
+    }
+    if (timers.collapseTimerId) {
+      window.clearTimeout(timers.collapseTimerId);
+    }
+    delete exerciseCompletionTimersRef.current[sessionExerciseKey];
+  };
+
+  const clearAllExerciseCompletionFeedback = (resetState = true) => {
+    for (const key of Object.keys(exerciseCompletionTimersRef.current)) {
+      clearExerciseCompletionFeedbackTimers(key);
+    }
+    previousExerciseCompletionFeedbackRef.current = {};
+    if (resetState) {
+      setExerciseCompletionFeedback({});
+    }
+  };
+
+  const cancelExerciseCompletionFeedback = (sessionExerciseKey: string) => {
+    clearExerciseCompletionFeedbackTimers(sessionExerciseKey);
+    setExerciseCompletionFeedback((prev) => {
+      if (!(sessionExerciseKey in prev)) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[sessionExerciseKey];
+      return next;
+    });
+  };
+
+  const scheduleExerciseCompletionFeedback = (sessionExerciseKey: string) => {
+    clearExerciseCompletionFeedbackTimers(sessionExerciseKey);
+    setExerciseCompletionFeedback((prev) => ({
+      ...prev,
+      [sessionExerciseKey]: "pending-badge"
+    }));
+
+    const badgeTimerId = window.setTimeout(() => {
+      setExerciseCompletionFeedback((prev) => {
+        if (prev[sessionExerciseKey] !== "pending-badge") {
+          return prev;
+        }
+        return {
+          ...prev,
+          [sessionExerciseKey]: "show-badge"
+        };
+      });
+    }, EXERCISE_DONE_BADGE_DELAY_MS);
+
+    const collapseTimerId = window.setTimeout(() => {
+      setCollapsedExercises((prev) => ({
+        ...prev,
+        [sessionExerciseKey]: true
+      }));
+      delete exerciseCompletionTimersRef.current[sessionExerciseKey];
+    }, EXERCISE_AUTO_COLLAPSE_DELAY_MS);
+
+    exerciseCompletionTimersRef.current[sessionExerciseKey] = {
+      badgeTimerId,
+      collapseTimerId
+    };
+  };
+
   const animatePageScrollBy = (deltaY: number, durationMs = 220) => {
     if (Math.abs(deltaY) < 1) {
       return;
@@ -313,9 +437,25 @@ export function SessionPage() {
       rafId = window.requestAnimationFrame(saveScrollPosition);
     };
 
+    const saveNow = () => {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+      saveScrollPosition();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        saveNow();
+      }
+    };
+
     const scrollRoot = getPageScrollRoot();
     window.addEventListener("scroll", onScroll, { passive: true });
     document.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("pagehide", saveNow);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     if (scrollRoot && scrollRoot !== document.documentElement && scrollRoot !== document.body) {
       scrollRoot.addEventListener("scroll", onScroll, { passive: true });
     }
@@ -329,8 +469,17 @@ export function SessionPage() {
       if (rafId) {
         window.cancelAnimationFrame(rafId);
       }
-      // Do not write here: some route transitions can briefly reset page scroll to 0
-      // before this cleanup runs, which would overwrite the last valid in-session position.
+      window.removeEventListener("pagehide", saveNow);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      const currentScrollTop = getPageScrollRoot()?.scrollTop;
+      if (typeof currentScrollTop === "number") {
+        const rounded = Math.max(0, Math.round(currentScrollTop));
+        const lastSaved = lastSavedScrollTopRef.current;
+        if (!(rounded === 0 && (lastSaved ?? 0) > 0)) {
+          writeSavedSessionScrollTop(numericSessionId, rounded);
+        }
+      }
+      // Cleanup persists the last position, but skips transient route-transition resets to 0.
     };
   }, [numericSessionId]);
 
@@ -351,7 +500,7 @@ export function SessionPage() {
 
     let frameId = 0;
     let attempts = 0;
-    const maxAttempts = 20;
+    const maxAttempts = 120;
     const tryRestore = () => {
       attempts += 1;
       const scrollRoot = getPageScrollRoot();
@@ -469,6 +618,10 @@ export function SessionPage() {
       return;
     }
 
+    if (!nextCompleted && set.completed) {
+      cancelExerciseCompletionFeedback(exercise.sessionExerciseKey);
+    }
+
     const beforeExerciseTop = exerciseCardRefs.current[exercise.sessionExerciseKey]?.getBoundingClientRect().top ?? null;
     const shouldCollapseAfterCheck =
       nextCompleted &&
@@ -478,10 +631,7 @@ export function SessionPage() {
     await updateSessionSet(set.id, { completed: nextCompleted });
 
     if (shouldCollapseAfterCheck) {
-      setCollapsedExercises((prev) => ({
-        ...prev,
-        [exercise.sessionExerciseKey]: true
-      }));
+      scheduleExerciseCompletionFeedback(exercise.sessionExerciseKey);
     }
 
     if (!nextCompleted || set.completed) {
@@ -639,6 +789,8 @@ export function SessionPage() {
       {sessionExercises.map((exercise) => {
         const isCollapsed = collapsedExercises[exercise.sessionExerciseKey] ?? false;
         const allCompleted = exercise.sets.length > 0 && exercise.sets.every((set) => set.completed);
+        const completionFeedbackState = exerciseCompletionFeedback[exercise.sessionExerciseKey];
+        const showDoneBadge = isCompleted || (allCompleted && completionFeedbackState !== "pending-badge");
         const lastTemplateSets =
           exercise.templateExerciseId !== undefined
             ? payload.previousSummary?.templateExerciseSets[exercise.templateExerciseId]
@@ -657,7 +809,7 @@ export function SessionPage() {
             className="transition-all duration-200"
           >
             <CardHeader className="space-y-2">
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex min-h-5 items-start justify-between gap-2">
                 <div className="min-w-0 flex flex-1 items-start gap-0.5">
                   <button
                     type="button"
@@ -687,7 +839,17 @@ export function SessionPage() {
                         aiInfo={exercise.exerciseAiInfo}
                       />
                     )}
-                    <span className={SUCCESS_CIRCLE_CLASS} aria-label={t("done")}>
+                    <span
+                      ref={(node) => {
+                        exerciseDoneBadgeRefs.current[exercise.sessionExerciseKey] = node;
+                      }}
+                      className={`${SUCCESS_CIRCLE_CLASS} transition-all duration-200 ease-out ${
+                        showDoneBadge
+                          ? "opacity-100 scale-100"
+                          : "pointer-events-none opacity-0 scale-50"
+                      }`}
+                      aria-label={t("done")}
+                    >
                       <Check className="h-3 w-3" />
                     </span>
                   </div>
