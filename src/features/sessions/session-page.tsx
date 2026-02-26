@@ -262,6 +262,10 @@ export function SessionPage() {
     () => sessionExercises.map((exercise) => exercise.sessionExerciseKey).join("|"),
     [sessionExercises]
   );
+  const unstartedExerciseCount = useMemo(
+    () => sessionExercises.filter((exercise) => !exercise.sets.some((set) => set.completed)).length,
+    [sessionExercises]
+  );
 
   const findNextActionableSet = (sets: SessionExerciseSet[]) => {
     if (sets.length === 0) {
@@ -678,11 +682,21 @@ export function SessionPage() {
   };
 
   const handleReverseExerciseOrder = async () => {
-    if (isCompleted || sessionExercises.length < 2) {
+    if (isCompleted || unstartedExerciseCount < 2) {
       return;
     }
 
-    const nextOrder = sessionExercises.map((entry) => entry.sessionExerciseKey).reverse();
+    const startedKeys: string[] = [];
+    const unstartedKeys: string[] = [];
+    for (const entry of sessionExercises) {
+      if (entry.sets.some((set) => set.completed)) {
+        startedKeys.push(entry.sessionExerciseKey);
+      } else {
+        unstartedKeys.push(entry.sessionExerciseKey);
+      }
+    }
+
+    const nextOrder = [...startedKeys, ...unstartedKeys.reverse()];
     pendingReorderAnimationRef.current = {
       expectedOrderKey: nextOrder.join("|"),
       beforeTops: captureExerciseCardTops(),
@@ -779,7 +793,7 @@ export function SessionPage() {
             aria-label={t("reverseSessionExerciseOrder")}
             title={t("reverseSessionExerciseOrder")}
             onClick={() => void handleReverseExerciseOrder()}
-            disabled={sessionExercises.length < 2}
+            disabled={unstartedExerciseCount < 2}
           >
             <ArrowUpDown className="h-4 w-4" />
           </Button>

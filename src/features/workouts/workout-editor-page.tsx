@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronDown, GripVertical, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowUpDown, ChevronDown, GripVertical, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
@@ -85,6 +85,67 @@ function reorderExercises(draft: WorkoutDraft, fromIndex: number, toIndex: numbe
   const [moved] = next.exercises.splice(fromIndex, 1);
   next.exercises.splice(toIndex, 0, moved);
   return next;
+}
+
+function reverseExercises(draft: WorkoutDraft) {
+  const next = structuredClone(draft);
+  next.exercises.reverse();
+  return next;
+}
+
+function reorderCollapsedExerciseMap(
+  current: Record<number, boolean>,
+  fromIndex: number,
+  toIndex: number,
+  length: number
+) {
+  if (fromIndex === toIndex || length <= 1) {
+    return current;
+  }
+
+  const flags = Array.from({ length }, (_, index) => current[index] ?? false);
+  const [moved] = flags.splice(fromIndex, 1);
+  flags.splice(toIndex, 0, moved ?? false);
+
+  const next: Record<number, boolean> = {};
+  flags.forEach((isCollapsed, index) => {
+    if (isCollapsed) {
+      next[index] = true;
+    }
+  });
+  return next;
+}
+
+function reverseCollapsedExerciseMap(current: Record<number, boolean>, length: number) {
+  if (length <= 1) {
+    return current;
+  }
+
+  const flags = Array.from({ length }, (_, index) => current[index] ?? false).reverse();
+  const next: Record<number, boolean> = {};
+  flags.forEach((isCollapsed, index) => {
+    if (isCollapsed) {
+      next[index] = true;
+    }
+  });
+  return next;
+}
+
+function reorderList<T>(items: T[], fromIndex: number, toIndex: number) {
+  if (fromIndex === toIndex) {
+    return items;
+  }
+  const next = [...items];
+  const [moved] = next.splice(fromIndex, 1);
+  if (moved === undefined) {
+    return items;
+  }
+  next.splice(toIndex, 0, moved);
+  return next;
+}
+
+function reverseList<T>(items: T[]) {
+  return [...items].reverse();
 }
 
 function normalizeExerciseName(value: string) {
@@ -207,7 +268,18 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const { workoutId } = useParams();
   const navigate = useNavigate();
   const { t, weightUnitLabel, language } = useSettings();
-  const [draft, setDraft] = useState<WorkoutDraft>(createEmptyDraft());
+  const exerciseUiKeyCounterRef = useRef(0);
+  const createExerciseUiKey = () => {
+    exerciseUiKeyCounterRef.current += 1;
+    return `exercise-ui-${exerciseUiKeyCounterRef.current}`;
+  };
+  const [draft, setDraft] = useState<WorkoutDraft>(() => createEmptyDraft());
+  const [exerciseUiKeys, setExerciseUiKeys] = useState<string[]>(() =>
+    createEmptyDraft().exercises.map(() => {
+      exerciseUiKeyCounterRef.current += 1;
+      return `exercise-ui-${exerciseUiKeyCounterRef.current}`;
+    })
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -218,6 +290,11 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const [deleteExerciseIndex, setDeleteExerciseIndex] = useState<number | null>(null);
   const [isGeneratingExerciseInfo, setIsGeneratingExerciseInfo] = useState(false);
   const attemptedAutoExerciseInfoKeysRef = useRef<Set<string>>(new Set());
+  const exerciseCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const dragIndexRef = useRef<number | null>(null);
+  const pointerDragExerciseIndexRef = useRef<number | null>(null);
+  const pointerDragPointerIdRef = useRef<number | null>(null);
+  const pendingReorderAnimationRef = useRef<{ beforeTops: Map<string, number> } | null>(null);
 
   useEffect(() => {
     if (mode !== "edit" || !workoutId) {
@@ -251,6 +328,8 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
           }))
         }))
       });
+      setExerciseUiKeys(existing.exercises.map(() => createExerciseUiKey()));
+      exerciseCardRefs.current = {};
     })();
   }, [mode, workoutId, navigate]);
 
@@ -604,6 +683,10 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
     }
   }, [draft, isValid, mode, navigate, t, workoutId]);
 
+  const handleCancel = useCallback(() => {
+    navigate("/");
+  }, [navigate]);
+
   const handleDeleteWorkout = async () => {
     if (mode !== "edit" || !workoutId) {
       return;
@@ -635,6 +718,21 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
     };
   }, [mode, handleSave]);
 
+  useEffect(() => {
+    if (mode !== "edit") {
+      return;
+    }
+
+    const onCancelRequest = () => {
+      handleCancel();
+    };
+
+    window.addEventListener("gymtracker:cancel-workout-editor", onCancelRequest);
+    return () => {
+      window.removeEventListener("gymtracker:cancel-workout-editor", onCancelRequest);
+    };
+  }, [handleCancel, mode]);
+
   const hasExercises = draft.exercises.length > 0;
   const areAllExercisesCollapsed =
     hasExercises && draft.exercises.every((_, exerciseIndex) => collapsedExercises[exerciseIndex] ?? false);
@@ -652,6 +750,123 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
       return next;
     });
   };
+
+  const captureExerciseCardTops = useCallback(() => {
+    const beforeTops = new Map<string, number>();
+    for (const uiKey of exerciseUiKeys) {
+      const element = exerciseCardRefs.current[uiKey];
+      if (!element) {
+        continue;
+      }
+      beforeTops.set(uiKey, element.getBoundingClientRect().top);
+    }
+    return beforeTops;
+  }, [exerciseUiKeys]);
+
+  const animateExerciseReorder = useCallback((beforeTops: Map<string, number>) => {
+    if (beforeTops.size === 0 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+
+    const durationMs = 220;
+    const animated = new Set<HTMLElement>();
+    for (const [uiKey, previousTop] of beforeTops.entries()) {
+      const element = exerciseCardRefs.current[uiKey];
+      if (!element) {
+        continue;
+      }
+      const currentTop = element.getBoundingClientRect().top;
+      const deltaY = previousTop - currentTop;
+      if (Math.abs(deltaY) < 1) {
+        continue;
+      }
+
+      animated.add(element);
+      element.style.transition = "none";
+      element.style.transform = `translateY(${deltaY}px)`;
+      element.style.willChange = "transform";
+    }
+
+    if (animated.size === 0) {
+      return;
+    }
+
+    void document.body.offsetHeight;
+
+    window.requestAnimationFrame(() => {
+      for (const element of animated) {
+        element.style.transition = `transform ${durationMs}ms ease-out`;
+        element.style.transform = "translateY(0)";
+      }
+
+      window.setTimeout(() => {
+        for (const element of animated) {
+          element.style.transition = "";
+          element.style.transform = "";
+          element.style.willChange = "";
+        }
+      }, durationMs + 40);
+    });
+  }, []);
+
+  useEffect(() => {
+    const pending = pendingReorderAnimationRef.current;
+    if (!pending) {
+      return;
+    }
+    pendingReorderAnimationRef.current = null;
+    animateExerciseReorder(pending.beforeTops);
+  }, [animateExerciseReorder, exerciseUiKeys]);
+
+  const applyExerciseReorder = useCallback((fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) {
+      return;
+    }
+
+    pendingReorderAnimationRef.current = {
+      beforeTops: captureExerciseCardTops()
+    };
+    setDraft((prev) => reorderExercises(prev, fromIndex, toIndex));
+    setExerciseUiKeys((prev) => reorderList(prev, fromIndex, toIndex));
+    setCollapsedExercises((prev) => reorderCollapsedExerciseMap(prev, fromIndex, toIndex, draft.exercises.length));
+    dragIndexRef.current = toIndex;
+    setDragIndex(toIndex);
+  }, [captureExerciseCardTops, draft.exercises.length]);
+
+  const getExerciseIndexAtClientY = useCallback((clientY: number) => {
+    for (let index = 0; index < draft.exercises.length; index += 1) {
+      const uiKey = exerciseUiKeys[index];
+      const card = uiKey ? exerciseCardRefs.current[uiKey] : null;
+      if (!card) {
+        continue;
+      }
+      const rect = card.getBoundingClientRect();
+      const midpointY = rect.top + rect.height / 2;
+      if (clientY < midpointY) {
+        return index;
+      }
+    }
+    return Math.max(0, draft.exercises.length - 1);
+  }, [draft.exercises.length, exerciseUiKeys]);
+
+  const finishPointerExerciseReorder = useCallback(() => {
+    pointerDragPointerIdRef.current = null;
+    pointerDragExerciseIndexRef.current = null;
+    dragIndexRef.current = null;
+    setDragIndex(null);
+  }, []);
+
+  const handleReverseExerciseOrder = useCallback(() => {
+    if (draft.exercises.length < 2) {
+      return;
+    }
+    pendingReorderAnimationRef.current = {
+      beforeTops: captureExerciseCardTops()
+    };
+    setDraft((prev) => reverseExercises(prev));
+    setExerciseUiKeys((prev) => reverseList(prev));
+    setCollapsedExercises((prev) => reverseCollapsedExerciseMap(prev, draft.exercises.length));
+  }, [captureExerciseCardTops, draft.exercises.length]);
 
   return (
     <section className="space-y-4">
@@ -714,39 +929,64 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         <h2 className="inline-flex items-center gap-2 text-base font-semibold">
           {t("exercises")}
         </h2>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          className="h-7 gap-1 px-2 text-xs"
-          onClick={handleToggleAllExercisesCollapsed}
-          disabled={!hasExercises}
-        >
-          <ChevronDown className={`h-3 w-3 shrink-0 ${areAllExercisesCollapsed ? "-rotate-90" : ""}`} />
-          {areAllExercisesCollapsed ? t("expandAllExercises") : t("collapseAllExercises")}
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            className="h-7 w-7"
+            onClick={handleReverseExerciseOrder}
+            disabled={draft.exercises.length < 2}
+            aria-label={t("reverseSessionExerciseOrder")}
+            title={t("reverseSessionExerciseOrder")}
+          >
+            <ArrowUpDown className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs"
+            onClick={handleToggleAllExercisesCollapsed}
+            disabled={!hasExercises}
+          >
+            <ChevronDown className={`h-3 w-3 shrink-0 ${areAllExercisesCollapsed ? "-rotate-90" : ""}`} />
+            {areAllExercisesCollapsed ? t("expandAllExercises") : t("collapseAllExercises")}
+          </Button>
+        </div>
       </div>
 
       {draft.exercises.map((exercise, exerciseIndex) => {
+        const exerciseUiKey = exerciseUiKeys[exerciseIndex] ?? `exercise-fallback-${exerciseIndex}`;
         const collapsed = collapsedExercises[exerciseIndex] ?? false;
         const title = exercise.name.trim() || t("exerciseNew");
 
         return (
           <Card
-            key={`exercise-${exerciseIndex}`}
-            onDragOver={(event) => event.preventDefault()}
+            ref={(node) => {
+              exerciseCardRefs.current[exerciseUiKey] = node;
+            }}
+            key={exerciseUiKey}
+            onDragOver={(event) => {
+              event.preventDefault();
+              const currentDragIndex = dragIndexRef.current;
+              if (currentDragIndex === null || currentDragIndex === exerciseIndex) {
+                return;
+              }
+              applyExerciseReorder(currentDragIndex, exerciseIndex);
+            }}
             onDrop={(event) => {
               event.preventDefault();
               const rawFromData = event.dataTransfer.getData("text/plain");
               const fromData = rawFromData.length ? Number(rawFromData) : Number.NaN;
-              const fromIndex = Number.isNaN(fromData) ? dragIndex : fromData;
-              if (fromIndex === null || fromIndex === exerciseIndex || Number.isNaN(fromIndex)) {
-                return;
+              const fromIndex = Number.isNaN(fromData) ? dragIndexRef.current : fromData;
+              if (fromIndex !== null && !Number.isNaN(fromIndex) && fromIndex !== exerciseIndex) {
+                applyExerciseReorder(fromIndex, exerciseIndex);
               }
-
-              setDraft((prev) => reorderExercises(prev, fromIndex, exerciseIndex));
+              dragIndexRef.current = null;
               setDragIndex(null);
             }}
+            className={dragIndex === exerciseIndex ? "border-foreground/30" : undefined}
           >
             <CardHeader className="space-y-3">
               <div className="flex items-start justify-between gap-2">
@@ -777,13 +1017,67 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                     type="button"
                     draggable={true}
                     onDragStart={(event) => {
+                      dragIndexRef.current = exerciseIndex;
                       setDragIndex(exerciseIndex);
                       event.dataTransfer.effectAllowed = "move";
                       event.dataTransfer.setData("text/plain", String(exerciseIndex));
                     }}
-                    onDragEnd={() => setDragIndex(null)}
+                    onDragEnd={() => {
+                      dragIndexRef.current = null;
+                      setDragIndex(null);
+                    }}
+                    onPointerDown={(event) => {
+                      if (event.pointerType === "mouse") {
+                        return;
+                      }
+                      event.preventDefault();
+                      pointerDragPointerIdRef.current = event.pointerId;
+                      pointerDragExerciseIndexRef.current = exerciseIndex;
+                      dragIndexRef.current = exerciseIndex;
+                      setDragIndex(exerciseIndex);
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                    }}
+                    onPointerMove={(event) => {
+                      if (pointerDragPointerIdRef.current !== event.pointerId) {
+                        return;
+                      }
+                      event.preventDefault();
+                      const fromIndex = pointerDragExerciseIndexRef.current;
+                      if (fromIndex === null) {
+                        return;
+                      }
+                      const targetIndex = getExerciseIndexAtClientY(event.clientY);
+                      if (targetIndex === fromIndex) {
+                        return;
+                      }
+                      pointerDragExerciseIndexRef.current = targetIndex;
+                      applyExerciseReorder(fromIndex, targetIndex);
+                    }}
+                    onPointerUp={(event) => {
+                      if (pointerDragPointerIdRef.current !== event.pointerId) {
+                        return;
+                      }
+                      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                      }
+                      finishPointerExerciseReorder();
+                    }}
+                    onPointerCancel={(event) => {
+                      if (pointerDragPointerIdRef.current !== event.pointerId) {
+                        return;
+                      }
+                      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                      }
+                      finishPointerExerciseReorder();
+                    }}
+                    onLostPointerCapture={() => {
+                      if (pointerDragPointerIdRef.current !== null) {
+                        finishPointerExerciseReorder();
+                      }
+                    }}
                     aria-label={t("reorderExercise")}
-                    className="cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
+                    className="touch-none cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
                   >
                     <GripVertical className="h-4 w-4" />
                   </button>
@@ -1042,6 +1336,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                       }
                     ]
                   }));
+                  setExerciseUiKeys((prev) => [...prev, createExerciseUiKey()]);
                   setNewExerciseName("");
                   setIsAddExerciseExpanded(false);
                 }}
@@ -1060,6 +1355,18 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
           <Save className="mr-2 h-4 w-4" />
           {t("save")}
         </Button>
+        {mode === "edit" && (
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            disabled={isSaving || isDeleting}
+            onClick={handleCancel}
+          >
+            <X className="mr-2 h-4 w-4" />
+            {t("cancel")}
+          </Button>
+        )}
         {mode === "edit" && (
           <Button
             variant="outline"
@@ -1096,6 +1403,33 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                   }
                   const next = structuredClone(prev);
                   next.exercises.splice(deleteExerciseIndex, 1);
+                  return next;
+                });
+                setExerciseUiKeys((prev) => {
+                  if (deleteExerciseIndex >= prev.length) {
+                    return prev;
+                  }
+                  const next = [...prev];
+                  const [removedKey] = next.splice(deleteExerciseIndex, 1);
+                  if (removedKey) {
+                    delete exerciseCardRefs.current[removedKey];
+                  }
+                  return next;
+                });
+                setCollapsedExercises((prev) => {
+                  if (deleteExerciseIndex >= draft.exercises.length) {
+                    return prev;
+                  }
+                  const next: Record<number, boolean> = {};
+                  for (let index = 0; index < draft.exercises.length; index += 1) {
+                    if (index === deleteExerciseIndex) {
+                      continue;
+                    }
+                    const nextIndex = index > deleteExerciseIndex ? index - 1 : index;
+                    if (prev[index]) {
+                      next[nextIndex] = true;
+                    }
+                  }
                   return next;
                 });
                 setDeleteExerciseIndex(null);

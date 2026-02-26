@@ -14,7 +14,8 @@ import {
   Scale,
   Settings,
   Shield,
-  Sparkles
+  Sparkles,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LockerNoteInput } from "@/components/forms/locker-note-input";
@@ -55,6 +56,7 @@ interface HeaderActionsProps {
   timerPaused: boolean;
   onToggleTimer: () => void;
   showEditorSave: boolean;
+  onEditorCancel: () => void;
   onEditorSave: () => void;
 }
 
@@ -163,6 +165,7 @@ function HeaderActions({
   timerPaused,
   onToggleTimer,
   showEditorSave,
+  onEditorCancel,
   onEditorSave
 }: HeaderActionsProps) {
   const { t } = useSettings();
@@ -240,10 +243,22 @@ function HeaderActions({
 
   if (showEditorSave) {
     return (
-      <Button size="sm" onClick={onEditorSave}>
-        <Save className="mr-2 h-4 w-4" />
-        {t("save")}
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          size="icon"
+          aria-label={t("cancel")}
+          title={t("cancel")}
+          onClick={onEditorCancel}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+        <Button size="sm" onClick={onEditorSave}>
+          <Save className="mr-2 h-4 w-4" />
+          {t("save")}
+        </Button>
+      </div>
     );
   }
 
@@ -431,6 +446,9 @@ export function AppShell() {
   const handleEditorSave = () => {
     window.dispatchEvent(new CustomEvent("gymtracker:save-workout-editor"));
   };
+  const handleEditorCancel = () => {
+    window.dispatchEvent(new CustomEvent("gymtracker:cancel-workout-editor"));
+  };
 
   // const dismissIosWebAppHint = () => {
   //   localStorage.setItem(IOS_WEBAPP_HINT_DISMISSED_KEY, "true");
@@ -453,6 +471,7 @@ export function AppShell() {
               timerPaused={timerPaused}
               onToggleTimer={handleToggleTimer}
               showEditorSave={isWorkoutEditRoute}
+              onEditorCancel={handleEditorCancel}
               onEditorSave={handleEditorSave}
             />
             {showLockerNote && <LockerNoteInput />}
