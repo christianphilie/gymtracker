@@ -35,7 +35,7 @@ import {
 import { discardSession, ensureDefaultWorkout, startSession } from "@/db/repository";
 import { useSettings } from "@/app/settings-context";
 import { getSessionDurationMinutes } from "@/lib/calorie-estimation";
-import { formatNumber, formatSessionDateLabel } from "@/lib/utils";
+import { formatDurationLabel, formatNumber, formatSessionDateLabel } from "@/lib/utils";
 import {
   WeeklyGoalCard,
   WorkoutListCard,
@@ -471,7 +471,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                 <Clock3 className="h-3.5 w-3.5" />
                 {t("duration")}
               </p>
-              <p className="text-base font-semibold">{formatDurationShort(weeklyStats?.durationMinutesTotal ?? 0, language)}</p>
+              <p className="text-base font-semibold">{formatDurationLabel(weeklyStats?.durationMinutesTotal ?? 0, language)}</p>
             </div>
             <div className="rounded-lg border bg-card px-3 py-2">
               <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">

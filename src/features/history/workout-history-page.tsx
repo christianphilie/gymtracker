@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { Check, Pencil, PersonStanding, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
@@ -34,7 +34,7 @@ import {
   getSessionDurationMinutes,
   resolveCaloriesBodyWeightKg
 } from "@/lib/calorie-estimation";
-import { formatNumber, formatSessionDateLabel, getSetStatsMultiplier } from "@/lib/utils";
+import { formatDurationLabel, formatNumber, formatSessionDateLabel, getEffectiveSetWeight, getSetStatsMultiplier } from "@/lib/utils";
 
 interface EditableSessionSet {
   id?: number;
@@ -130,18 +130,6 @@ function fromDateTimeLocalValue(value: string) {
   return date.toISOString();
 }
 
-function formatHistoryDurationLabel(durationMinutes: number, language: "de" | "en") {
-  const roundedMinutes = Math.max(0, Math.round(durationMinutes));
-  if (roundedMinutes < 60) {
-    return language === "de" ? `${roundedMinutes} Minuten` : `${roundedMinutes} min`;
-  }
-
-  const hours = Math.floor(roundedMinutes / 60);
-  const minutes = roundedMinutes % 60;
-  return language === "de"
-    ? `${hours}:${String(minutes).padStart(2, "0")} Stunden`
-    : `${hours}:${String(minutes).padStart(2, "0")} h`;
-}
 
 export function WorkoutHistoryPage() {
   const { workoutId } = useParams();
@@ -209,16 +197,16 @@ export function WorkoutHistoryPage() {
         (sum, set) => sum + (set.actualReps ?? set.targetReps) * getSetStatsMultiplier(set),
         0
       );
+      const durationMinutes = getSessionDurationMinutes(entry.session.startedAt, entry.session.finishedAt);
+      const { bodyWeightKg, usesDefaultBodyWeight } = resolveCaloriesBodyWeightKg(settings?.bodyWeight, weightUnit);
       const totalWeight = completedSets.reduce(
         (sum, set) =>
           sum +
-          (set.actualWeight ?? set.targetWeight) *
+          getEffectiveSetWeight(set.actualWeight ?? set.targetWeight, bodyWeightKg) *
             (set.actualReps ?? set.targetReps) *
             getSetStatsMultiplier(set),
         0
       );
-      const durationMinutes = getSessionDurationMinutes(entry.session.startedAt, entry.session.finishedAt);
-      const { bodyWeightKg, usesDefaultBodyWeight } = resolveCaloriesBodyWeightKg(settings?.bodyWeight, weightUnit);
       const calories = estimateStrengthTrainingCalories({
         durationMinutes,
         bodyWeightKg,
@@ -236,6 +224,7 @@ export function WorkoutHistoryPage() {
           totalWeight,
           calories,
           durationMinutes,
+          bodyWeightKg,
           usesDefaultBodyWeightForCalories: usesDefaultBodyWeight
         }
       };
@@ -481,14 +470,22 @@ export function WorkoutHistoryPage() {
                       )}
                     </div>
                     <div className="mt-1 space-y-1">
-                      {sets.map((set, index) => (
-                        <p
-                          key={set.id ?? `${firstSet.sessionExerciseKey}-${index}`}
-                          className="text-xs leading-none text-muted-foreground tabular-nums"
-                        >
-                          {set.actualReps ?? set.targetReps} × {formatNumber(set.actualWeight ?? set.targetWeight, 0)} {weightUnit}
-                        </p>
-                      ))}
+                      {sets.map((set, index) => {
+                        const w = set.actualWeight ?? set.targetWeight;
+                        const isBw = w === 0;
+                        const isNeg = w < 0;
+                        return (
+                          <p
+                            key={set.id ?? `${firstSet.sessionExerciseKey}-${index}`}
+                            className="inline-flex items-center gap-0.5 text-xs leading-none text-muted-foreground tabular-nums"
+                          >
+                            {set.actualReps ?? set.targetReps} ×{" "}
+                            {(isBw || isNeg) && <PersonStanding className="h-3 w-3 shrink-0" />}
+                            {isBw ? null : formatNumber(w, 0)}
+                            {" "}{weightUnit}
+                          </p>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -527,7 +524,7 @@ export function WorkoutHistoryPage() {
               </div>
               <div className="rounded-md border bg-card px-2 py-1.5">
                 <p className="text-[10px] text-muted-foreground">{t("duration")}</p>
-                <p className="text-xs font-semibold">{formatHistoryDurationLabel(entry.stats.durationMinutes, language)}</p>
+                <p className="text-xs font-semibold">{formatDurationLabel(entry.stats.durationMinutes, language)}</p>
               </div>
             </div>
           </CardContent>

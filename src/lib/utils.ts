@@ -63,13 +63,8 @@ export function formatSessionDateLabel(value: Date | string, language: AppLangua
     return `${prefix}, ${formatLocalTime(date, language)}`;
   }
 
-  if (dayDiff === 2) {
-    const prefix = language === "de" ? "Vorgestern" : "Day before yesterday";
-    return `${prefix}, ${formatLocalTime(date, language)}`;
-  }
-
   if (dayDiff < 14) {
-    return language === "de" ? `Vor ${dayDiff} Tagen` : `${dayDiff} days ago`;
+    return language === "de" ? `Vor ${dayDiff} Tagen, ${formatLocalTime(date, language)}` : `${dayDiff} days ago, ${formatLocalTime(date, language)}`;
   }
 
   return formatLocalDate(date, language);
@@ -95,6 +90,31 @@ export function formatDurationClock(totalSeconds: number) {
   return `${minutes}:${seconds}`;
 }
 
+export function formatDurationLabel(durationMinutes: number, language: "de" | "en") {
+  const roundedMinutes = Math.max(0, Math.round(durationMinutes));
+  if (roundedMinutes < 60) {
+    return language === "de" ? `${roundedMinutes} Minuten` : `${roundedMinutes} min`;
+  }
+
+  const hours = Math.floor(roundedMinutes / 60);
+  const minutes = roundedMinutes % 60;
+  return language === "de"
+    ? `${hours}:${String(minutes).padStart(2, "0")} Stunden`
+    : `${hours}:${String(minutes).padStart(2, "0")} h`;
+}
+
 export function getSetStatsMultiplier(set: Pick<SessionExerciseSet, "x2Enabled">) {
   return set.x2Enabled ? 2 : 1;
+}
+
+/**
+ * Returns the effective weight for a set, taking bodyweight into account.
+ * weight === 0 → pure bodyweight exercise → returns bodyWeightKg
+ * weight < 0  → assisted exercise (e.g. machine-assisted pull-up) → returns max(0, bodyWeightKg + weight)
+ * weight > 0  → regular exercise → returns weight as-is
+ */
+export function getEffectiveSetWeight(weight: number, bodyWeightKg: number): number {
+  if (weight === 0) return bodyWeightKg;
+  if (weight < 0) return Math.max(0, bodyWeightKg + weight);
+  return weight;
 }
