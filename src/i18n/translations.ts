@@ -369,7 +369,7 @@ export const messages = {
     now: "Now",
     upNext: "Up Next",
     nextSet: "Next set",
-    afterward: "Afterward",
+    afterward: "Then",
     rest: "Rest",
     restTimer: "Rest timer",
     workoutComplete: "Workout complete",

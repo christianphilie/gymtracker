@@ -268,7 +268,7 @@ export function AppShell() {
       title = t("sessionHistory");
       Icon = ChartNoAxesCombined;
     } else if (/^\/sessions\/\d+$/.test(location.pathname)) {
-      title = "Session";
+      title = "Aktive Session";
       Icon = Play;
     }
 
@@ -441,15 +441,29 @@ export function AppShell() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col bg-background">
-      <header className="sticky top-0 z-20 border-x-0 border-b border-t-0 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+      <header className={activeSessionId ? "border-x-0 border-b border-t-0 bg-background" : "sticky top-0 z-20 border-x-0 border-b border-t-0 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70"}>
         <div className="container flex h-14 items-center justify-between">
           <div className={`flex min-w-0 items-center gap-2 ${pageHeader.containerClassName}`}>
             <pageHeader.Icon className={`h-5 w-5 shrink-0 ${pageHeader.iconClassName}`} />
             <p className={`truncate text-lg font-semibold ${pageHeader.titleClassName}`}>{pageHeader.title}</p>
+            {activeSessionId && sessionState && (() => {
+              const pct = sessionState.total > 0 ? Math.round((sessionState.completed / sessionState.total) * 100) : 0;
+              return (
+                <div className="relative shrink-0 overflow-hidden rounded-full bg-emerald-100 pl-3.5 pr-5 py-0.5 dark:bg-emerald-950">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium tabular-nums text-emerald-600 dark:text-emerald-200">
+                    <Check className="h-3 w-3 shrink-0" />
+                    {sessionState.completed}/{sessionState.total}
+                  </span>
+                  <div className="absolute inset-x-0 bottom-0 h-[3px] bg-emerald-200 dark:bg-emerald-900">
+                    <div className="h-full bg-emerald-600 transition-all dark:bg-emerald-400" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })()}
           </div>
           <div className="flex items-center gap-2">
             <HeaderActions
-              sessionState={sessionState}
+              sessionState={activeSessionId ? null : sessionState}
               restTimerSeconds={restTimerSeconds}
               restTimerEnabled={restTimerEnabled}
               timerPaused={timerPaused}
