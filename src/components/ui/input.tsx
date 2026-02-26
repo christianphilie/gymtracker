@@ -6,10 +6,12 @@ function isTextSelectableInput(input: HTMLInputElement) {
   return ["", "text", "search", "tel", "url", "email", "password", "number"].includes(type);
 }
 
-const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, onFocus, onClick, onMouseUp, ...props }, ref) => {
+type InputProps = React.ComponentProps<"input"> & { noSelectAll?: boolean };
+
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ className, type, onFocus, onClick, onMouseUp, noSelectAll, ...props }, ref) => {
     const selectAll = (target: HTMLInputElement) => {
-      if (target.disabled || target.readOnly || !isTextSelectableInput(target)) {
+      if (noSelectAll || target.disabled || target.readOnly || !isTextSelectableInput(target)) {
         return;
       }
       window.setTimeout(() => {

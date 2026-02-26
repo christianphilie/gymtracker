@@ -9,6 +9,8 @@ interface DecimalInputProps {
   disabled?: boolean;
   className?: string;
   ariaLabel?: string;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
 function toInputString(value: number, step: number) {
@@ -25,9 +27,12 @@ function parseDecimal(raw: string) {
     return undefined;
   }
 
+  const isNegative = compact.startsWith("-");
+  const digits = isNegative ? compact.slice(1) : compact;
+
   let normalized = "";
   let usedDecimalSeparator = false;
-  for (const char of compact) {
+  for (const char of digits) {
     if (/[0-9]/.test(char)) {
       normalized += char;
       continue;
@@ -46,7 +51,7 @@ function parseDecimal(raw: string) {
   if (!Number.isFinite(value)) {
     return undefined;
   }
-  return value;
+  return isNegative ? -value : value;
 }
 
 export function DecimalInput({
@@ -56,7 +61,9 @@ export function DecimalInput({
   step = 1,
   disabled = false,
   className,
-  ariaLabel
+  ariaLabel,
+  onFocus,
+  onBlur
 }: DecimalInputProps) {
   const baseString = useMemo(() => toInputString(value, step), [value, step]);
   const [draft, setDraft] = useState(baseString);
@@ -70,7 +77,7 @@ export function DecimalInput({
     <Input
       type="text"
       inputMode="decimal"
-      pattern="[0-9]*[.,]?[0-9]*"
+      pattern="-?[0-9]*[.,]?[0-9]*"
       aria-label={ariaLabel}
       value={draft}
       disabled={disabled}
@@ -81,6 +88,7 @@ export function DecimalInput({
         window.setTimeout(() => {
           target.select();
         }, 0);
+        onFocus?.();
       }}
       onClick={() => {
         const target = inputRef.current;
@@ -96,7 +104,7 @@ export function DecimalInput({
       }}
       onChange={(event) => {
         const next = event.currentTarget.value;
-        if (/^[0-9.,]*$/.test(next) || next === "") {
+        if (/^-?[0-9.,]*$/.test(next) || next === "") {
           setDraft(next);
         }
       }}
@@ -104,6 +112,7 @@ export function DecimalInput({
         const parsed = parseDecimal(event.currentTarget.value);
         if (parsed === undefined) {
           setDraft(baseString);
+          onBlur?.();
           return;
         }
 
@@ -119,6 +128,7 @@ export function DecimalInput({
 
         onCommit(rounded);
         setDraft(toInputString(rounded, step));
+        onBlur?.();
       }}
       onKeyDown={(event) => {
         if (event.key === "Enter") {

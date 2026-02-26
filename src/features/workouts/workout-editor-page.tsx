@@ -917,6 +917,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
             <Input
               id="workout-name"
               value={draft.name}
+              noSelectAll
               onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
               placeholder={t("workoutNamePlaceholder")}
               className="min-w-0 flex-1"
@@ -1080,6 +1081,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                   <label className="text-xs text-muted-foreground">{t("exerciseName")}</label>
                   <Input
                     value={exercise.name}
+                    noSelectAll
                     onChange={(event) => {
                       const value = event.target.value;
                       setDraft((prev) => {
@@ -1307,6 +1309,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
             <div className="flex items-center gap-2">
               <Input
                 value={newExerciseName}
+                noSelectAll
                 onChange={(event) => setNewExerciseName(event.target.value)}
                 placeholder={t("exerciseNamePlaceholder")}
               />
