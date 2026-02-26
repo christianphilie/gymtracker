@@ -141,6 +141,7 @@ export function WorkoutHistoryPage() {
   const [editingSessionStartedAtDraft, setEditingSessionStartedAtDraft] = useState("");
   const [editingSessionFinishedAtDraft, setEditingSessionFinishedAtDraft] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [focusedWeightSetId, setFocusedWeightSetId] = useState<number | null>(null);
   const nextEditingDraftSetIdRef = useRef(-1);
 
   const payload = useLiveQuery(async () => {
@@ -477,7 +478,7 @@ export function WorkoutHistoryPage() {
                         return (
                           <p
                             key={set.id ?? `${firstSet.sessionExerciseKey}-${index}`}
-                            className="inline-flex items-center gap-0.5 text-xs leading-none text-muted-foreground tabular-nums"
+                            className="flex items-center gap-0.5 text-xs leading-none text-muted-foreground tabular-nums"
                           >
                             {set.actualReps ?? set.targetReps} ×{" "}
                             {(isBw || isNeg) && <PersonStanding className="h-3 w-3 shrink-0" />}
@@ -543,22 +544,22 @@ export function WorkoutHistoryPage() {
           <div className="space-y-3">
             <Card>
               <CardContent className="grid gap-3 pt-4 sm:grid-cols-2">
-                <div className="min-w-0 space-y-1.5">
+                <div className="min-w-0 overflow-hidden space-y-1.5">
                   <Label htmlFor="edit-session-started-at">{t("sessionStartedAt")}</Label>
                   <Input
                     id="edit-session-started-at"
                     type="datetime-local"
-                    className="block min-w-0 max-w-full text-base sm:text-sm"
+                    className="box-border w-full min-w-0 max-w-full text-base sm:text-sm"
                     value={editingSessionStartedAtDraft}
                     onChange={(event) => setEditingSessionStartedAtDraft(event.currentTarget.value)}
                   />
                 </div>
-                <div className="min-w-0 space-y-1.5">
+                <div className="min-w-0 overflow-hidden space-y-1.5">
                   <Label htmlFor="edit-session-finished-at">{t("sessionEndedAt")}</Label>
                   <Input
                     id="edit-session-finished-at"
                     type="datetime-local"
-                    className="block min-w-0 max-w-full text-base sm:text-sm"
+                    className="box-border w-full min-w-0 max-w-full text-base sm:text-sm"
                     value={editingSessionFinishedAtDraft}
                     onChange={(event) => setEditingSessionFinishedAtDraft(event.currentTarget.value)}
                   />
@@ -604,17 +605,36 @@ export function WorkoutHistoryPage() {
                           <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">×</span>
                         </div>
                         <div className="relative">
-                          <DecimalInput
-                            value={set.actualWeight}
-                            min={0}
-                            step={0.5}
-                            className="pr-10"
-                            onCommit={(value) => {
-                              setEditingSets((prev) =>
-                                prev.map((item) => (item.id === set.id ? { ...item, actualWeight: value } : item))
-                              );
-                            }}
-                          />
+                          {(() => {
+                            const isBwSet = set.actualWeight === 0;
+                            const isNegativeSet = set.actualWeight < 0;
+                            const showBwOverlay = (isBwSet || isNegativeSet) && focusedWeightSetId !== set.id;
+                            return (
+                              <>
+                                <DecimalInput
+                                  value={set.actualWeight}
+                                  min={-999}
+                                  step={0.5}
+                                  className={`pr-10 ${showBwOverlay ? "text-transparent" : ""}`}
+                                  onFocus={() => setFocusedWeightSetId(set.id ?? null)}
+                                  onBlur={() => setFocusedWeightSetId(null)}
+                                  onCommit={(value) => {
+                                    setEditingSets((prev) =>
+                                      prev.map((item) => (item.id === set.id ? { ...item, actualWeight: value } : item))
+                                    );
+                                  }}
+                                />
+                                {showBwOverlay && (
+                                  <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center gap-1 text-base">
+                                    <PersonStanding className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                    {isNegativeSet && (
+                                      <span className="text-sm text-foreground">{set.actualWeight}</span>
+                                    )}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
                           <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">{weightUnit}</span>
                         </div>
                         <Button
