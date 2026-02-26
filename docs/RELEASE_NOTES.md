@@ -4,6 +4,24 @@
 
 ---
 
+## 1.2.5 - 2026-02-26
+
+### Added
+1. Active session view now includes a sticky stacked "Next set / Rest / Afterward" panel with direct set-complete actions and a pre-finish completion summary (exercises, sets, reps, total weight, calories, duration).
+2. Workout history cards now show session duration alongside the existing summary stats.
+3. Workout editor edit mode now provides explicit cancel actions in the header and footer.
+
+### Changed
+1. Workout editor exercise reordering was upgraded with smoother live reordering, animated card movement, mobile touch/pointer drag support, and stable collapsed-card state handling when reordering/reversing.
+2. Active-session rest-timer panel sync now uses precise shared elapsed milliseconds so pause/resume stays visually stable and progress animation remains accurate.
+3. Active-session reorder controls were moved next to exercise actions, and related session/tab labels/colors were polished.
+
+### Fixed
+1. Session completion time now uses the timestamp of the last checked set, improving final duration/calorie calculations and history duration display consistency.
+2. Active-session completion feedback now shows a short animated done badge before auto-collapsing an exercise and cancels correctly if a set is unchecked again.
+3. Active-session scroll-position persistence was hardened for route transitions/backgrounding (`visibilitychange`/`pagehide`) to reduce lost resume positions.
+4. Text/number inputs now auto-select their value more reliably on focus/click (including mobile editing flows).
+
 ## 1.2.4 - 2026-02-25
 
 ### Added
