@@ -3,10 +3,13 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   Clock3,
+  Coffee,
   Database,
   Download,
   Dumbbell,
   Flame,
+  Github,
+  Heart,
   RotateCcw,
   Settings,
   Target,
@@ -528,19 +531,33 @@ export function SettingsPage() {
       </Tabs>
 
       <footer className="border-t pt-4">
-        <div className="flex flex-col gap-1 text-center text-xs text-muted-foreground">
-          <p>
-            {t("footerMadeWith")} <span className="text-foreground">❤</span> {t("footerBy")}{" "}
+        <div className="flex flex-col items-center gap-1 text-center text-xs leading-relaxed text-muted-foreground">
+          <p className="m-0 inline-flex items-center gap-1">
+            <span>{t("footerMadeWith")}</span>
+            <Heart className="h-3.5 w-3.5 text-red-500 align-middle" aria-hidden="true" />
+            <span>{t("footerBy")}</span>
             <a
-              href="https://github.com/christianphilie/gymtracker"
+              href="https://github.com/christianphilie"
               target="_blank"
-              rel="noreferrer"
-              className="underline-offset-4 hover:underline"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-medium text-foreground underline decoration-transparent underline-offset-2 transition hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
             >
-              christianphilie
+              <Github className="h-3.5 w-3.5 align-middle" aria-hidden="true" />
+              <span className="align-middle">christianphilie</span>
             </a>
           </p>
-          <p>
+          <p className="m-0">
+            <a
+              href="https://www.buymeacoffee.com/christianphilie"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-medium text-muted-foreground underline decoration-transparent underline-offset-2 transition hover:text-foreground hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
+            >
+              <Coffee className="h-3.5 w-3.5" aria-hidden="true" />
+              Buy me a coffee
+            </a>
+          </p>
+          <p className="m-0">
             <Link to="/legal" className="underline-offset-4 hover:underline">
               {t("legal")}
             </Link>
