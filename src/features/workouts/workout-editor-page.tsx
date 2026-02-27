@@ -1293,7 +1293,8 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                       onClick={() => {
                         setDraft((prev) => {
                           const next = structuredClone(prev);
-                          const lastSet = next.exercises[exerciseIndex].sets.at(-1);
+                          const sets = next.exercises[exerciseIndex].sets;
+                          const lastSet = sets[sets.length - 1];
                           next.exercises[exerciseIndex].sets.push({
                             targetReps: lastSet?.targetReps ?? 10,
                             targetWeight: lastSet?.targetWeight ?? 10
