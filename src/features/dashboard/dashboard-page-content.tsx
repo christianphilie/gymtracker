@@ -459,46 +459,46 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       {showStatsSection && (
         <section className="space-y-3">
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
-            <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 dark:border-blue-900/40 dark:bg-blue-950/30">
-              <p className="inline-flex items-center gap-1 text-xs text-blue-500/80 dark:text-blue-400/70">
+            <div className="rounded-lg border border-blue-200 bg-blue-100 px-3 py-2 dark:border-blue-700/40 dark:bg-blue-900/40">
+              <p className="inline-flex items-center gap-1 text-xs text-blue-600/90 dark:text-blue-300/70">
                 <Dumbbell className="h-3.5 w-3.5" />
                 {t("workoutsThisWeek")}
               </p>
-              <p className="text-base font-semibold text-blue-900 dark:text-blue-100">{weeklyStats?.workoutCount ?? 0}</p>
+              <p className="text-base font-semibold text-blue-950 dark:text-blue-50">{weeklyStats?.workoutCount ?? 0}</p>
             </div>
-            <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 dark:border-blue-900/40 dark:bg-blue-950/30">
-              <p className="inline-flex items-center gap-1 text-xs text-blue-500/80 dark:text-blue-400/70">
+            <div className="rounded-lg border border-blue-200 bg-blue-100 px-3 py-2 dark:border-blue-700/40 dark:bg-blue-900/40">
+              <p className="inline-flex items-center gap-1 text-xs text-blue-600/90 dark:text-blue-300/70">
                 <Clock3 className="h-3.5 w-3.5" />
                 {t("duration")}
               </p>
-              <p className="text-base font-semibold text-blue-900 dark:text-blue-100">{formatDurationLabel(weeklyStats?.durationMinutesTotal ?? 0, language)}</p>
+              <p className="text-base font-semibold text-blue-950 dark:text-blue-50">{formatDurationLabel(weeklyStats?.durationMinutesTotal ?? 0, language)}</p>
             </div>
-            <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 dark:border-blue-900/40 dark:bg-blue-950/30">
-              <p className="inline-flex items-center gap-1 text-xs text-blue-500/80 dark:text-blue-400/70">
+            <div className="rounded-lg border border-blue-200 bg-blue-100 px-3 py-2 dark:border-blue-700/40 dark:bg-blue-900/40">
+              <p className="inline-flex items-center gap-1 text-xs text-blue-600/90 dark:text-blue-300/70">
                 <ListChecks className="h-3.5 w-3.5" />
                 {t("sets")}
               </p>
-              <p className="text-base font-semibold text-blue-900 dark:text-blue-100">{weeklyStats?.setCount ?? 0}</p>
+              <p className="text-base font-semibold text-blue-950 dark:text-blue-50">{weeklyStats?.setCount ?? 0}</p>
             </div>
-            <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 dark:border-blue-900/40 dark:bg-blue-950/30">
-              <p className="inline-flex items-center gap-1 text-xs text-blue-500/80 dark:text-blue-400/70">
+            <div className="rounded-lg border border-blue-200 bg-blue-100 px-3 py-2 dark:border-blue-700/40 dark:bg-blue-900/40">
+              <p className="inline-flex items-center gap-1 text-xs text-blue-600/90 dark:text-blue-300/70">
                 <Repeat className="h-3.5 w-3.5" />
                 {t("repsTotal")}
               </p>
-              <p className="text-base font-semibold text-blue-900 dark:text-blue-100">{weeklyStats?.repsTotal ?? 0}</p>
+              <p className="text-base font-semibold text-blue-950 dark:text-blue-50">{weeklyStats?.repsTotal ?? 0}</p>
             </div>
-            <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 dark:border-blue-900/40 dark:bg-blue-950/30">
-              <p className="inline-flex items-center gap-1 text-xs text-blue-500/80 dark:text-blue-400/70">
+            <div className="rounded-lg border border-blue-200 bg-blue-100 px-3 py-2 dark:border-blue-700/40 dark:bg-blue-900/40">
+              <p className="inline-flex items-center gap-1 text-xs text-blue-600/90 dark:text-blue-300/70">
                 <Weight className="h-3.5 w-3.5" />
                 {t("totalWeight")}
               </p>
-              <p className="text-base font-semibold text-blue-900 dark:text-blue-100">
+              <p className="text-base font-semibold text-blue-950 dark:text-blue-50">
                 {formatNumber(weeklyStats?.totalWeight ?? 0, 0)} {weightUnit}
               </p>
             </div>
-            <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 dark:border-blue-900/40 dark:bg-blue-950/30">
+            <div className="rounded-lg border border-blue-200 bg-blue-100 px-3 py-2 dark:border-blue-700/40 dark:bg-blue-900/40">
               <div className="flex items-center justify-between gap-1">
-                <p className="inline-flex items-center gap-1 text-xs text-blue-500/80 dark:text-blue-400/70">
+                <p className="inline-flex items-center gap-1 text-xs text-blue-600/90 dark:text-blue-300/70">
                   <Flame className="h-3.5 w-3.5" />
                   {t("calories")}
                 </p>
@@ -506,11 +506,11 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                   <InfoHint
                     ariaLabel={t("calories")}
                     text={t("caloriesEstimateAverageHint")}
-                    iconClassName="text-blue-400 dark:text-blue-500"
+                    iconClassName="text-blue-500 dark:text-blue-400"
                   />
                 )}
               </div>
-              <p className="text-base font-semibold text-blue-900 dark:text-blue-100">
+              <p className="text-base font-semibold text-blue-950 dark:text-blue-50">
                 ~{formatNumber(weeklyStats?.caloriesTotal ?? 0, 0)} kcal
               </p>
             </div>
