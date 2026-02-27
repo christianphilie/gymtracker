@@ -339,6 +339,7 @@ export function SessionPage() {
           isTemplateExercise: firstSet.isTemplateExercise,
           templateExerciseId: firstSet.templateExerciseId,
           x2Enabled: firstSet.x2Enabled ?? false,
+          negativeWeightEnabled: firstSet.negativeWeightEnabled ?? false,
           exerciseAiInfo:
             firstSet.exerciseAiInfo ??
             (firstSet.templateExerciseId !== undefined ? templateExerciseInfoMap?.get(firstSet.templateExerciseId) : undefined)
@@ -995,7 +996,14 @@ export function SessionPage() {
     if (!nextActionableSet?.id || !nextActionableExercise) {
       return;
     }
+    const key = nextActionableExercise.sessionExerciseKey;
     void handleSetCompletedToggle(nextActionableExercise, nextActionableSet, true);
+    window.requestAnimationFrame(() => {
+      const card = exerciseCardRefs.current[key];
+      if (card) {
+        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    });
   };
 
   const getSetPositionLabel = (

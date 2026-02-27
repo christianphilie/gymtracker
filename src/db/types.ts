@@ -115,6 +115,7 @@ export interface SessionExerciseSet {
   exerciseOrder: number;
   isTemplateExercise: boolean;
   x2Enabled?: boolean;
+  negativeWeightEnabled?: boolean;
   templateSetOrder: number;
   targetReps: number;
   targetWeight: number;
