@@ -49,9 +49,8 @@ const SESSION_SCROLL_STORAGE_KEY_PREFIX = "gymtracker:session-scroll:";
 const EXERCISE_DONE_BADGE_DELAY_MS = 500;
 const EXERCISE_AUTO_COLLAPSE_DELAY_MS = 1500;
 const EXERCISE_DONE_BADGE_POP_DURATION_MS = 1500;
-const UP_NEXT_BOX_CLASS = "relative overflow-hidden rounded-[20px] border";
-const UP_NEXT_BOX_RADIUS_PX = 20;
-const UP_NEXT_CARD_OVERLAP_PX = 33;
+const UP_NEXT_BOX_CLASS = "relative overflow-hidden rounded-[30px] border";
+const UP_NEXT_CARD_OVERLAP_PX = 45;
 
 type ExerciseCompletionFeedbackState = "pending-badge" | "show-badge";
 
@@ -1184,7 +1183,7 @@ export function SessionPage() {
 
             <div className={`relative z-[1] flex flex-col px-4 ${upNextMode === "complete" ? "py-4" : "py-2"}`}>
               {currentCardTitle && (
-                <p className={`${upNextMode === "rest" ? "mb-0" : "mb-1"} text-[11px] font-medium uppercase tracking-wide ${
+                <p className={`mb-0.5 text-[11px] font-medium uppercase tracking-wide ${
                   upNextMode === "complete"
                     ? "text-white/80"
                     : upNextMode === "next"
@@ -1261,7 +1260,7 @@ export function SessionPage() {
                   >
                     {restTimerPanelState.paused ? <PlaySolidIcon className="h-4 w-4" /> : <PauseSolidIcon className="h-4 w-4" />}
                   </Button>
-                  <div className="flex flex-1 items-center pr-12" style={{ minHeight: "26px" }}>
+                  <div className="flex flex-1 items-center pr-12" style={{ minHeight: "20px" }}>
                     <div className="min-w-0">
                       <p className="text-[15px] font-semibold leading-tight tabular-nums text-orange-900/75 dark:text-orange-100/80">
                         {formatDurationClock(restTimerPanelState.elapsedSeconds)} / {formatDurationClock(restTimerSeconds)}
@@ -1295,13 +1294,13 @@ export function SessionPage() {
 
           {upNextMode !== "complete" && (
             <div
-              className={`relative z-10 -mt-[33px] ${UP_NEXT_BOX_CLASS} px-4 pb-3 ${afterCardClassName}`}
+              className={`relative z-10 -mt-[48px] ${UP_NEXT_BOX_CLASS} px-4 pb-3 ${afterCardClassName}`}
               style={{
                 paddingTop: `${upNextBottomCardPaddingTopPx}px`,
               }}
             >
               {showAfterCardTitle && (
-                <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-foreground/35">
+                <p className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-foreground/35">
                   {t("afterward")}
                 </p>
               )}
@@ -1483,35 +1482,47 @@ export function SessionPage() {
 
                       <div className="min-w-0">
                         {(() => {
-                          const isBwSet = actualWeightValue === 0;
-                          const isNegativeSet = actualWeightValue < 0;
-                          const showBwOverlay = (isBwSet || isNegativeSet) && focusedWeightSetId !== set.id && !set.completed;
+                          const isBwActual = actualWeightValue === 0;
+                          const isNegActual = actualWeightValue < 0;
+                          const showOverlay = (isBwActual || isNegActual) && focusedWeightSetId !== set.id && !set.completed;
+
+                          const renderWeightLabel = (w: number) => {
+                            if (w === 0) return <PersonStanding className="h-4 w-4 shrink-0" />;
+                            if (w < 0) return (
+                              <>
+                                <PersonStanding className="h-4 w-4 shrink-0" />
+                                <span>−{formatInlineValue(-w)}</span>
+                              </>
+                            );
+                            return <span>{formatInlineValue(w)}</span>;
+                          };
+
                           return (
                             <div className="relative">
                               <DecimalInput
-                                value={actualWeightValue}
-                                min={-999}
+                                value={isNegActual ? -actualWeightValue : actualWeightValue}
+                                min={0}
                                 step={0.5}
                                 disabled={isCompleted}
-                                className={`pr-16 ${set.completed ? "border-muted bg-muted/70 text-muted-foreground opacity-75" : ""} ${showBwOverlay ? "text-transparent" : ""}`}
+                                className={`pr-16 ${set.completed ? "border-muted bg-muted/70 text-muted-foreground opacity-75" : ""} ${showOverlay ? "pl-7 text-transparent" : ""}`}
                                 onFocus={() => setFocusedWeightSetId(set.id ?? null)}
                                 onBlur={() => setFocusedWeightSetId(null)}
                                 onCommit={(value) => {
-                                  void updateSessionSet(set.id!, {
-                                    actualWeight: value
-                                  });
+                                  const stored = exercise.negativeWeightEnabled ? -Math.abs(value) : value;
+                                  void updateSessionSet(set.id!, { actualWeight: stored });
                                 }}
                               />
-                              {showBwOverlay && (
-                                <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center gap-1 text-base">
-                                  <PersonStanding className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                  {isNegativeSet && (
-                                    <span className="text-sm text-foreground">{formatInlineValue(actualWeightValue)}</span>
-                                  )}
+                              {showOverlay && (
+                                <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center gap-0.5 text-sm text-foreground">
+                                  {renderWeightLabel(actualWeightValue)}
                                 </div>
                               )}
                               <div className={`pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-base text-muted-foreground ${set.completed ? "opacity-50" : ""}`}>
-                                {showTargetWeightHint && <span className="line-through">{formatInlineValue(set.targetWeight)}</span>}
+                                {showTargetWeightHint && (
+                                  <span className="inline-flex items-center gap-0.5 line-through">
+                                    {renderWeightLabel(set.targetWeight)}
+                                  </span>
+                                )}
                                 <span>{weightUnitLabel}</span>
                               </div>
                             </div>

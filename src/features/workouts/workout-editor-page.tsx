@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowUpDown, ChevronDown, GripVertical, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowUpDown, ChevronDown, GripVertical, PersonStanding, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
@@ -72,9 +72,9 @@ function createEmptyDraft(): WorkoutDraft {
         x2Enabled: false,
         negativeWeightEnabled: false,
         sets: [
-          { targetReps: 10, targetWeight: 0 },
-          { targetReps: 10, targetWeight: 0 },
-          { targetReps: 10, targetWeight: 0 }
+          { targetReps: 10, targetWeight: 10 },
+          { targetReps: 10, targetWeight: 10 },
+          { targetReps: 10, targetWeight: 10 }
         ]
       }
     ]
@@ -289,6 +289,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const [isAddExerciseExpanded, setIsAddExerciseExpanded] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState("");
   const [deleteExerciseIndex, setDeleteExerciseIndex] = useState<number | null>(null);
+  const [focusedWeightKey, setFocusedWeightKey] = useState<string | null>(null);
   const [isGeneratingExerciseInfo, setIsGeneratingExerciseInfo] = useState(false);
   const attemptedAutoExerciseInfoKeysRef = useRef<Set<string>>(new Set());
   const exerciseCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -1211,24 +1212,47 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                       </div>
 
                       <div className="min-w-0">
-                        <div className="relative">
-                          <DecimalInput
-                            value={set.targetWeight}
-                            min={exercise.negativeWeightEnabled ? -999 : 0}
-                            step={0.5}
-                            className="pr-12"
-                            onCommit={(value) => {
-                              setDraft((prev) => {
-                                const next = structuredClone(prev);
-                                next.exercises[exerciseIndex].sets[setIndex].targetWeight = value;
-                                return next;
-                              });
-                            }}
-                          />
-                          <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">
-                            {weightUnitLabel}
-                          </div>
-                        </div>
+                        {(() => {
+                          const absWeight = Math.abs(set.targetWeight);
+                          const isBw = set.targetWeight === 0;
+                          const weightKey = `${exerciseIndex}-${setIndex}`;
+                          const isFocused = focusedWeightKey === weightKey;
+                          const showOverlay = (isBw || exercise.negativeWeightEnabled) && !isFocused;
+                          return (
+                            <div className="relative">
+                              <DecimalInput
+                                value={exercise.negativeWeightEnabled ? absWeight : set.targetWeight}
+                                min={0}
+                                step={0.5}
+                                className={`pr-12 ${showOverlay ? "pl-6 text-transparent" : ""}`}
+                                onFocus={() => setFocusedWeightKey(weightKey)}
+                                onBlur={() => setFocusedWeightKey(null)}
+                                onCommit={(value) => {
+                                  setDraft((prev) => {
+                                    const next = structuredClone(prev);
+                                    next.exercises[exerciseIndex].sets[setIndex].targetWeight =
+                                      next.exercises[exerciseIndex].negativeWeightEnabled ? -Math.abs(value) : value;
+                                    return next;
+                                  });
+                                }}
+                              />
+                              {showOverlay && (
+                                <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center gap-0.5 text-sm text-foreground">
+                                  <PersonStanding className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                  {exercise.negativeWeightEnabled && !isBw && (
+                                    <>
+                                      <span className="text-muted-foreground">−</span>
+                                      <span>{absWeight % 1 === 0 ? absWeight : absWeight.toFixed(1)}</span>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                              <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">
+                                {weightUnitLabel}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   ))}
@@ -1269,9 +1293,10 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                       onClick={() => {
                         setDraft((prev) => {
                           const next = structuredClone(prev);
+                          const lastSet = next.exercises[exerciseIndex].sets.at(-1);
                           next.exercises[exerciseIndex].sets.push({
-                            targetReps: 10,
-                            targetWeight: 0
+                            targetReps: lastSet?.targetReps ?? 10,
+                            targetWeight: lastSet?.targetWeight ?? 10
                           });
                           return next;
                         });
