@@ -10,11 +10,7 @@ import { formatSessionDateLabel } from "@/lib/utils";
 const ACTIVE_SESSION_PILL_CLASS =
   "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500 dark:bg-emerald-950 dark:text-emerald-200";
 const RECOMMENDED_PILL_CLASS =
-  "rounded-full px-2 py-0.5 text-[11px] font-medium";
-const RECOMMENDED_PILL_STYLE = {
-  backgroundColor: "var(--gt-rest-timer-expired-pill-bg)",
-  color: "var(--gt-rest-timer-expired)"
-} as const;
+  "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500 dark:bg-emerald-950 dark:text-emerald-200";
 
 function PlayFilledIcon({ className }: { className?: string }) {
   return (
@@ -85,7 +81,9 @@ export function WeeklyGoalCard({ goal, compact = false }: WeeklyGoalCardProps) {
       </div>
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
         <div
-          className={`h-full rounded-full transition-all ${goal.isComplete ? "bg-blue-500 dark:bg-blue-400" : "bg-blue-300 dark:bg-blue-700"}`}
+          className={`h-full rounded-full transition-all ${compact
+            ? (goal.isComplete ? "bg-foreground" : "bg-foreground/75")
+            : (goal.isComplete ? "bg-blue-500 dark:bg-blue-400" : "bg-blue-300 dark:bg-blue-700")}`}
           style={{ width: `${goal.progressPercent}%` }}
         />
       </div>
@@ -137,7 +135,7 @@ export function WorkoutListCard({
           ) : (
             <>
               {isRecommended && (
-                <span className={RECOMMENDED_PILL_CLASS} style={RECOMMENDED_PILL_STYLE}>
+                <span className={RECOMMENDED_PILL_CLASS}>
                   {t("recommended")}
                 </span>
               )}
