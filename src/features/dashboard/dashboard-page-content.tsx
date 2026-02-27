@@ -35,7 +35,7 @@ import {
 import { discardSession, ensureDefaultWorkout, startSession } from "@/db/repository";
 import { useSettings } from "@/app/settings-context";
 import { getSessionDurationMinutes } from "@/lib/calorie-estimation";
-import { formatDurationLabel, formatNumber, formatSessionDateLabel } from "@/lib/utils";
+import { formatDurationLabel, formatNumber } from "@/lib/utils";
 import {
   WeeklyGoalCard,
   WorkoutListCard,
@@ -422,7 +422,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
 
       {showWorkoutsSection && selectedHomeWeeklyGoal && (
         <>
-          <div className="py-3">
+          <div className="py-1.5">
             <div className="h-px bg-border" />
           </div>
           <section className="space-y-3">
@@ -459,46 +459,46 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       {showStatsSection && (
         <section className="space-y-3">
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
-            <div className="rounded-lg border bg-card px-3 py-2">
-              <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 dark:border-blue-900/40 dark:bg-blue-950/30">
+              <p className="inline-flex items-center gap-1 text-xs text-blue-500/80 dark:text-blue-400/70">
                 <Dumbbell className="h-3.5 w-3.5" />
                 {t("workoutsThisWeek")}
               </p>
-              <p className="text-base font-semibold">{weeklyStats?.workoutCount ?? 0}</p>
+              <p className="text-base font-semibold text-blue-900 dark:text-blue-100">{weeklyStats?.workoutCount ?? 0}</p>
             </div>
-            <div className="rounded-lg border bg-card px-3 py-2">
-              <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 dark:border-blue-900/40 dark:bg-blue-950/30">
+              <p className="inline-flex items-center gap-1 text-xs text-blue-500/80 dark:text-blue-400/70">
                 <Clock3 className="h-3.5 w-3.5" />
                 {t("duration")}
               </p>
-              <p className="text-base font-semibold">{formatDurationLabel(weeklyStats?.durationMinutesTotal ?? 0, language)}</p>
+              <p className="text-base font-semibold text-blue-900 dark:text-blue-100">{formatDurationLabel(weeklyStats?.durationMinutesTotal ?? 0, language)}</p>
             </div>
-            <div className="rounded-lg border bg-card px-3 py-2">
-              <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 dark:border-blue-900/40 dark:bg-blue-950/30">
+              <p className="inline-flex items-center gap-1 text-xs text-blue-500/80 dark:text-blue-400/70">
                 <ListChecks className="h-3.5 w-3.5" />
                 {t("sets")}
               </p>
-              <p className="text-base font-semibold">{weeklyStats?.setCount ?? 0}</p>
+              <p className="text-base font-semibold text-blue-900 dark:text-blue-100">{weeklyStats?.setCount ?? 0}</p>
             </div>
-            <div className="rounded-lg border bg-card px-3 py-2">
-              <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 dark:border-blue-900/40 dark:bg-blue-950/30">
+              <p className="inline-flex items-center gap-1 text-xs text-blue-500/80 dark:text-blue-400/70">
                 <Repeat className="h-3.5 w-3.5" />
                 {t("repsTotal")}
               </p>
-              <p className="text-base font-semibold">{weeklyStats?.repsTotal ?? 0}</p>
+              <p className="text-base font-semibold text-blue-900 dark:text-blue-100">{weeklyStats?.repsTotal ?? 0}</p>
             </div>
-            <div className="rounded-lg border bg-card px-3 py-2">
-              <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 dark:border-blue-900/40 dark:bg-blue-950/30">
+              <p className="inline-flex items-center gap-1 text-xs text-blue-500/80 dark:text-blue-400/70">
                 <Weight className="h-3.5 w-3.5" />
                 {t("totalWeight")}
               </p>
-              <p className="text-base font-semibold">
+              <p className="text-base font-semibold text-blue-900 dark:text-blue-100">
                 {formatNumber(weeklyStats?.totalWeight ?? 0, 0)} {weightUnit}
               </p>
             </div>
-            <div className="relative rounded-lg border bg-card px-3 py-2">
-              <div className="flex items-start justify-between gap-2">
-                <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 dark:border-blue-900/40 dark:bg-blue-950/30">
+              <div className="flex items-center justify-between gap-1">
+                <p className="inline-flex items-center gap-1 text-xs text-blue-500/80 dark:text-blue-400/70">
                   <Flame className="h-3.5 w-3.5" />
                   {t("calories")}
                 </p>
@@ -506,17 +506,17 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                   <InfoHint
                     ariaLabel={t("calories")}
                     text={t("caloriesEstimateAverageHint")}
-                    className="-mr-1 -mt-0.5 shrink-0"
+                    iconClassName="text-blue-400 dark:text-blue-500"
                   />
                 )}
               </div>
-              <p className="text-base font-semibold">
+              <p className="text-base font-semibold text-blue-900 dark:text-blue-100">
                 ~{formatNumber(weeklyStats?.caloriesTotal ?? 0, 0)} kcal
               </p>
             </div>
           </div>
 
-          <div className="py-3">
+          <div className="py-1.5">
             <div className="h-px bg-border" />
           </div>
 
@@ -547,7 +547,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                     style={{ left: `${weeklySessionsTimeline.nowTick.leftPercent}%` }}
                     aria-hidden="true"
                   >
-                    <div className="w-[2px] h-5 rounded-full bg-foreground" />
+                    <div className="w-[2px] h-5 rounded-full bg-blue-500 dark:bg-blue-400" />
                   </div>
 
                   {weeklySessionsTimeline.items.map((item) => (
@@ -588,7 +588,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
             )}
           </section>
 
-          <div className="py-3">
+          <div className="py-1.5">
             <div className="h-px bg-border" />
           </div>
 
@@ -720,7 +720,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                               <path
                                 d={path}
                                 fill="currentColor"
-                                className="text-primary/15"
+                                className="text-blue-500/15 dark:text-blue-400/15"
                                 stroke="none"
                               />
                               <path
@@ -728,7 +728,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                                 fill="none"
                                 stroke="currentColor"
                                 strokeWidth="2"
-                                className="text-primary"
+                                className="text-blue-500 dark:text-blue-400"
                               />
                             </>
                           );

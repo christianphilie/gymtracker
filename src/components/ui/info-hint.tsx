@@ -4,15 +4,16 @@ interface InfoHintProps {
   text: string;
   ariaLabel: string;
   className?: string;
+  iconClassName?: string;
 }
 
-export function InfoHint({ text, ariaLabel, className }: InfoHintProps) {
+export function InfoHint({ text, ariaLabel, className, iconClassName }: InfoHintProps) {
   return (
     <span className={`relative inline-flex ${className ?? ""}`}>
       <button
         type="button"
         aria-label={ariaLabel}
-        className="peer inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground/80 hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={`peer inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${iconClassName ?? "text-muted-foreground/80"}`}
       >
         <Info className="h-3.5 w-3.5" />
       </button>
