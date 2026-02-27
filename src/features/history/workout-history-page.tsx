@@ -396,14 +396,12 @@ export function WorkoutHistoryPage() {
 
   return (
     <section className="space-y-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="space-y-1">
-          <p className="text-sm font-medium">
-            <WorkoutNameLabel name={payload.workout.workout.name} icon={payload.workout.workout.icon} />
-          </p>
-        </div>
+      <div className="space-y-0.5">
+        <p className="text-base font-semibold leading-tight text-foreground/75">
+          <WorkoutNameLabel name={payload.workout.workout.name} icon={payload.workout.workout.icon} />
+        </p>
         <p className="text-xs text-muted-foreground">
-          {t("completedThisWeek")}: {completedThisWeek}
+          {t("completedThisWeek")}: {completedThisWeek} {t("sessions")}
         </p>
       </div>
 
@@ -494,38 +492,38 @@ export function WorkoutHistoryPage() {
             })}
 
             <div className="grid grid-cols-2 gap-1.5 border-t pt-2.5 sm:grid-cols-3">
-              <div className="rounded-md border bg-card px-2 py-1.5">
-                <p className="text-[10px] text-muted-foreground">{t("exercises")}</p>
-                <p className="text-xs font-semibold">{entry.stats.exerciseCount}</p>
+              <div className="rounded-md border border-blue-200 bg-blue-100 px-2 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/40">
+                <p className="text-[10px] text-blue-600/90 dark:text-blue-300/70">{t("exercises")}</p>
+                <p className="text-xs font-semibold text-blue-950 dark:text-blue-50">{entry.stats.exerciseCount}</p>
               </div>
-              <div className="rounded-md border bg-card px-2 py-1.5">
-                <p className="text-[10px] text-muted-foreground">{t("sets")}</p>
-                <p className="text-xs font-semibold">{entry.stats.setCount}</p>
+              <div className="rounded-md border border-blue-200 bg-blue-100 px-2 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/40">
+                <p className="text-[10px] text-blue-600/90 dark:text-blue-300/70">{t("sets")}</p>
+                <p className="text-xs font-semibold text-blue-950 dark:text-blue-50">{entry.stats.setCount}</p>
               </div>
-              <div className="rounded-md border bg-card px-2 py-1.5">
-                <p className="text-[10px] text-muted-foreground">{t("repsTotal")}</p>
-                <p className="text-xs font-semibold">{entry.stats.repsTotal}</p>
+              <div className="rounded-md border border-blue-200 bg-blue-100 px-2 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/40">
+                <p className="text-[10px] text-blue-600/90 dark:text-blue-300/70">{t("repsTotal")}</p>
+                <p className="text-xs font-semibold text-blue-950 dark:text-blue-50">{entry.stats.repsTotal}</p>
               </div>
-              <div className="rounded-md border bg-card px-2 py-1.5">
-                <p className="text-[10px] text-muted-foreground">{t("totalWeight")}</p>
-                <p className="text-xs font-semibold">{formatNumber(entry.stats.totalWeight, 0)} {weightUnit}</p>
+              <div className="rounded-md border border-blue-200 bg-blue-100 px-2 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/40">
+                <p className="text-[10px] text-blue-600/90 dark:text-blue-300/70">{t("totalWeight")}</p>
+                <p className="text-xs font-semibold text-blue-950 dark:text-blue-50">{formatNumber(entry.stats.totalWeight, 0)} {weightUnit}</p>
               </div>
-              <div className="relative rounded-md border bg-card px-2 py-1.5">
-                <div className="flex items-start justify-between gap-1">
-                  <p className="text-[10px] text-muted-foreground">{t("calories")}</p>
+              <div className="rounded-md border border-blue-200 bg-blue-100 px-2 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/40">
+                <div className="flex items-center justify-between gap-1">
+                  <p className="text-[10px] text-blue-600/90 dark:text-blue-300/70">{t("calories")}</p>
                   {entry.stats.usesDefaultBodyWeightForCalories && (
                     <InfoHint
                       ariaLabel={t("calories")}
                       text={t("caloriesEstimateAverageHint")}
-                      className="-mr-1 -mt-0.5 shrink-0"
+                      iconClassName="text-blue-500 dark:text-blue-400"
                     />
                   )}
                 </div>
-                <p className="text-xs font-semibold">~{formatNumber(entry.stats.calories, 0)} kcal</p>
+                <p className="text-xs font-semibold text-blue-950 dark:text-blue-50">~{formatNumber(entry.stats.calories, 0)} kcal</p>
               </div>
-              <div className="rounded-md border bg-card px-2 py-1.5">
-                <p className="text-[10px] text-muted-foreground">{t("duration")}</p>
-                <p className="text-xs font-semibold">{formatDurationLabel(entry.stats.durationMinutes, language)}</p>
+              <div className="rounded-md border border-blue-200 bg-blue-100 px-2 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/40">
+                <p className="text-[10px] text-blue-600/90 dark:text-blue-300/70">{t("duration")}</p>
+                <p className="text-xs font-semibold text-blue-950 dark:text-blue-50">{formatDurationLabel(entry.stats.durationMinutes, language)}</p>
               </div>
             </div>
           </CardContent>
@@ -572,7 +570,7 @@ export function WorkoutHistoryPage() {
                 <Card key={firstSet.sessionExerciseKey}>
                   <CardHeader className="pb-2">
                     <div className="flex min-w-0 items-start gap-1">
-                      <CardTitle className="inline-flex min-w-0 items-center gap-1 text-left leading-tight">
+                      <CardTitle className="inline-flex min-w-0 items-center gap-1 text-left text-base font-semibold leading-tight tracking-normal text-foreground/75">
                         <span className="min-w-0">{firstSet.exerciseName}</span>
                         <ExerciseInfoDialogButton
                           exerciseName={firstSet.exerciseName}
