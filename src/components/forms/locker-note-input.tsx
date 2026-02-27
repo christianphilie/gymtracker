@@ -45,7 +45,7 @@ export function LockerNoteInput() {
 
   return (
     <label
-      className={`inline-flex h-9 items-center overflow-hidden rounded-md border border-input bg-background text-sm shadow-sm transition-all duration-200 ${
+      className={`inline-flex h-9 items-center overflow-hidden rounded-full border border-input bg-background text-sm shadow-sm transition-all duration-200 ${
         lockerDraft ? "w-[4.5rem] gap-1 px-2" : "w-9 gap-0 px-2 focus-within:w-[4.5rem] focus-within:gap-1"
       }`}
     >
