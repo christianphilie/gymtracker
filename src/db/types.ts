@@ -80,6 +80,7 @@ export interface Exercise {
   order: number;
   isTemplate?: boolean;
   x2Enabled?: boolean;
+  negativeWeightEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -150,6 +151,6 @@ export interface PreviousSessionSummary {
   templateExerciseSets: Record<number, SessionExerciseSet[]>;
   extraExercises: Array<{
     name: string;
-    setCount: number;
+    sets: SessionExerciseSet[];
   }>;
 }

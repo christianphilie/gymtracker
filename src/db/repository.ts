@@ -40,6 +40,7 @@ interface WorkoutDraft {
     notes?: string;
     aiInfo?: Exercise["aiInfo"];
     x2Enabled?: boolean;
+    negativeWeightEnabled?: boolean;
     sets: Array<{
       targetReps: number;
       targetWeight: number;
@@ -151,6 +152,7 @@ async function createWorkoutRecord(draft: WorkoutDraft) {
       order: exerciseIndex,
       isTemplate: true,
       x2Enabled: exerciseDraft.x2Enabled ?? false,
+      negativeWeightEnabled: exerciseDraft.negativeWeightEnabled ?? false,
       createdAt: now,
       updatedAt: now
     };
@@ -226,6 +228,7 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
           order: exerciseIndex,
           isTemplate: true,
           x2Enabled: exerciseDraft.x2Enabled ?? false,
+          negativeWeightEnabled: exerciseDraft.negativeWeightEnabled ?? false,
           createdAt: current.createdAt,
           updatedAt: nowIso()
         });
@@ -791,7 +794,7 @@ export async function getPreviousSessionSummary(
   }
 
   const templateExerciseSets: Record<number, SessionExerciseSet[]> = {};
-  const extraExercises: Array<{ name: string; setCount: number }> = [];
+  const extraExercises: Array<{ name: string; sets: SessionExerciseSet[] }> = [];
 
   for (const groupSets of grouped.values()) {
     const sortedCompleted = groupSets
@@ -811,7 +814,7 @@ export async function getPreviousSessionSummary(
 
     extraExercises.push({
       name: firstSet.exerciseName,
-      setCount: sortedCompleted.length
+      sets: sortedCompleted
     });
   }
 

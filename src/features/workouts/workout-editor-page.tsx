@@ -70,6 +70,7 @@ function createEmptyDraft(): WorkoutDraft {
         name: "",
         notes: "",
         x2Enabled: false,
+        negativeWeightEnabled: false,
         sets: [
           { targetReps: 10, targetWeight: 0 },
           { targetReps: 10, targetWeight: 0 },
@@ -322,6 +323,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
           notes: item.exercise.notes ?? "",
           aiInfo: item.exercise.aiInfo,
           x2Enabled: item.exercise.x2Enabled ?? false,
+          negativeWeightEnabled: item.exercise.negativeWeightEnabled ?? false,
           sets: item.sets.map((set) => ({
             targetReps: set.targetReps,
             targetWeight: set.targetWeight
@@ -346,7 +348,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
       (exercise) =>
         exercise.name.trim().length > 0 &&
         exercise.sets.length > 0 &&
-        exercise.sets.every((set) => set.targetReps > 0 && set.targetWeight >= 0)
+        exercise.sets.every((set) => set.targetReps > 0 && (exercise.negativeWeightEnabled ? set.targetWeight <= 0 : set.targetWeight >= 0))
     );
   }, [draft]);
 
@@ -1148,20 +1150,42 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
 
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs text-muted-foreground">{t("sets")}</p>
-                    <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>×2</span>
-                      <Switch
-                        checked={exercise.x2Enabled ?? false}
-                        onCheckedChange={(checked) => {
-                          setDraft((prev) => {
-                            const next = structuredClone(prev);
-                            next.exercises[exerciseIndex].x2Enabled = checked;
-                            return next;
-                          });
-                        }}
-                        aria-label={t("exerciseX2Toggle")}
-                      />
-                    </label>
+                    <div className="flex items-center gap-4">
+                      <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className="font-mono">−{weightUnitLabel}</span>
+                        <Switch
+                          checked={exercise.negativeWeightEnabled ?? false}
+                          onCheckedChange={(checked) => {
+                            setDraft((prev) => {
+                              const next = structuredClone(prev);
+                              next.exercises[exerciseIndex].negativeWeightEnabled = checked;
+                              next.exercises[exerciseIndex].sets = next.exercises[exerciseIndex].sets.map((set) => ({
+                                ...set,
+                                targetWeight: checked
+                                  ? (set.targetWeight > 0 ? -set.targetWeight : set.targetWeight)
+                                  : (set.targetWeight < 0 ? -set.targetWeight : set.targetWeight)
+                              }));
+                              return next;
+                            });
+                          }}
+                          aria-label={t("exerciseNegativeWeightToggle")}
+                        />
+                      </label>
+                      <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>×2</span>
+                        <Switch
+                          checked={exercise.x2Enabled ?? false}
+                          onCheckedChange={(checked) => {
+                            setDraft((prev) => {
+                              const next = structuredClone(prev);
+                              next.exercises[exerciseIndex].x2Enabled = checked;
+                              return next;
+                            });
+                          }}
+                          aria-label={t("exerciseX2Toggle")}
+                        />
+                      </label>
+                    </div>
                   </div>
                   {exercise.sets.map((set, setIndex) => (
                     <div key={`set-${setIndex}`} className="grid grid-cols-[1fr_1fr] items-center gap-2 py-1">
@@ -1190,7 +1214,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                         <div className="relative">
                           <DecimalInput
                             value={set.targetWeight}
-                            min={0}
+                            min={exercise.negativeWeightEnabled ? -999 : 0}
                             step={0.5}
                             className="pr-12"
                             onCommit={(value) => {
