@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowUpDown, Check, ChevronDown, Flag, NotebookPen, OctagonX, PersonStanding, Plus, Trash2, X } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, Clock3, Dumbbell, Flag, Flame, ListChecks, NotebookPen, OctagonX, PersonStanding, Plus, Repeat, Trash2, Weight, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
@@ -1017,17 +1017,17 @@ export function SessionPage() {
     set,
     compact = false,
     previewOnly = false,
+    hideButton = false,
     onDone,
-    tone = "colored",
-    inlineNoteInTitle = false
+    tone = "colored"
   }: {
     exercise: (typeof sessionExercises)[number] | null;
     set: SessionExerciseSet | null;
     compact?: boolean;
     previewOnly?: boolean;
+    hideButton?: boolean;
     onDone?: () => void;
     tone?: "colored" | "neutral" | "neutral-muted";
-    inlineNoteInTitle?: boolean;
   }) => {
     if (!exercise || !set) {
       return null;
@@ -1040,53 +1040,46 @@ export function SessionPage() {
     const isMutedNeutralTone = tone === "neutral-muted";
     const titleClassName = compact ? "text-sm" : "text-[15px]";
     const metaClassName = compact ? "text-[11px]" : "text-xs";
-    const valueClassName = compact ? "text-sm" : "text-base";
+    const valueClassName = compact ? "text-xs" : "text-sm";
     const mainTextColorClass = isMutedNeutralTone ? "text-foreground/55" : "";
     const metaTextColorClass = isMutedNeutralTone ? "text-foreground/40" : "opacity-80";
-    const noteLineTextColorClass = isMutedNeutralTone ? "text-foreground/45" : "opacity-85";
     const valueTextColorClass = isMutedNeutralTone ? "text-foreground/50" : "";
     const dotClassName = "mx-1 inline-block";
 
     return (
-      <div className="flex items-stretch justify-between gap-3">
-        <div className="min-w-0 flex-1 space-y-1">
-          <p className={`${titleClassName} min-w-0 truncate font-semibold leading-tight ${mainTextColorClass}`}>
-            <span className="truncate">{exercise.exerciseName}</span>
-            {(setPositionLabel || (!previewOnly && inlineNoteInTitle && exercise.exerciseNotes)) && (
-              <span className={`${metaClassName} min-w-0 font-medium ${metaTextColorClass}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className={`${titleClassName} overflow-hidden whitespace-nowrap font-semibold leading-tight ${mainTextColorClass}`}>
+            <span>{exercise.exerciseName}</span>
+            {(setPositionLabel || (!previewOnly && exercise.exerciseNotes)) && (
+              <span className={`${metaClassName} font-medium ${metaTextColorClass}`}>
                 {setPositionLabel ? <><span className={dotClassName} aria-hidden="true">·</span>{setPositionLabel}</> : null}
-                {!previewOnly && inlineNoteInTitle && exercise.exerciseNotes ? (
+                {!previewOnly && exercise.exerciseNotes ? (
                   <>
                     <span className={dotClassName} aria-hidden="true">·</span>
-                    <span className="inline-flex min-w-0 max-w-[11rem] items-center gap-1 align-middle">
+                    <span className="inline-flex items-center gap-1 align-middle">
                       <NotebookPen className="h-[0.9em] w-[0.9em] shrink-0" />
-                      <span className="min-w-0 truncate">{exercise.exerciseNotes}</span>
+                      <span>{exercise.exerciseNotes}</span>
                     </span>
                   </>
                 ) : null}
               </span>
             )}
           </p>
-          {!previewOnly && !inlineNoteInTitle && exercise.exerciseNotes && (
-            <p className={`${metaClassName} inline-flex min-w-0 items-center gap-1 leading-snug ${noteLineTextColorClass}`}>
-              <NotebookPen className="h-[0.9em] w-[0.9em] shrink-0" />
-              <span className="min-w-0 truncate">{exercise.exerciseNotes}</span>
-            </p>
-          )}
           {!previewOnly && (
-            <p className={`${valueClassName} font-semibold tabular-nums ${valueTextColorClass}`}>
+            <p className={`${valueClassName} font-semibold tabular-nums ${valueTextColorClass}`} style={{ marginTop: compact ? "2px" : "-0.5px" }}>
               {repsValue} × {formatNumber(weightValue, 0)} {weightUnitLabel}
             </p>
           )}
         </div>
-        {!previewOnly && (
+        {!previewOnly && !hideButton && (
           <Button
             type="button"
             size="icon"
             onClick={onDone ?? handleCompleteUpNextSet}
             disabled={!set.id}
             aria-label={t("done")}
-            className={`shrink-0 self-end rounded-full ${
+            className={`shrink-0 self-center rounded-full ${
               isNeutralTone
                 ? "border border-input bg-background text-foreground hover:bg-secondary"
                 : "border border-white/20 bg-white/15 text-white hover:bg-white/25"
@@ -1119,7 +1112,7 @@ export function SessionPage() {
           : nextActionableSet && nextActionableExercise
             ? "next"
             : null;
-  const upNextBottomCardPaddingTopPx = 12 + UP_NEXT_CARD_OVERLAP_PX;
+  const upNextBottomCardPaddingTopPx = 6 + UP_NEXT_CARD_OVERLAP_PX;
   const currentCardTitle =
     upNextMode === "next"
       ? t("nextSet")
@@ -1153,12 +1146,6 @@ export function SessionPage() {
               </span>
             </div>
           )}
-          {payload.previousSummary && payload.previousSummary.extraExercises.length > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {t("lastSessionExtras")}:{" "}
-              {payload.previousSummary.extraExercises.map((item) => `${item.name} (${item.setCount} ${t("extraSets")})`).join(", ")}
-            </p>
-          )}
         </div>
       </div>
 
@@ -1187,9 +1174,9 @@ export function SessionPage() {
               />
             )}
 
-            <div className="relative z-[1] flex flex-col px-4 py-3">
+            <div className={`relative z-[1] flex flex-col px-4 ${upNextMode === "complete" ? "py-4" : "py-2"}`}>
               {currentCardTitle && (
-                <p className={`${upNextMode === "rest" ? "mb-0" : "mb-2"} text-[11px] font-medium uppercase tracking-wide ${
+                <p className={`${upNextMode === "rest" ? "mb-0" : "mb-1"} text-[11px] font-medium uppercase tracking-wide ${
                   upNextMode === "complete"
                     ? "text-white/80"
                     : upNextMode === "next"
@@ -1203,42 +1190,43 @@ export function SessionPage() {
                 <>
                   <div className="grid grid-cols-3 gap-1">
                     <div className="rounded-md border border-white/15 bg-white/10 px-2 py-1">
-                      <p className="text-[10px] text-white/75">{t("exercises")}</p>
+                      <p className="inline-flex items-center gap-1 text-[10px] text-white/75"><Dumbbell className="h-3 w-3" />{t("exercises")}</p>
                       <p className="text-[11px] font-semibold">{completionStats.exerciseCount}</p>
                     </div>
                     <div className="rounded-md border border-white/15 bg-white/10 px-2 py-1">
-                      <p className="text-[10px] text-white/75">{t("sets")}</p>
+                      <p className="inline-flex items-center gap-1 text-[10px] text-white/75"><ListChecks className="h-3 w-3" />{t("sets")}</p>
                       <p className="text-[11px] font-semibold">{completionStats.setCount}</p>
                     </div>
                     <div className="rounded-md border border-white/15 bg-white/10 px-2 py-1">
-                      <p className="text-[10px] text-white/75">{t("repsTotal")}</p>
+                      <p className="inline-flex items-center gap-1 text-[10px] text-white/75"><Repeat className="h-3 w-3" />{t("repsTotal")}</p>
                       <p className="text-[11px] font-semibold">{completionStats.repsTotal}</p>
                     </div>
                     <div className="rounded-md border border-white/15 bg-white/10 px-2 py-1">
-                      <p className="text-[10px] text-white/75">{t("totalWeight")}</p>
+                      <p className="inline-flex items-center gap-1 text-[10px] text-white/75"><Weight className="h-3 w-3" />{t("totalWeight")}</p>
                       <p className="text-[11px] font-semibold">{formatNumber(completionStats.totalWeight, 0)} {weightUnit}</p>
                     </div>
-                    <div className="relative rounded-md border border-white/15 bg-white/10 px-2 py-1">
-                      <div className="flex items-start justify-between gap-1">
-                        <p className="text-[10px] text-white/75">{t("calories")}</p>
+                    <div className="rounded-md border border-white/15 bg-white/10 px-2 py-1">
+                      <p className="inline-flex items-center gap-1 text-[10px] text-white/75">
+                        <Flame className="h-3 w-3" />
+                        {t("calories")}
                         {completionStats.usesDefaultBodyWeightForCalories && (
                           <InfoHint
                             ariaLabel={t("calories")}
                             text={t("caloriesEstimateAverageHint")}
-                            className="-mr-1 -mt-0.5 shrink-0"
+                            iconClassName="text-white/75"
                           />
                         )}
-                      </div>
+                      </p>
                       <p className="text-[11px] font-semibold">~{formatNumber(completionStats.calories, 0)} kcal</p>
                     </div>
                     <div className="rounded-md border border-white/15 bg-white/10 px-2 py-1">
-                      <p className="text-[10px] text-white/75">{t("duration")}</p>
+                      <p className="inline-flex items-center gap-1 text-[10px] text-white/75"><Clock3 className="h-3 w-3" />{t("duration")}</p>
                       <p className="text-[11px] font-semibold tabular-nums">
                         {formatFinishedDurationLabel(completionStats.durationMinutes, language)}
                       </p>
                     </div>
                   </div>
-                  <div className="mt-3 flex items-end">
+                  <div className="mt-2 flex items-end">
                     <Button
                       type="button"
                       className="w-full rounded-full border text-white hover:opacity-95"
@@ -1265,7 +1253,7 @@ export function SessionPage() {
                   >
                     {restTimerPanelState.paused ? <PlaySolidIcon className="h-4 w-4" /> : <PauseSolidIcon className="h-4 w-4" />}
                   </Button>
-                  <div className="flex min-h-8 flex-1 items-center pr-12">
+                  <div className="flex flex-1 items-center pr-12" style={{ minHeight: "26px" }}>
                     <div className="min-w-0">
                       <p className="text-[15px] font-semibold leading-tight tabular-nums text-orange-900/75 dark:text-orange-100/80">
                         {formatDurationClock(restTimerPanelState.elapsedSeconds)} / {formatDurationClock(restTimerSeconds)}
@@ -1275,15 +1263,22 @@ export function SessionPage() {
                 </>
               ) : (
                 <>
-                  <div className="flex flex-1 items-end overflow-hidden">
-                    <div className="w-full">
-                      {renderSetCardContent({
-                        exercise: nextActionableExercise,
-                        set: nextActionableSet,
-                        onDone: handleCompleteUpNextSet,
-                        inlineNoteInTitle: true
-                      })}
-                    </div>
+                  <Button
+                    type="button"
+                    size="icon"
+                    disabled={!nextActionableSet?.id}
+                    aria-label={t("done")}
+                    className="absolute right-4 top-1/2 z-[2] h-10 w-10 -translate-y-1/2 shrink-0 rounded-full border border-white/20 bg-white/15 text-white hover:bg-white/25"
+                    onClick={handleCompleteUpNextSet}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <div className="overflow-hidden pr-14">
+                    {renderSetCardContent({
+                      exercise: nextActionableExercise,
+                      set: nextActionableSet,
+                      hideButton: true
+                    })}
                   </div>
                 </>
               )}
@@ -1298,7 +1293,7 @@ export function SessionPage() {
               }}
             >
               {showAfterCardTitle && (
-                <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-foreground/35">
+                <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-foreground/35">
                   {t("afterward")}
                 </p>
               )}
@@ -1323,16 +1318,28 @@ export function SessionPage() {
               )}
 
               {upNextMode === "rest" && (
-                <div className="overflow-hidden">
-                  {renderSetCardContent({
-                    exercise: nextActionableExercise,
-                    set: nextActionableSet,
-                    compact: true,
-                    inlineNoteInTitle: true,
-                    onDone: handleCompleteUpNextSet,
-                    tone: "neutral-muted"
-                  })}
-                </div>
+                <>
+                  <Button
+                    type="button"
+                    size="icon"
+                    disabled={!nextActionableSet?.id}
+                    aria-label={t("done")}
+                    className="absolute right-4 z-[2] h-9 w-9 shrink-0 rounded-full border border-input bg-background text-foreground hover:bg-secondary"
+                    style={{ top: `calc(50% + ${UP_NEXT_CARD_OVERLAP_PX / 2}px)`, transform: "translateY(-50%)" }}
+                    onClick={handleCompleteUpNextSet}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <div className="overflow-hidden pr-12">
+                    {renderSetCardContent({
+                      exercise: nextActionableExercise,
+                      set: nextActionableSet,
+                      compact: true,
+                      hideButton: true,
+                      tone: "neutral-muted"
+                    })}
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -1567,6 +1574,22 @@ export function SessionPage() {
           </Card>
         );
       })}
+
+      {!isCompleted && payload.previousSummary && payload.previousSummary.extraExercises.length > 0 && (
+        <div className="space-y-1 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground">
+          <p className="font-medium">{t("lastSessionExtras")}</p>
+          {payload.previousSummary.extraExercises.map((item, i) => (
+            <p key={i}>
+              {item.name}
+              {item.sets.length > 0 && (
+                <span className="ml-1 opacity-70">
+                  ({item.sets.map((s) => `${s.actualReps ?? s.targetReps} × ${formatNumber(s.actualWeight ?? s.targetWeight, 1)} ${weightUnitLabel}`).join(" | ")})
+                </span>
+              )}
+            </p>
+          ))}
+        </div>
+      )}
 
       {!isCompleted && !isAddExerciseExpanded && (
         <div className="flex items-center justify-between gap-2">

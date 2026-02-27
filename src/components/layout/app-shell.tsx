@@ -454,7 +454,7 @@ export function AppShell() {
                     <Check className="h-3 w-3 shrink-0" />
                     {sessionState.completed}/{sessionState.total}
                   </span>
-                  <div className="absolute inset-x-0 bottom-0 h-[3px] bg-emerald-200 dark:bg-emerald-900">
+                  <div className="absolute inset-x-[6px] bottom-0 h-[3px] bg-emerald-200 dark:bg-emerald-900">
                     <div className="h-full bg-emerald-600 transition-all dark:bg-emerald-400" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
