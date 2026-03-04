@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, type NavigateOptions, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from "@dnd-kit/core";
 import { ArrowUpDown, Check, Flag, Plus, Square, X } from "lucide-react";
@@ -90,6 +90,9 @@ export function SessionPage() {
   const navigate = useNavigate();
   const { t, weightUnit, weightUnitLabel, language, restTimerEnabled, restTimerSeconds } = useSettings();
   const numericSessionId = Number(sessionId);
+  const navigateWithTransition = (to: string, options?: NavigateOptions) => {
+    navigate(to, { ...options, viewTransition: true });
+  };
 
   const [newExerciseName, setNewExerciseName] = useState("");
   const [isAddExerciseExpanded, setIsAddExerciseExpanded] = useState(false);
@@ -882,6 +885,7 @@ export function SessionPage() {
           nextActionableSet={nextActionableSet}
           nextActionableExercise={nextActionableExercise}
           restTimerPanelState={restTimerPanelState}
+          showRestTimer={restTimerEnabled && restTimerSeconds > 0}
           restTimerSeconds={restTimerSeconds}
           completionStats={completionStats}
           weightUnit={weightUnit}
@@ -1118,7 +1122,7 @@ export function SessionPage() {
           await discardSession(numericSessionId);
           setIsDiscardDialogOpen(false);
           toast.success(t("sessionDiscarded"));
-          navigate("/");
+          navigateWithTransition("/");
         }}
         t={t}
       />
@@ -1129,12 +1133,12 @@ export function SessionPage() {
         onCompleteWithoutTemplate={async () => {
           await completeSession(numericSessionId, false);
           toast.success(t("sessionCompleted"));
-          navigate("/");
+          navigateWithTransition("/");
         }}
         onCompleteWithTemplate={async () => {
           await completeSession(numericSessionId, true);
           toast.success(t("sessionCompleted"));
-          navigate("/");
+          navigateWithTransition("/");
         }}
         t={t}
       />

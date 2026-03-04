@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, type NavigateOptions, useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
   ChevronDown,
@@ -46,6 +46,7 @@ import {
 } from "@/features/dashboard/dashboard-page-cards";
 import {
   useDashboardWorkoutsData,
+  useEarliestCompletedWeekStart,
   useWeeklyStatsData
 } from "@/features/dashboard/use-dashboard-page-data";
 import {
@@ -68,17 +69,23 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
   const navigate = useNavigate();
   const [clockTick, setClockTick] = useState(() => Date.now());
   const [statsWeekOffset, setStatsWeekOffset] = useState(0);
+  const currentWeekStart = useMemo(() => getWeekStart(new Date(clockTick)), [clockTick]);
   const weekStart = useMemo(() => {
-    const base = new Date(clockTick);
+    const base = new Date(currentWeekStart);
     if (section === "statistics" && statsWeekOffset !== 0) {
       base.setDate(base.getDate() + statsWeekOffset * 7);
     }
     return getWeekStart(base);
-  }, [clockTick, section, statsWeekOffset]);
+  }, [currentWeekStart, section, statsWeekOffset]);
   const [discardConfirmSessionId, setDiscardConfirmSessionId] = useState<number | null>(null);
   const [isCreatingStarterWorkout, setIsCreatingStarterWorkout] = useState(false);
   const [muscleMetricMode, setMuscleMetricMode] = useState<MuscleMetricMode>("reps");
   const [homeWeeklyGoalKey, setHomeWeeklyGoalKey] = useState<"workouts" | "duration" | "calories" | "weight" | null>(null);
+  const earliestCompletedWeekStart = useEarliestCompletedWeekStart();
+
+  const navigateWithTransition = (to: string, options?: NavigateOptions) => {
+    navigate(to, { ...options, viewTransition: true });
+  };
 
   useEffect(() => {
     const timer = window.setInterval(() => setClockTick(Date.now()), 60_000);
@@ -90,6 +97,22 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       setStatsWeekOffset(0);
     }
   }, [section, statsWeekOffset]);
+
+  const earliestStatsWeekOffset = useMemo(() => {
+    if (!earliestCompletedWeekStart) {
+      return null;
+    }
+    const diffMs = earliestCompletedWeekStart.getTime() - currentWeekStart.getTime();
+    return Math.floor(diffMs / (7 * 86_400_000));
+  }, [currentWeekStart, earliestCompletedWeekStart]);
+
+  useEffect(() => {
+    if (section !== "statistics" || earliestStatsWeekOffset === null) {
+      return;
+    }
+
+    setStatsWeekOffset((prev) => Math.max(earliestStatsWeekOffset, prev));
+  }, [earliestStatsWeekOffset, section]);
 
   const workouts = useDashboardWorkoutsData({ restTimerEnabled, restTimerSeconds });
   const weeklyStats = useWeeklyStatsData({ language, weightUnit, weekStart });
@@ -114,6 +137,9 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
   const hasWorkouts = useMemo(() => (workouts?.length ?? 0) > 0, [workouts]);
   const showWorkoutsSection = section === "workouts";
   const showStatsSection = section === "statistics";
+  const canNavigateToPreviousStatsWeek =
+    showStatsSection && earliestStatsWeekOffset !== null && statsWeekOffset > earliestStatsWeekOffset;
+  const canNavigateToNextStatsWeek = showStatsSection && statsWeekOffset < 0;
   const hasActiveWorkout = activeWorkouts.length > 0;
   const hasTrackedWorkoutToday = useMemo(() => {
     const dayStart = new Date(clockTick);
@@ -304,7 +330,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
   const handleStartSession = async (workoutId: number) => {
     try {
       const sessionId = await startSession(workoutId);
-      navigate(`/sessions/${sessionId}`);
+      navigateWithTransition(`/sessions/${sessionId}`);
     } catch {
       toast.error("Session start failed");
     }
@@ -344,7 +370,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
               variant="secondary"
               size="sm"
               className="gap-1.5"
-              onClick={() => navigate("/workouts/add")}
+              onClick={() => navigateWithTransition("/workouts/add")}
             >
               <Plus className="h-4 w-4" />
               {t("add")}
@@ -376,7 +402,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
             <Button
               variant="secondary"
               className="h-auto w-full items-center justify-start gap-3 whitespace-normal py-3 text-left"
-              onClick={() => navigate("/workouts/new")}
+              onClick={() => navigateWithTransition("/workouts/new")}
             >
               <Plus className="h-4 w-4 shrink-0" />
               <span className="flex flex-col items-start">
@@ -387,7 +413,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
             <Button
               variant="secondary"
               className="h-auto w-full items-center justify-start gap-3 whitespace-normal py-3 text-left"
-              onClick={() => navigate("/import")}
+              onClick={() => navigateWithTransition("/import")}
             >
               <Sparkles className="h-4 w-4 shrink-0" />
               <span className="flex flex-col items-start">
@@ -403,7 +429,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
             variant="secondary"
             size="sm"
             className="w-full justify-start gap-2"
-            onClick={() => navigate("/settings#data-import")}
+            onClick={() => navigateWithTransition("/settings#data-import")}
           >
             <Download className="h-4 w-4" />
             {t("dashboardImportExistingData")}
@@ -423,8 +449,8 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
               recommendedWorkoutId={recommendedWorkoutId}
               language={language}
               t={t}
-              onOpenHistory={(workoutId) => navigate(`/workouts/${workoutId}/history`)}
-              onEditWorkout={(workoutId) => navigate(`/workouts/${workoutId}/edit`)}
+              onOpenHistory={(workoutId) => navigateWithTransition(`/workouts/${workoutId}/history`)}
+              onEditWorkout={(workoutId) => navigateWithTransition(`/workouts/${workoutId}/edit`)}
               onDiscardActiveSession={(sessionId) => setDiscardConfirmSessionId(sessionId)}
               onStartOrResume={handleStartSession}
             />
@@ -447,8 +473,8 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
               recommendedWorkoutId={recommendedWorkoutId}
               language={language}
               t={t}
-              onOpenHistory={(workoutId) => navigate(`/workouts/${workoutId}/history`)}
-              onEditWorkout={(workoutId) => navigate(`/workouts/${workoutId}/edit`)}
+              onOpenHistory={(workoutId) => navigateWithTransition(`/workouts/${workoutId}/history`)}
+              onEditWorkout={(workoutId) => navigateWithTransition(`/workouts/${workoutId}/edit`)}
               onDiscardActiveSession={(sessionId) => setDiscardConfirmSessionId(sessionId)}
               onStartOrResume={handleStartSession}
             />
@@ -500,37 +526,33 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
               variant="secondary"
               size="icon"
               className="h-8 w-8 shrink-0"
-              onClick={() => setStatsWeekOffset((prev) => prev - 1)}
+              onClick={() =>
+                setStatsWeekOffset((prev) => {
+                  if (earliestStatsWeekOffset === null) {
+                    return prev;
+                  }
+                  return Math.max(earliestStatsWeekOffset, prev - 1);
+                })
+              }
               aria-label={t("previousWeek")}
               title={t("previousWeek")}
+              disabled={!canNavigateToPreviousStatsWeek}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <p className="text-sm font-medium tabular-nums text-foreground/80">{statsWeekLabel}</p>
-            {statsWeekOffset < 0 ? (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="h-8 px-2.5 text-xs"
-                onClick={() => setStatsWeekOffset(0)}
-              >
-                {t("currentWeek")}
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="secondary"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={() => setStatsWeekOffset((prev) => Math.min(0, prev + 1))}
-                aria-label={t("nextWeek")}
-                title={t("nextWeek")}
-                disabled
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={() => setStatsWeekOffset((prev) => Math.min(0, prev + 1))}
+              aria-label={t("nextWeek")}
+              title={t("nextWeek")}
+              disabled={!canNavigateToNextStatsWeek}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
 
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
@@ -629,6 +651,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                     <Link
                       key={item.sessionId}
                       to={`/workouts/${item.workoutId}/history#session-${item.sessionId}`}
+                      viewTransition
                       title={item.title}
                       className="group absolute bottom-4"
                       style={{
@@ -681,7 +704,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                     {t("weeklyGoals")}
                   </p>
                   <Button asChild variant="secondary" size="sm" className="h-7 gap-1 px-2 text-xs">
-                    <Link to="/settings#weekly-goals">
+                    <Link to="/settings#weekly-goals" viewTransition>
                       <PenSquare className="h-3 w-3" />
                       {t("edit")}
                     </Link>

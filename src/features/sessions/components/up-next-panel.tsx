@@ -43,6 +43,7 @@ interface UpNextPanelProps {
   nextActionableSet: SessionExerciseSet | null;
   nextActionableExercise: SessionExercise | null;
   restTimerPanelState: RestTimerPanelState | null;
+  showRestTimer: boolean;
   restTimerSeconds: number;
   completionStats: CompletionStatsData | null;
   weightUnit: string;
@@ -71,6 +72,7 @@ export function UpNextPanel({
   nextActionableSet,
   nextActionableExercise,
   restTimerPanelState,
+  showRestTimer,
   restTimerSeconds,
   completionStats,
   weightUnit,
@@ -85,9 +87,7 @@ export function UpNextPanel({
   const nextSetIsPrimary = !timerIsPrimary;
   const timerLabel =
     !restTimerPanelState ? t("noTimer")
-    : `${formatDurationClock(restTimerPanelState.elapsedSeconds)} / ${formatDurationClock(restTimerSeconds)}${
-      restTimerPanelState.isExpired ? ` · ${t("done")}` : ""
-    }`;
+    : `${formatDurationClock(restTimerPanelState.elapsedSeconds)} / ${formatDurationClock(restTimerSeconds)}`;
 
   return (
     <section className="sticky top-2 z-10 isolate">
@@ -152,58 +152,60 @@ export function UpNextPanel({
             </div>
           </div>
 
-          <div
-            className={`relative z-10 -mt-[48px] ${UP_NEXT_BOX_CLASS} px-4 pb-3 ${
-              timerIsPrimary
-                ? "border-orange-200/80 bg-orange-100 text-orange-950 dark:border-orange-900/40 dark:bg-orange-950 dark:text-orange-100"
-                : "border-border bg-secondary/90 text-foreground backdrop-blur supports-[backdrop-filter]:bg-secondary/70"
-            }`}
-            style={{ paddingTop: `${UP_NEXT_CARD_OVERLAP_PX + 6}px` }}
-          >
-            {timerIsPrimary && restTimerPanelState && (
-              <div
-                className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-orange-200/70 to-orange-400/75 transition-[width] ease-linear dark:from-orange-700/35 dark:to-orange-500/40"
-                style={{
-                  width: `${Math.max(0, Math.min(100, restTimerPanelState.progressPercent))}%`,
-                  transitionDuration: restTimerPanelState.paused ? "150ms" : "500ms"
-                }}
-                aria-hidden="true"
-              />
-            )}
-
-            <div className="relative z-[1]">
-              <p className={`mb-0.5 text-[11px] font-medium uppercase tracking-wide ${
-                timerIsPrimary ? "text-orange-900/75 dark:text-orange-100/80" : "text-foreground/45"
-              }`}>
-                {t("rest")}
-              </p>
-              {restTimerPanelState?.hasStarted && !restTimerPanelState.isExpired && (
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="secondary"
-                  className={`absolute right-0 z-[2] h-10 w-10 -translate-y-1/2 shrink-0 ${
-                    timerIsPrimary
-                      ? "border-orange-800/15 bg-white/45 text-orange-950 hover:bg-white/60 dark:border-orange-100/10 dark:bg-black/20 dark:text-orange-100 dark:hover:bg-black/30"
-                      : "border-input bg-background text-foreground hover:bg-secondary"
-                  }`}
-                  style={{ top: "50%" }}
-                  aria-label={restTimerPanelState.paused ? t("resumeSession") : t("pauseTimer")}
-                  onClick={onToggleRestTimer}
-                >
-                  {restTimerPanelState.paused ? <PlaySolidIcon className="h-4 w-4" /> : <PauseSolidIcon className="h-4 w-4" />}
-                </Button>
+          {showRestTimer && (
+            <div
+              className={`relative z-10 -mt-[48px] ${UP_NEXT_BOX_CLASS} px-4 pb-3 ${
+                timerIsPrimary
+                  ? "border-orange-200/80 bg-orange-100 text-orange-950 dark:border-orange-700/35 dark:bg-orange-900/40 dark:text-orange-100"
+                  : "border-border bg-secondary/90 text-foreground backdrop-blur supports-[backdrop-filter]:bg-secondary/70"
+              }`}
+              style={{ paddingTop: `${UP_NEXT_CARD_OVERLAP_PX + 6}px` }}
+            >
+              {timerIsPrimary && restTimerPanelState && (
+                <div
+                  className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-orange-200/70 to-orange-400/75 transition-[width] ease-linear dark:from-orange-500/28 dark:to-orange-300/36"
+                  style={{
+                    width: `${Math.max(0, Math.min(100, restTimerPanelState.progressPercent))}%`,
+                    transitionDuration: restTimerPanelState.paused ? "150ms" : "500ms"
+                  }}
+                  aria-hidden="true"
+                />
               )}
-              <div className="flex min-h-[20px] items-center pr-12">
-                <p className={`inline-flex items-center gap-1 text-[15px] font-semibold leading-tight tabular-nums ${
-                  timerIsPrimary ? "text-orange-900/75 dark:text-orange-100/80" : "text-foreground/70"
+
+              <div className="relative z-[1]">
+                <p className={`mb-0.5 text-[11px] font-medium uppercase tracking-wide ${
+                  timerIsPrimary ? "text-orange-900/75 dark:text-orange-100/85" : "text-foreground/45"
                 }`}>
-                  <Clock3 className="h-3.5 w-3.5" />
-                  {timerLabel}
+                  {t("rest")}
                 </p>
+                {restTimerPanelState?.hasStarted && !restTimerPanelState.isExpired && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="secondary"
+                    className={`absolute right-0 z-[2] h-10 w-10 -translate-y-1/2 shrink-0 ${
+                      timerIsPrimary
+                        ? "border-orange-800/15 bg-white/45 text-orange-950 hover:bg-white/60 dark:border-orange-200/15 dark:bg-orange-950/45 dark:text-orange-100 dark:hover:bg-orange-950/65"
+                        : "border-input bg-background text-foreground hover:bg-secondary"
+                    }`}
+                    style={{ top: "50%" }}
+                    aria-label={restTimerPanelState.paused ? t("resumeSession") : t("pauseTimer")}
+                    onClick={onToggleRestTimer}
+                  >
+                    {restTimerPanelState.paused ? <PlaySolidIcon className="h-4 w-4" /> : <PauseSolidIcon className="h-4 w-4" />}
+                  </Button>
+                )}
+                <div className="flex min-h-[20px] items-center pr-12">
+                  <p className={`inline-flex items-center gap-1 text-[15px] font-semibold leading-tight tabular-nums ${
+                    timerIsPrimary ? "text-orange-900/75 dark:text-orange-100/85" : "text-foreground/70"
+                  }`}>
+                    <Clock3 className="h-3.5 w-3.5" />
+                    {timerLabel}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </>
       )}
     </section>

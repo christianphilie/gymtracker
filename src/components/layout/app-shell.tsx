@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
@@ -50,20 +50,9 @@ interface SessionHeaderState {
 }
 
 interface HeaderActionsProps {
-  sessionState: SessionHeaderState | null;
   showEditorSave: boolean;
   onEditorCancel: () => void;
   onEditorSave: () => void;
-}
-
-interface HeaderProgressBadgeProps {
-  as?: "button" | "div";
-  onClick?: () => void;
-  ariaLabel?: string;
-  progressPercent: number;
-  progressBarClassName?: string;
-  progressBarStyle?: CSSProperties;
-  children: ReactNode;
 }
 
 interface BottomNavItemProps {
@@ -73,42 +62,6 @@ interface BottomNavItemProps {
   icon: ReactNode;
   activeClassName?: string;
   inactiveClassName?: string;
-}
-
-function HeaderProgressBadge({
-  as = "div",
-  onClick,
-  ariaLabel,
-  progressPercent,
-  progressBarClassName,
-  progressBarStyle,
-  children
-}: HeaderProgressBadgeProps) {
-  const isButton = as === "button";
-  const className = cn(
-    "relative h-9 w-[4.5rem] overflow-hidden rounded-md border border-input bg-background/80 shadow-sm",
-    isButton && "m-0 p-0 text-left align-top [appearance:none]"
-  );
-  const progressStyle = { width: `${Math.round(Math.max(0, Math.min(progressPercent, 100)))}%`, ...progressBarStyle };
-
-  const content = (
-    <>
-      {children}
-      <div className="absolute inset-x-0 bottom-0 h-1.5 bg-secondary">
-        <div className={cn("h-full transition-all", progressBarClassName)} style={progressStyle} />
-      </div>
-    </>
-  );
-
-  if (isButton) {
-    return (
-      <button type="button" onClick={onClick} aria-label={ariaLabel} className={className}>
-        {content}
-      </button>
-    );
-  }
-
-  return <div className={className}>{content}</div>;
 }
 
 function BottomNavItem({
@@ -123,6 +76,7 @@ function BottomNavItem({
     <div className="flex w-[4.8875rem] shrink-0 justify-center">
       <Link
         to={to}
+        viewTransition
         aria-label={label}
         title={label}
         className={cn(
@@ -138,41 +92,11 @@ function BottomNavItem({
 }
 
 function HeaderActions({
-  sessionState,
   showEditorSave,
   onEditorCancel,
   onEditorSave
 }: HeaderActionsProps) {
   const { t } = useSettings();
-
-  if (sessionState) {
-    const donePercent = sessionState.total > 0 ? Math.round((sessionState.completed / sessionState.total) * 100) : 0;
-
-    return (
-      <div className="flex items-center gap-2">
-        <HeaderProgressBadge
-          as="button"
-          onClick={() =>
-            window.dispatchEvent(
-              new CustomEvent("gymtracker:complete-next-session-set", {
-                detail: { sessionId: sessionState.sessionId }
-              })
-            )
-          }
-          ariaLabel={t("done")}
-          progressPercent={donePercent}
-          progressBarClassName="bg-primary"
-        >
-          <div className="inline-flex h-full w-full items-start px-2 pt-1.5">
-            <p className="inline-flex h-[16px] w-full items-center justify-center text-center text-xs font-medium leading-none tabular-nums">
-              <Check className="mr-1 h-3.5 w-3.5" />
-              {sessionState.completed}/{sessionState.total}
-            </p>
-          </div>
-        </HeaderProgressBadge>
-      </div>
-    );
-  }
 
   if (showEditorSave) {
     return (
@@ -455,7 +379,6 @@ export function AppShell() {
           </div>
           <div className="flex items-center gap-2">
             <HeaderActions
-              sessionState={activeSessionId ? null : sessionState}
               showEditorSave={isWorkoutEditRoute}
               onEditorCancel={handleEditorCancel}
               onEditorSave={handleEditorSave}
@@ -472,7 +395,7 @@ export function AppShell() {
       <div className="pointer-events-none fixed inset-x-0 bottom-6 z-30 px-4">
         <div className="relative mx-auto max-w-3xl">
           <nav className="pointer-events-auto flex justify-center" aria-label="Primary">
-            <div className="flex items-center gap-0 rounded-full border border-white/50 bg-background/80 p-0.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08),0_22px_52px_rgba(15,23,42,0.14)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
+            <div className="flex items-center gap-0 rounded-full border border-white/50 bg-background/80 p-0.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08),0_22px_52px_rgba(15,23,42,0.14)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/70 dark:border-transparent dark:shadow-[0_-12px_26px_rgba(0,0,0,0.4),0_24px_48px_rgba(0,0,0,0.52)]">
               <BottomNavItem
                 to="/"
                 isActive={isHomeTabRoute}

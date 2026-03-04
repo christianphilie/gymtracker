@@ -144,11 +144,6 @@ export function ExerciseCard({
           </div>
         </div>
 
-        {lastSessionSetSummary && (
-          <p className="text-xs text-muted-foreground">
-            {t("lastSession")}: {lastSessionSetSummary}
-          </p>
-        )}
       </CardHeader>
 
       <div className={`grid transition-all duration-200 ${isCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}>
@@ -177,6 +172,14 @@ export function ExerciseCard({
                 doneAriaLabel={t("done")}
               />
             ))}
+
+            {lastSessionSetSummary && (
+              <div className="border-t pt-2">
+                <p className="text-xs text-muted-foreground">
+                  {t("lastSession")}: {lastSessionSetSummary}
+                </p>
+              </div>
+            )}
 
             {!sessionIsCompleted && (
               <div className="flex items-center gap-2 border-t pt-2">

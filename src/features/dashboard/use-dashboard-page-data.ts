@@ -13,6 +13,7 @@ import {
   createEmptyMuscleGroupMetrics,
   EMPTY_WEEKLY_STATS,
   getWeekEndExclusive,
+  getWeekStart,
   normalizeExerciseLookupName,
   normalizeWeeklyGoal,
   type WeeklyDashboardStats
@@ -318,4 +319,28 @@ export function useWeeklyStatsData(params: {
       muscleGroupMetrics
     };
   }, [language, weekStart.getTime(), weightUnit]);
+}
+
+export function useEarliestCompletedWeekStart() {
+  return useLiveQuery<Date | null>(async () => {
+    const completedSessions = await db.sessions.where("status").equals("completed").toArray();
+    if (completedSessions.length === 0) {
+      return null;
+    }
+
+    let earliestCompletedAtMs = Number.POSITIVE_INFINITY;
+    for (const session of completedSessions) {
+      const completedAtMs = new Date(session.finishedAt ?? session.startedAt).getTime();
+      if (!Number.isFinite(completedAtMs)) {
+        continue;
+      }
+      earliestCompletedAtMs = Math.min(earliestCompletedAtMs, completedAtMs);
+    }
+
+    if (!Number.isFinite(earliestCompletedAtMs)) {
+      return null;
+    }
+
+    return getWeekStart(new Date(earliestCompletedAtMs));
+  }, []);
 }
