@@ -21,8 +21,9 @@ interface ExerciseInfoDialogButtonProps {
   className?: string;
 }
 
-function exerciseSearchUrl(name: string) {
-  return `https://www.google.com/search?q=${encodeURIComponent(`${name} exercise database`)}`;
+function exerciseSearchUrl(name: string, locale: "de" | "en") {
+  const suffix = locale === "de" ? "Anleitung" : "Instructions";
+  return `https://www.google.com/search?q=${encodeURIComponent(`${name} ${suffix}`)}`;
 }
 
 function cx(...parts: Array<string | false | null | undefined>) {
@@ -165,7 +166,7 @@ export function ExerciseInfoDialogButton({
                 {t("exerciseInfoAiDisclaimerWithMatch").replace("{name}", matchedDisplayName)}
               </p>
               <Button asChild variant="secondary" size="sm" className="h-7 gap-1 px-2 text-xs">
-                <a href={exerciseSearchUrl(exerciseName)} target="_blank" rel="noreferrer">
+                <a href={exerciseSearchUrl(exerciseName, language)} target="_blank" rel="noreferrer">
                   <BookSearch className="h-3 w-3" />
                   {t("moreExerciseResearch")}
                 </a>

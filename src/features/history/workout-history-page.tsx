@@ -492,38 +492,38 @@ export function WorkoutHistoryPage() {
             })}
 
             <div className="grid grid-cols-2 gap-1.5 border-t pt-2.5 sm:grid-cols-3">
-              <div className="rounded-md border border-blue-200 bg-blue-100 px-2 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/40">
-                <p className="text-[10px] text-blue-600/90 dark:text-blue-300/70">{t("exercises")}</p>
-                <p className="text-xs font-semibold text-blue-950 dark:text-blue-50">{entry.stats.exerciseCount}</p>
+              <div className="rounded-md border border-emerald-300/80 bg-emerald-100/75 px-2 py-1.5 dark:border-emerald-900/70 dark:bg-emerald-950/40">
+                <p className="text-[10px] text-emerald-700/90 dark:text-emerald-300/75">{t("exercises")}</p>
+                <p className="text-xs font-semibold text-emerald-950 dark:text-emerald-100">{entry.stats.exerciseCount}</p>
               </div>
-              <div className="rounded-md border border-blue-200 bg-blue-100 px-2 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/40">
-                <p className="text-[10px] text-blue-600/90 dark:text-blue-300/70">{t("sets")}</p>
-                <p className="text-xs font-semibold text-blue-950 dark:text-blue-50">{entry.stats.setCount}</p>
+              <div className="rounded-md border border-emerald-300/80 bg-emerald-100/75 px-2 py-1.5 dark:border-emerald-900/70 dark:bg-emerald-950/40">
+                <p className="text-[10px] text-emerald-700/90 dark:text-emerald-300/75">{t("sets")}</p>
+                <p className="text-xs font-semibold text-emerald-950 dark:text-emerald-100">{entry.stats.setCount}</p>
               </div>
-              <div className="rounded-md border border-blue-200 bg-blue-100 px-2 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/40">
-                <p className="text-[10px] text-blue-600/90 dark:text-blue-300/70">{t("repsTotal")}</p>
-                <p className="text-xs font-semibold text-blue-950 dark:text-blue-50">{entry.stats.repsTotal}</p>
+              <div className="rounded-md border border-emerald-300/80 bg-emerald-100/75 px-2 py-1.5 dark:border-emerald-900/70 dark:bg-emerald-950/40">
+                <p className="text-[10px] text-emerald-700/90 dark:text-emerald-300/75">{t("repsTotal")}</p>
+                <p className="text-xs font-semibold text-emerald-950 dark:text-emerald-100">{entry.stats.repsTotal}</p>
               </div>
-              <div className="rounded-md border border-blue-200 bg-blue-100 px-2 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/40">
-                <p className="text-[10px] text-blue-600/90 dark:text-blue-300/70">{t("totalWeight")}</p>
-                <p className="text-xs font-semibold text-blue-950 dark:text-blue-50">{formatNumber(entry.stats.totalWeight, 0)} {weightUnit}</p>
+              <div className="rounded-md border border-emerald-300/80 bg-emerald-100/75 px-2 py-1.5 dark:border-emerald-900/70 dark:bg-emerald-950/40">
+                <p className="text-[10px] text-emerald-700/90 dark:text-emerald-300/75">{t("totalWeight")}</p>
+                <p className="text-xs font-semibold text-emerald-950 dark:text-emerald-100">{formatNumber(entry.stats.totalWeight, 0)} {weightUnit}</p>
               </div>
-              <div className="rounded-md border border-blue-200 bg-blue-100 px-2 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/40">
+              <div className="rounded-md border border-emerald-300/80 bg-emerald-100/75 px-2 py-1.5 dark:border-emerald-900/70 dark:bg-emerald-950/40">
                 <div className="flex items-center justify-between gap-1">
-                  <p className="text-[10px] text-blue-600/90 dark:text-blue-300/70">{t("calories")}</p>
+                  <p className="text-[10px] text-emerald-700/90 dark:text-emerald-300/75">{t("calories")}</p>
                   {entry.stats.usesDefaultBodyWeightForCalories && (
                     <InfoHint
                       ariaLabel={t("calories")}
                       text={t("caloriesEstimateAverageHint")}
-                      iconClassName="text-blue-500 dark:text-blue-400"
+                      iconClassName="text-emerald-600 dark:text-emerald-300"
                     />
                   )}
                 </div>
-                <p className="text-xs font-semibold text-blue-950 dark:text-blue-50">~{formatNumber(entry.stats.calories, 0)} kcal</p>
+                <p className="text-xs font-semibold text-emerald-950 dark:text-emerald-100">~{formatNumber(entry.stats.calories, 0)} kcal</p>
               </div>
-              <div className="rounded-md border border-blue-200 bg-blue-100 px-2 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/40">
-                <p className="text-[10px] text-blue-600/90 dark:text-blue-300/70">{t("duration")}</p>
-                <p className="text-xs font-semibold text-blue-950 dark:text-blue-50">{formatDurationLabel(entry.stats.durationMinutes, language)}</p>
+              <div className="rounded-md border border-emerald-300/80 bg-emerald-100/75 px-2 py-1.5 dark:border-emerald-900/70 dark:bg-emerald-950/40">
+                <p className="text-[10px] text-emerald-700/90 dark:text-emerald-300/75">{t("duration")}</p>
+                <p className="text-xs font-semibold text-emerald-950 dark:text-emerald-100">{formatDurationLabel(entry.stats.durationMinutes, language)}</p>
               </div>
             </div>
           </CardContent>

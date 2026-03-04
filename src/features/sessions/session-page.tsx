@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowUpDown, Flag, OctagonX, Plus, X } from "lucide-react";
+import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from "@dnd-kit/core";
+import { ArrowUpDown, Check, Flag, Plus, Square, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { Button } from "@/components/ui/button";
@@ -25,26 +26,33 @@ import {
   getSessionDurationMinutes,
   resolveCaloriesBodyWeightKg
 } from "@/lib/calorie-estimation";
-import { formatSessionDateLabel, getEffectiveSetWeight, getSetStatsMultiplier } from "@/lib/utils";
+import { formatDurationLabel, formatSessionDateLabel, getEffectiveSetWeight, getSetStatsMultiplier } from "@/lib/utils";
 import type { SessionExercise } from "./components/exercise-card";
 import { ExerciseCard } from "./components/exercise-card";
 import type { UpNextMode, RestTimerPanelState } from "./components/up-next-panel";
 import { UpNextPanel } from "./components/up-next-panel";
-import { DeleteExerciseDialog, DiscardSessionDialog, CompleteSessionDialog } from "./components/session-dialogs";
+import { CompletionStats } from "./components/completion-stats";
+import { ReorderableExerciseCard, getDragExerciseKey, getDropBeforeExerciseKey, isDropAfterLast } from "./components/reorderable-exercise-card";
+import {
+  DeleteExerciseDialog,
+  DiscardSessionDialog,
+  CompleteSessionDialog,
+  ReverseSessionOrderDialog
+} from "./components/session-dialogs";
 
 const ACTIVE_SESSION_PILL_CLASS =
   "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500 dark:bg-emerald-950 dark:text-emerald-200";
 const SESSION_COLLAPSED_STORAGE_KEY_PREFIX = "gymtracker:session-collapsed:";
 const SESSION_SCROLL_STORAGE_KEY_PREFIX = "gymtracker:session-scroll:";
 const EXERCISE_DONE_BADGE_DELAY_MS = 500;
-const EXERCISE_AUTO_COLLAPSE_DELAY_MS = 1500;
 const EXERCISE_DONE_BADGE_POP_DURATION_MS = 1500;
+const DND_VIEWPORT_EDGE_THRESHOLD_PX = 88;
+const DND_MAX_SCROLL_SPEED_PX = 22;
 
 type ExerciseCompletionFeedbackState = "pending-badge" | "show-badge";
 
 interface ExerciseCompletionFeedbackTimers {
   badgeTimerId?: number;
-  collapseTimerId?: number;
 }
 
 interface SharedRestTimerUiState {
@@ -87,6 +95,8 @@ export function SessionPage() {
   const [isAddExerciseExpanded, setIsAddExerciseExpanded] = useState(false);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
+  const [isReorderMode, setIsReorderMode] = useState(false);
+  const [isReverseOrderDialogOpen, setIsReverseOrderDialogOpen] = useState(false);
   const [collapsedExercises, setCollapsedExercises] = useState<Record<string, boolean>>({});
   const [exerciseCompletionFeedback, setExerciseCompletionFeedback] = useState<Record<string, ExerciseCompletionFeedbackState>>({});
   const [loadedCollapsedStateSessionId, setLoadedCollapsedStateSessionId] = useState<number | null>(null);
@@ -94,6 +104,7 @@ export function SessionPage() {
   const [liveNowMs, setLiveNowMs] = useState(() => Date.now());
   const [focusedWeightSetId, setFocusedWeightSetId] = useState<number | null>(null);
   const [sharedRestTimerUiState, setSharedRestTimerUiState] = useState<SharedRestTimerUiState | null>(null);
+  const [draggedExerciseKey, setDraggedExerciseKey] = useState<string | null>(null);
 
   const exerciseCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const exerciseDoneBadgeRefs = useRef<Record<string, HTMLSpanElement | null>>({});
@@ -102,6 +113,14 @@ export function SessionPage() {
   const lastSavedScrollTopRef = useRef<number | null>(null);
   const exerciseCompletionTimersRef = useRef<Record<string, ExerciseCompletionFeedbackTimers>>({});
   const previousExerciseCompletionFeedbackRef = useRef<Record<string, ExerciseCompletionFeedbackState>>({});
+  const collapsedBeforeReorderRef = useRef<Record<string, boolean> | null>(null);
+  const dndAutoScrollFrameRef = useRef<number | null>(null);
+  const dndAutoScrollVelocityRef = useRef(0);
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 6 } })
+  );
 
   // ── Data queries ──────────────────────────────────────────────────────────
 
@@ -200,20 +219,6 @@ export function SessionPage() {
       : null,
     [nextActionableSet, sessionExercises]
   );
-  const nextActionableSetIndex = useMemo(() => {
-    if (!nextActionableSet) return -1;
-    return orderedSets.findIndex((s) => s.id === nextActionableSet.id);
-  }, [nextActionableSet, orderedSets]);
-  const followingActionableSet = useMemo(() => {
-    if (nextActionableSetIndex < 0) return null;
-    return orderedSets.slice(nextActionableSetIndex + 1).find((s) => !s.completed) ?? null;
-  }, [nextActionableSetIndex, orderedSets]);
-  const followingActionableExercise = useMemo(
-    () => followingActionableSet
-      ? sessionExercises.find((e) => e.sessionExerciseKey === followingActionableSet.sessionExerciseKey) ?? null
-      : null,
-    [followingActionableSet, sessionExercises]
-  );
 
   const latestCompletedSet = useMemo(() => {
     let latest: SessionExerciseSet | null = null;
@@ -231,8 +236,18 @@ export function SessionPage() {
   const restTimerPanelState = useMemo<RestTimerPanelState | null>(() => {
     if (
       isCompleted || allSetsChecked || !restTimerEnabled || restTimerSeconds <= 0 ||
-      !latestCompletedSet?.completedAt || !nextActionableSet || !nextActionableExercise
+      !nextActionableSet || !nextActionableExercise
     ) return null;
+
+    if (!latestCompletedSet?.completedAt) {
+      return {
+        elapsedSeconds: 0,
+        progressPercent: 0,
+        paused: false,
+        hasStarted: false,
+        isExpired: false
+      };
+    }
 
     const completedAtMs = new Date(latestCompletedSet.completedAt).getTime();
     if (!Number.isFinite(completedAtMs)) return null;
@@ -246,12 +261,14 @@ export function SessionPage() {
       ? Math.max(0, sharedRestTimerUiState.elapsedMs + (paused ? 0 : Math.max(0, liveNowMs - sharedRestTimerUiState.emittedAtMs)))
       : Math.max(0, liveNowMs - completedAtMs);
 
-    if (!Number.isFinite(elapsedMs) || elapsedMs >= restTimerSeconds * 1000) return null;
+    if (!Number.isFinite(elapsedMs)) return null;
 
     return {
       elapsedSeconds: Math.floor(elapsedMs / 1000),
       progressPercent: Math.max(0, Math.min(100, (elapsedMs / (restTimerSeconds * 1000)) * 100)),
-      paused
+      paused,
+      hasStarted: true,
+      isExpired: elapsedMs >= restTimerSeconds * 1000
     };
   }, [
     allSetsChecked, isCompleted, latestCompletedSet?.completedAt, liveNowMs,
@@ -279,9 +296,7 @@ export function SessionPage() {
   }, [latestCompletedSet?.completedAt, liveNowMs, orderedSets, payload, settings?.bodyWeight, weightUnit]);
 
   const upNextMode: UpNextMode | null =
-    isCompleted ? null
-    : allSetsChecked ? "complete"
-    : restTimerPanelState && nextActionableSet && nextActionableExercise ? "rest"
+    isCompleted || allSetsChecked ? null
     : nextActionableSet && nextActionableExercise ? "next"
     : null;
 
@@ -385,13 +400,65 @@ export function SessionPage() {
     if (typeof afterTop === "number") animatePageScrollBy(afterTop - beforeTop);
   };
 
+  // ── DnD helpers ───────────────────────────────────────────────────────────
+
+  const stopDndAutoScroll = () => {
+    dndAutoScrollVelocityRef.current = 0;
+    if (dndAutoScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(dndAutoScrollFrameRef.current);
+      dndAutoScrollFrameRef.current = null;
+    }
+  };
+
+  const startDndAutoScroll = () => {
+    if (dndAutoScrollFrameRef.current !== null) return;
+    const tick = () => {
+      const velocity = dndAutoScrollVelocityRef.current;
+      if (Math.abs(velocity) < 0.01) {
+        dndAutoScrollFrameRef.current = null;
+        return;
+      }
+      window.scrollBy({ top: velocity, left: 0, behavior: "auto" });
+      dndAutoScrollFrameRef.current = window.requestAnimationFrame(tick);
+    };
+    dndAutoScrollFrameRef.current = window.requestAnimationFrame(tick);
+  };
+
+  const setDndAutoScrollVelocity = (nextVelocity: number) => {
+    if (Math.abs(nextVelocity) < 0.25) {
+      stopDndAutoScroll();
+      return;
+    }
+    dndAutoScrollVelocityRef.current = nextVelocity;
+    startDndAutoScroll();
+  };
+
+  const startReorderMode = () => {
+    if (isCompleted || sessionExercises.length < 2) return;
+    collapsedBeforeReorderRef.current = collapsedExercises;
+    const allCollapsed = Object.fromEntries(sessionExercises.map((item) => [item.sessionExerciseKey, true]));
+    setCollapsedExercises(allCollapsed);
+    setIsAddExerciseExpanded(false);
+    setIsReorderMode(true);
+  };
+
+  const stopReorderMode = () => {
+    setIsReorderMode(false);
+    setDraggedExerciseKey(null);
+    stopDndAutoScroll();
+    const previousCollapsed = collapsedBeforeReorderRef.current;
+    if (previousCollapsed) {
+      setCollapsedExercises(previousCollapsed);
+      collapsedBeforeReorderRef.current = null;
+    }
+  };
+
   // ── Exercise completion feedback ──────────────────────────────────────────
 
   const clearExerciseCompletionFeedbackTimers = (key: string) => {
     const timers = exerciseCompletionTimersRef.current[key];
     if (!timers) return;
     if (timers.badgeTimerId) window.clearTimeout(timers.badgeTimerId);
-    if (timers.collapseTimerId) window.clearTimeout(timers.collapseTimerId);
     delete exerciseCompletionTimersRef.current[key];
   };
 
@@ -422,14 +489,9 @@ export function SessionPage() {
         if (prev[key] !== "pending-badge") return prev;
         return { ...prev, [key]: "show-badge" };
       });
-    }, EXERCISE_DONE_BADGE_DELAY_MS);
-
-    const collapseTimerId = window.setTimeout(() => {
-      setCollapsedExercises((prev) => ({ ...prev, [key]: true }));
       delete exerciseCompletionTimersRef.current[key];
-    }, EXERCISE_AUTO_COLLAPSE_DELAY_MS);
-
-    exerciseCompletionTimersRef.current[key] = { badgeTimerId, collapseTimerId };
+    }, EXERCISE_DONE_BADGE_DELAY_MS);
+    exerciseCompletionTimersRef.current[key] = { badgeTimerId };
   };
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -519,6 +581,82 @@ export function SessionPage() {
     }
   };
 
+  const handleDndDragStart = (event: DragStartEvent) => {
+    if (!isReorderMode) return;
+    setDraggedExerciseKey(getDragExerciseKey(event.active.id));
+  };
+
+  const handleDndDragMove = (event: DragMoveEvent) => {
+    if (!isReorderMode) return;
+    const translatedRect = event.active.rect.current.translated;
+    if (!translatedRect) {
+      stopDndAutoScroll();
+      return;
+    }
+
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const distanceToTop = translatedRect.top;
+    const distanceToBottom = viewportHeight - translatedRect.bottom;
+
+    if (distanceToTop < DND_VIEWPORT_EDGE_THRESHOLD_PX) {
+      const ratio = Math.min(1, (DND_VIEWPORT_EDGE_THRESHOLD_PX - distanceToTop) / DND_VIEWPORT_EDGE_THRESHOLD_PX);
+      setDndAutoScrollVelocity(-ratio * DND_MAX_SCROLL_SPEED_PX);
+      return;
+    }
+
+    if (distanceToBottom < DND_VIEWPORT_EDGE_THRESHOLD_PX) {
+      const ratio = Math.min(1, (DND_VIEWPORT_EDGE_THRESHOLD_PX - distanceToBottom) / DND_VIEWPORT_EDGE_THRESHOLD_PX);
+      setDndAutoScrollVelocity(ratio * DND_MAX_SCROLL_SPEED_PX);
+      return;
+    }
+
+    stopDndAutoScroll();
+  };
+
+  const handleDndDragEnd = async (event: DragEndEvent) => {
+    stopDndAutoScroll();
+    const activeKey = getDragExerciseKey(event.active.id);
+    const overId = event.over?.id ?? null;
+    setDraggedExerciseKey(null);
+    if (!isReorderMode || !activeKey || !overId) return;
+
+    const currentOrder = sessionExercises.map((exercise) => exercise.sessionExerciseKey);
+    if (currentOrder.length < 2) return;
+
+    const withoutActive = currentOrder.filter((key) => key !== activeKey);
+    const dropBeforeKey = getDropBeforeExerciseKey(overId);
+    const dropOverExerciseKey = getDragExerciseKey(overId);
+    const targetIndex =
+      dropBeforeKey ? withoutActive.indexOf(dropBeforeKey)
+      : dropOverExerciseKey ? withoutActive.indexOf(dropOverExerciseKey)
+      : isDropAfterLast(overId) ? withoutActive.length
+      : -1;
+    if (targetIndex < 0) return;
+
+    const nextOrder = [...withoutActive];
+    nextOrder.splice(targetIndex, 0, activeKey);
+    if (nextOrder.join("|") === currentOrder.join("|")) return;
+
+    pendingReorderAnimationRef.current = {
+      expectedOrderKey: nextOrder.join("|"),
+      beforeTops: captureExerciseCardTops(),
+      followExerciseKey: activeKey,
+      followExerciseBeforeTop: exerciseCardRefs.current[activeKey]?.getBoundingClientRect().top ?? null
+    };
+
+    try {
+      await reorderSessionExercises(numericSessionId, nextOrder);
+    } catch {
+      pendingReorderAnimationRef.current = null;
+      toast.error("Reordering failed");
+    }
+  };
+
+  const handleDndDragCancel = () => {
+    setDraggedExerciseKey(null);
+    stopDndAutoScroll();
+  };
+
   const handleToggleRestTimer = () => {
     window.dispatchEvent(new CustomEvent("gymtracker:toggle-rest-timer", { detail: { sessionId: numericSessionId } }));
   };
@@ -527,6 +665,11 @@ export function SessionPage() {
 
   useEffect(() => {
     if (Number.isNaN(numericSessionId)) return;
+    setIsReorderMode(false);
+    setDraggedExerciseKey(null);
+    setIsReverseOrderDialogOpen(false);
+    collapsedBeforeReorderRef.current = null;
+    stopDndAutoScroll();
     clearAllExerciseCompletionFeedback();
     exerciseDoneBadgeRefs.current = {};
     setLoadedCollapsedStateSessionId(null);
@@ -546,8 +689,21 @@ export function SessionPage() {
     return () => {
       clearAllExerciseCompletionFeedback(false);
       exerciseDoneBadgeRefs.current = {};
+      stopDndAutoScroll();
     };
   }, []);
+
+  useEffect(() => {
+    if (isCompleted && isReorderMode) {
+      stopReorderMode();
+    }
+  }, [isCompleted, isReorderMode]);
+
+  useEffect(() => {
+    if (isReorderMode && sessionExercises.length < 2) {
+      stopReorderMode();
+    }
+  }, [isReorderMode, sessionExercises.length]);
 
   useEffect(() => {
     const previous = previousExerciseCompletionFeedbackRef.current;
@@ -720,13 +876,11 @@ export function SessionPage() {
         </div>
       </div>
 
-      {!isCompleted && upNextMode && (
+      {!isCompleted && !isReorderMode && upNextMode && (
         <UpNextPanel
           mode={upNextMode}
           nextActionableSet={nextActionableSet}
           nextActionableExercise={nextActionableExercise}
-          followingActionableSet={followingActionableSet}
-          followingActionableExercise={followingActionableExercise}
           restTimerPanelState={restTimerPanelState}
           restTimerSeconds={restTimerSeconds}
           completionStats={completionStats}
@@ -740,54 +894,77 @@ export function SessionPage() {
         />
       )}
 
-      {sessionExercises.map((exercise) => {
-        const isCollapsed = collapsedExercises[exercise.sessionExerciseKey] ?? false;
-        const allCompleted = exercise.sets.length > 0 && exercise.sets.every((s) => s.completed);
-        const completionFeedback = exerciseCompletionFeedback[exercise.sessionExerciseKey];
-        const showDoneBadge = isCompleted || (allCompleted && completionFeedback !== "pending-badge");
-        const lastTemplateSets =
-          exercise.templateExerciseId !== undefined
-            ? payload.previousSummary?.templateExerciseSets[exercise.templateExerciseId]
-            : undefined;
-        const lastSessionSetSummary = lastTemplateSets
-          ?.sort((a, b) => a.templateSetOrder - b.templateSetOrder)
-          .map((s) => `${s.actualReps ?? s.targetReps} × ${s.actualWeight ?? s.targetWeight} ${weightUnitLabel}`)
-          .join(" | ");
+      <DndContext
+        sensors={dndSensors}
+        onDragStart={handleDndDragStart}
+        onDragMove={handleDndDragMove}
+        onDragEnd={(event) => void handleDndDragEnd(event)}
+        onDragCancel={handleDndDragCancel}
+      >
+        <div className="space-y-2">
+          {sessionExercises.map((exercise, index) => {
+            const isCollapsed = isReorderMode ? true : (collapsedExercises[exercise.sessionExerciseKey] ?? false);
+            const allCompleted = exercise.sets.length > 0 && exercise.sets.every((s) => s.completed);
+            const completionFeedback = exerciseCompletionFeedback[exercise.sessionExerciseKey];
+            const showDoneBadge = isCompleted || (allCompleted && completionFeedback !== "pending-badge");
+            const lastTemplateSets =
+              exercise.templateExerciseId !== undefined
+                ? payload.previousSummary?.templateExerciseSets[exercise.templateExerciseId]
+                : undefined;
+            const lastSessionSetSummary = lastTemplateSets
+              ?.sort((a, b) => a.templateSetOrder - b.templateSetOrder)
+              .map((s) => `${s.actualReps ?? s.targetReps} × ${s.actualWeight ?? s.targetWeight} ${weightUnitLabel}`)
+              .join(" | ");
 
-        return (
-          <ExerciseCard
-            key={exercise.sessionExerciseKey}
-            exercise={exercise}
-            sessionId={numericSessionId}
-            isCollapsed={isCollapsed}
-            showDoneBadge={showDoneBadge}
-            sessionIsCompleted={isCompleted}
-            lastSessionSetSummary={lastSessionSetSummary}
-            weightUnitLabel={weightUnitLabel}
-            focusedWeightSetId={focusedWeightSetId}
-            cardRef={(node) => { exerciseCardRefs.current[exercise.sessionExerciseKey] = node; }}
-            badgeRef={(node) => { exerciseDoneBadgeRefs.current[exercise.sessionExerciseKey] = node; }}
-            t={t}
-            onToggleCollapse={() =>
-              setCollapsedExercises((prev) => ({
-                ...prev,
-                [exercise.sessionExerciseKey]: !isCollapsed
-              }))
-            }
-            onSetCompletedToggle={(set, completed) => handleSetCompletedToggle(exercise, set, completed)}
-            onFocusChange={setFocusedWeightSetId}
-            onUpdateReps={async (set, value) => {
-              if (value === 0 && !isCompleted) {
-                await import("@/db/repository").then(({ removeSessionSet }) => removeSessionSet(set.id!));
-                return;
-              }
-              void updateSessionSet(set.id!, { actualReps: value });
-            }}
-            onUpdateWeight={(set, value) => void updateSessionSet(set.id!, { actualWeight: value })}
-            onRequestDeleteExercise={(key) => setDeleteExerciseTarget({ key })}
-          />
-        );
-      })}
+            return (
+              <ReorderableExerciseCard
+                key={exercise.sessionExerciseKey}
+                exerciseKey={exercise.sessionExerciseKey}
+                isLast={index === sessionExercises.length - 1}
+                reorderMode={isReorderMode}
+                cardRef={(node) => { exerciseCardRefs.current[exercise.sessionExerciseKey] = node; }}
+              >
+                {({ isDragging, dragHandleAttributes, dragHandleListeners }) => (
+                  <ExerciseCard
+                    exercise={exercise}
+                    sessionId={numericSessionId}
+                    isCollapsed={isCollapsed}
+                    showDoneBadge={showDoneBadge}
+                    sessionIsCompleted={isCompleted}
+                    lastSessionSetSummary={lastSessionSetSummary}
+                    weightUnitLabel={weightUnitLabel}
+                    focusedWeightSetId={focusedWeightSetId}
+                    badgeRef={(node) => { exerciseDoneBadgeRefs.current[exercise.sessionExerciseKey] = node; }}
+                    t={t}
+                    reorderMode={isReorderMode}
+                    isDragging={draggedExerciseKey === exercise.sessionExerciseKey && isDragging}
+                    dragHandleAttributes={dragHandleAttributes}
+                    dragHandleListeners={dragHandleListeners}
+                    onToggleCollapse={() =>
+                      !isReorderMode &&
+                      setCollapsedExercises((prev) => ({
+                        ...prev,
+                        [exercise.sessionExerciseKey]: !isCollapsed
+                      }))
+                    }
+                    onSetCompletedToggle={(set, completed) => handleSetCompletedToggle(exercise, set, completed)}
+                    onFocusChange={setFocusedWeightSetId}
+                    onUpdateReps={async (set, value) => {
+                      if (value === 0 && !isCompleted) {
+                        await import("@/db/repository").then(({ removeSessionSet }) => removeSessionSet(set.id!));
+                        return;
+                      }
+                      void updateSessionSet(set.id!, { actualReps: value });
+                    }}
+                    onUpdateWeight={(set, value) => void updateSessionSet(set.id!, { actualWeight: value })}
+                    onRequestDeleteExercise={(key) => setDeleteExerciseTarget({ key })}
+                  />
+                )}
+              </ReorderableExerciseCard>
+            );
+          })}
+        </div>
+      </DndContext>
 
       {!isCompleted && payload.previousSummary && payload.previousSummary.extraExercises.length > 0 && (
         <div className="space-y-1 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground">
@@ -807,31 +984,54 @@ export function SessionPage() {
 
       {!isCompleted && !isAddExerciseExpanded && (
         <div className="flex items-center justify-between gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="h-8 gap-1.5"
-            onClick={() => setIsAddExerciseExpanded(true)}
-            aria-label={t("addExercise")}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {t("addExercise")}
-          </Button>
-          <Button
-            variant="secondary"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            aria-label={t("reverseSessionExerciseOrder")}
-            title={t("reverseSessionExerciseOrder")}
-            onClick={() => void handleReverseExerciseOrder()}
-            disabled={unstartedExerciseCount < 2}
-          >
-            <ArrowUpDown className="h-4 w-4" />
-          </Button>
+          {!isReorderMode ? (
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 gap-1.5"
+                onClick={() => setIsAddExerciseExpanded(true)}
+                aria-label={t("addExercise")}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t("addExercise")}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-8 gap-1.5"
+                onClick={startReorderMode}
+                disabled={sessionExercises.length < 2}
+              >
+                <ArrowUpDown className="h-3.5 w-3.5" />
+                {t("reorderMode")}
+              </Button>
+            </>
+          ) : (
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 gap-1.5"
+                aria-label={t("reverseSessionExerciseOrder")}
+                title={t("reverseSessionExerciseOrder")}
+                onClick={() => setIsReverseOrderDialogOpen(true)}
+                disabled={unstartedExerciseCount < 2}
+              >
+                <ArrowUpDown className="h-3.5 w-3.5" />
+                {t("reverseShort")}
+              </Button>
+              <Button variant="default" size="sm" className="h-8 gap-1.5" onClick={stopReorderMode}>
+                <Check className="h-3.5 w-3.5" />
+                {t("saveSorting")}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
-      {!isCompleted && isAddExerciseExpanded && (
+      {!isCompleted && !isReorderMode && isAddExerciseExpanded && (
         <Card className="relative">
           <button
             type="button"
@@ -876,6 +1076,17 @@ export function SessionPage() {
 
       <div className="h-px bg-border" />
 
+      {!isCompleted && allSetsChecked && completionStats && (
+        <CompletionStats
+          stats={completionStats}
+          weightUnit={weightUnit}
+          durationLabel={formatDurationLabel(completionStats.durationMinutes, language)}
+          t={t}
+          showCompleteAction={false}
+          variant="standalone"
+        />
+      )}
+
       {!isCompleted && (
         <div className="space-y-2">
           <Button className="w-full" onClick={() => setIsCompleteDialogOpen(true)}>
@@ -883,7 +1094,7 @@ export function SessionPage() {
             {t("completeSession")}
           </Button>
           <Button variant="outline" className="w-full" onClick={() => setIsDiscardDialogOpen(true)}>
-            <OctagonX className="mr-2 h-4 w-4" />
+            <Square className="mr-2 h-4 w-4" />
             {t("discardSession")}
           </Button>
         </div>
@@ -924,6 +1135,16 @@ export function SessionPage() {
           await completeSession(numericSessionId, true);
           toast.success(t("sessionCompleted"));
           navigate("/");
+        }}
+        t={t}
+      />
+
+      <ReverseSessionOrderDialog
+        open={isReverseOrderDialogOpen}
+        onOpenChange={setIsReverseOrderDialogOpen}
+        onConfirm={async () => {
+          setIsReverseOrderDialogOpen(false);
+          await handleReverseExerciseOrder();
         }}
         t={t}
       />

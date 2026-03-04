@@ -51,10 +51,6 @@ interface SessionHeaderState {
 
 interface HeaderActionsProps {
   sessionState: SessionHeaderState | null;
-  restTimerSeconds: number;
-  restTimerEnabled: boolean;
-  timerPaused: boolean;
-  onToggleTimer: () => void;
   showEditorSave: boolean;
   onEditorCancel: () => void;
   onEditorSave: () => void;
@@ -143,10 +139,6 @@ function BottomNavItem({
 
 function HeaderActions({
   sessionState,
-  restTimerSeconds,
-  restTimerEnabled,
-  timerPaused,
-  onToggleTimer,
   showEditorSave,
   onEditorCancel,
   onEditorSave
@@ -207,7 +199,7 @@ function HeaderActions({
 }
 
 export function AppShell() {
-  const { t, restTimerSeconds, restTimerEnabled, lockerNoteEnabled } = useSettings();
+  const { t, lockerNoteEnabled } = useSettings();
   const location = useLocation();
   const pathname = location.pathname;
   const sessionMatch = location.pathname.match(/^\/sessions\/(\d+)$/);
@@ -464,10 +456,6 @@ export function AppShell() {
           <div className="flex items-center gap-2">
             <HeaderActions
               sessionState={activeSessionId ? null : sessionState}
-              restTimerSeconds={restTimerSeconds}
-              restTimerEnabled={restTimerEnabled}
-              timerPaused={timerPaused}
-              onToggleTimer={handleToggleTimer}
               showEditorSave={isWorkoutEditRoute}
               onEditorCancel={handleEditorCancel}
               onEditorSave={handleEditorSave}
@@ -477,7 +465,7 @@ export function AppShell() {
         </div>
       </header>
       <main className="container flex-1 py-4 pb-28 sm:pb-24">
-        <div key={location.key} className="gt-route-enter">
+        <div key={location.pathname} className="gt-route-enter">
           <Outlet />
         </div>
       </main>

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
+  ChevronLeft,
   ChevronDown,
+  ChevronRight,
   Clock3,
   Download,
   Dumbbell,
@@ -10,6 +12,7 @@ import {
   PenSquare,
   Plus,
   Repeat,
+  Square,
   Sparkles,
   Weight
 } from "lucide-react";
@@ -64,7 +67,14 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
   const { t, language, weightUnit, restTimerEnabled, restTimerSeconds } = useSettings();
   const navigate = useNavigate();
   const [clockTick, setClockTick] = useState(() => Date.now());
-  const weekStart = useMemo(() => getWeekStart(new Date(clockTick)), [clockTick]);
+  const [statsWeekOffset, setStatsWeekOffset] = useState(0);
+  const weekStart = useMemo(() => {
+    const base = new Date(clockTick);
+    if (section === "statistics" && statsWeekOffset !== 0) {
+      base.setDate(base.getDate() + statsWeekOffset * 7);
+    }
+    return getWeekStart(base);
+  }, [clockTick, section, statsWeekOffset]);
   const [discardConfirmSessionId, setDiscardConfirmSessionId] = useState<number | null>(null);
   const [isCreatingStarterWorkout, setIsCreatingStarterWorkout] = useState(false);
   const [muscleMetricMode, setMuscleMetricMode] = useState<MuscleMetricMode>("reps");
@@ -74,6 +84,12 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     const timer = window.setInterval(() => setClockTick(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (section !== "statistics" && statsWeekOffset !== 0) {
+      setStatsWeekOffset(0);
+    }
+  }, [section, statsWeekOffset]);
 
   const workouts = useDashboardWorkoutsData({ restTimerEnabled, restTimerSeconds });
   const weeklyStats = useWeeklyStatsData({ language, weightUnit, weekStart });
@@ -248,13 +264,22 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       const midpointMs = new Date(item.midpointAt).getTime();
       const clampedMidpointMs = Math.max(weekStartMs, Math.min(weekEndMs, midpointMs));
       const rawLeftPercent = ((clampedMidpointMs - weekStartMs) / totalSpanMs) * 100;
-      const leftPercent = Math.max(1.5, Math.min(98.5, rawLeftPercent));
+      const clampedPercent = Math.max(0, Math.min(100, rawLeftPercent));
+      const anchor: "left" | "center" | "right" =
+        clampedPercent <= 5 ? "left"
+        : clampedPercent >= 95 ? "right"
+        : "center";
+      const leftPercent =
+        anchor === "left" ? 0
+        : anchor === "right" ? 100
+        : clampedPercent;
       const startLabel = timeFormatter.format(new Date(item.startedAt));
       const endLabel = timeFormatter.format(new Date(item.finishedAt ?? item.startedAt));
       const durationMinutes = Math.round(getSessionDurationMinutes(item.startedAt, item.finishedAt ?? item.startedAt));
 
       return {
         ...item,
+        anchor,
         leftPercent,
         shortLabel: item.workoutName.trim(),
         metaLabel: `${Math.max(0, durationMinutes)} min`,
@@ -264,6 +289,17 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
 
     return { dayLabels, ticks, items, nowTick };
   }, [clockTick, language, weekStart, weeklyStats?.completedWorkouts]);
+
+  const statsWeekLabel = useMemo(() => {
+    const start = new Date(weekStart);
+    const end = new Date(weekStart);
+    end.setDate(end.getDate() + 6);
+    const formatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
+      day: "2-digit",
+      month: "2-digit"
+    });
+    return `${formatter.format(start)} – ${formatter.format(end)}`;
+  }, [language, weekStart]);
 
   const handleStartSession = async (workoutId: number) => {
     try {
@@ -458,47 +494,86 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
 
       {showStatsSection && (
         <section className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={() => setStatsWeekOffset((prev) => prev - 1)}
+              aria-label={t("previousWeek")}
+              title={t("previousWeek")}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <p className="text-sm font-medium tabular-nums text-foreground/80">{statsWeekLabel}</p>
+            {statsWeekOffset < 0 ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                onClick={() => setStatsWeekOffset(0)}
+              >
+                {t("currentWeek")}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => setStatsWeekOffset((prev) => Math.min(0, prev + 1))}
+                aria-label={t("nextWeek")}
+                title={t("nextWeek")}
+                disabled
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
-            <div className="rounded-lg border border-blue-200 bg-blue-100 px-3 py-2 dark:border-blue-700/40 dark:bg-blue-900/40">
-              <p className="inline-flex items-center gap-1 text-xs text-blue-600/90 dark:text-blue-300/70">
+            <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
+              <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
                 <Dumbbell className="h-3.5 w-3.5" />
                 {t("workoutsThisWeek")}
               </p>
-              <p className="text-base font-semibold text-blue-950 dark:text-blue-50">{weeklyStats?.workoutCount ?? 0}</p>
+              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{weeklyStats?.workoutCount ?? 0}</p>
             </div>
-            <div className="rounded-lg border border-blue-200 bg-blue-100 px-3 py-2 dark:border-blue-700/40 dark:bg-blue-900/40">
-              <p className="inline-flex items-center gap-1 text-xs text-blue-600/90 dark:text-blue-300/70">
+            <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
+              <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
                 <Clock3 className="h-3.5 w-3.5" />
                 {t("duration")}
               </p>
-              <p className="text-base font-semibold text-blue-950 dark:text-blue-50">{formatDurationLabel(weeklyStats?.durationMinutesTotal ?? 0, language)}</p>
+              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{formatDurationLabel(weeklyStats?.durationMinutesTotal ?? 0, language)}</p>
             </div>
-            <div className="rounded-lg border border-blue-200 bg-blue-100 px-3 py-2 dark:border-blue-700/40 dark:bg-blue-900/40">
-              <p className="inline-flex items-center gap-1 text-xs text-blue-600/90 dark:text-blue-300/70">
+            <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
+              <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
                 <ListChecks className="h-3.5 w-3.5" />
                 {t("sets")}
               </p>
-              <p className="text-base font-semibold text-blue-950 dark:text-blue-50">{weeklyStats?.setCount ?? 0}</p>
+              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{weeklyStats?.setCount ?? 0}</p>
             </div>
-            <div className="rounded-lg border border-blue-200 bg-blue-100 px-3 py-2 dark:border-blue-700/40 dark:bg-blue-900/40">
-              <p className="inline-flex items-center gap-1 text-xs text-blue-600/90 dark:text-blue-300/70">
+            <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
+              <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
                 <Repeat className="h-3.5 w-3.5" />
                 {t("repsTotal")}
               </p>
-              <p className="text-base font-semibold text-blue-950 dark:text-blue-50">{weeklyStats?.repsTotal ?? 0}</p>
+              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{weeklyStats?.repsTotal ?? 0}</p>
             </div>
-            <div className="rounded-lg border border-blue-200 bg-blue-100 px-3 py-2 dark:border-blue-700/40 dark:bg-blue-900/40">
-              <p className="inline-flex items-center gap-1 text-xs text-blue-600/90 dark:text-blue-300/70">
+            <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
+              <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
                 <Weight className="h-3.5 w-3.5" />
                 {t("totalWeight")}
               </p>
-              <p className="text-base font-semibold text-blue-950 dark:text-blue-50">
+              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">
                 {formatNumber(weeklyStats?.totalWeight ?? 0, 0)} {weightUnit}
               </p>
             </div>
-            <div className="rounded-lg border border-blue-200 bg-blue-100 px-3 py-2 dark:border-blue-700/40 dark:bg-blue-900/40">
+            <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
               <div className="flex items-center justify-between gap-1">
-                <p className="inline-flex items-center gap-1 text-xs text-blue-600/90 dark:text-blue-300/70">
+                <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
                   <Flame className="h-3.5 w-3.5" />
                   {t("calories")}
                 </p>
@@ -506,11 +581,11 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                   <InfoHint
                     ariaLabel={t("calories")}
                     text={t("caloriesEstimateAverageHint")}
-                    iconClassName="text-blue-500 dark:text-blue-400"
+                    iconClassName="text-emerald-600 dark:text-emerald-300"
                   />
                 )}
               </div>
-              <p className="text-base font-semibold text-blue-950 dark:text-blue-50">
+              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">
                 ~{formatNumber(weeklyStats?.caloriesTotal ?? 0, 0)} kcal
               </p>
             </div>
@@ -547,7 +622,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                     style={{ left: `${weeklySessionsTimeline.nowTick.leftPercent}%` }}
                     aria-hidden="true"
                   >
-                    <div className="w-[2px] h-5 rounded-full bg-blue-500 dark:bg-blue-400" />
+                    <div className="w-[2px] h-5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
                   </div>
 
                   {weeklySessionsTimeline.items.map((item) => (
@@ -555,8 +630,14 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                       key={item.sessionId}
                       to={`/workouts/${item.workoutId}/history#session-${item.sessionId}`}
                       title={item.title}
-                      className="group absolute bottom-4 -translate-x-1/2"
-                      style={{ left: `${item.leftPercent}%` }}
+                      className="group absolute bottom-4"
+                      style={{
+                        left: `${item.leftPercent}%`,
+                        transform:
+                          item.anchor === "left" ? "translateX(0)"
+                          : item.anchor === "right" ? "translateX(-100%)"
+                          : "translateX(-50%)"
+                      }}
                     >
                       <div className="relative inline-flex h-[6rem] w-[2rem] items-center justify-center rounded-md border bg-card px-3 py-3 shadow-sm transition-colors group-hover:bg-secondary">
                         <div className="absolute left-1/2 top-1/2 w-[5rem] -translate-x-1/2 -translate-y-1/2 -rotate-90 overflow-hidden">
@@ -720,7 +801,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                               <path
                                 d={path}
                                 fill="currentColor"
-                                className="text-blue-500/15 dark:text-blue-400/15"
+                                className="text-emerald-500/15 dark:text-emerald-400/15"
                                 stroke="none"
                               />
                               <path
@@ -728,7 +809,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                                 fill="none"
                                 stroke="currentColor"
                                 strokeWidth="2"
-                                className="text-blue-500 dark:text-blue-400"
+                                className="text-emerald-500 dark:text-emerald-400"
                               />
                             </>
                           );
@@ -758,6 +839,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
               className="border-red-700 bg-red-700 text-white hover:bg-red-800"
               onClick={() => void handleDiscardConfirmed()}
             >
+              <Square className="mr-2 h-4 w-4" />
               {t("discardSession")}
             </Button>
           </DialogFooter>

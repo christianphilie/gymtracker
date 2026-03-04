@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ChartNoAxesCombined, OctagonX, PenSquare } from "lucide-react";
+import { ChartNoAxesCombined, PenSquare, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { WorkoutNameLabel } from "@/components/workouts/workout-name-label";
@@ -83,7 +83,7 @@ export function WeeklyGoalCard({ goal, compact = false }: WeeklyGoalCardProps) {
         <div
           className={`h-full rounded-full transition-all ${compact
             ? (goal.isComplete ? "bg-foreground" : "bg-foreground/75")
-            : (goal.isComplete ? "bg-blue-500 dark:bg-blue-400" : "bg-blue-300 dark:bg-blue-700")}`}
+            : (goal.isComplete ? "bg-emerald-600 dark:bg-emerald-500" : "bg-emerald-400 dark:bg-emerald-700")}`}
           style={{ width: `${goal.progressPercent}%` }}
         />
       </div>
@@ -176,7 +176,7 @@ export function WorkoutListCard({
               aria-label={t("discardSession")}
               onClick={() => workout.activeSessionId && onDiscardActiveSession(workout.activeSessionId)}
             >
-              <OctagonX className="h-4 w-4" />
+              <Square className="h-4 w-4" />
             </Button>
           )}
           <Button
