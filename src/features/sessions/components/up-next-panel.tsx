@@ -1,4 +1,4 @@
-import { Flag } from "lucide-react";
+import { Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDurationClock } from "@/lib/utils";
 import type { SessionExerciseSet } from "@/db/types";
@@ -8,15 +8,17 @@ import { CompletionStats } from "./completion-stats";
 import { SetCardContent } from "./set-card-content";
 import type { SessionExercise } from "./exercise-card";
 
-const UP_NEXT_BOX_CLASS = "relative overflow-hidden rounded-[30px] border";
+const UP_NEXT_BOX_CLASS = "relative overflow-hidden rounded-[26px] border";
 const UP_NEXT_CARD_OVERLAP_PX = 45;
 
-export type UpNextMode = "complete" | "rest" | "next";
+export type UpNextMode = "complete" | "next";
 
 export interface RestTimerPanelState {
   elapsedSeconds: number;
   progressPercent: number;
   paused: boolean;
+  hasStarted: boolean;
+  isExpired: boolean;
 }
 
 function PlaySolidIcon({ className }: { className?: string }) {
@@ -40,8 +42,6 @@ interface UpNextPanelProps {
   mode: UpNextMode;
   nextActionableSet: SessionExerciseSet | null;
   nextActionableExercise: SessionExercise | null;
-  followingActionableSet: SessionExerciseSet | null;
-  followingActionableExercise: SessionExercise | null;
   restTimerPanelState: RestTimerPanelState | null;
   restTimerSeconds: number;
   completionStats: CompletionStatsData | null;
@@ -70,8 +70,6 @@ export function UpNextPanel({
   mode,
   nextActionableSet,
   nextActionableExercise,
-  followingActionableSet,
-  followingActionableExercise,
   restTimerPanelState,
   restTimerSeconds,
   completionStats,
@@ -83,52 +81,22 @@ export function UpNextPanel({
   onToggleRestTimer,
   onOpenCompleteDialog
 }: UpNextPanelProps) {
-  const topCardTitle = mode === "next" ? t("nextSet") : mode === "rest" ? t("rest") : null;
-  const showAfterTitle = mode === "next" || mode === "rest";
-  const afterCardClassName =
-    mode === "complete"
-      ? "text-blue-950 dark:text-blue-100"
-      : "border-border bg-secondary/90 text-foreground backdrop-blur supports-[backdrop-filter]:bg-secondary/70";
-  const upNextBottomCardPaddingTop = 6 + UP_NEXT_CARD_OVERLAP_PX;
+  const timerIsPrimary = !!restTimerPanelState && restTimerPanelState.hasStarted && !restTimerPanelState.isExpired;
+  const nextSetIsPrimary = !timerIsPrimary;
+  const timerLabel =
+    !restTimerPanelState ? t("noTimer")
+    : `${formatDurationClock(restTimerPanelState.elapsedSeconds)} / ${formatDurationClock(restTimerSeconds)}${
+      restTimerPanelState.isExpired ? ` · ${t("done")}` : ""
+    }`;
 
   return (
     <section className="sticky top-2 z-10 isolate">
-      {/* Top card */}
-      <div
-        className={`z-20 ${UP_NEXT_BOX_CLASS} ${
-          mode === "next"
-            ? "border-emerald-400/40 bg-emerald-500 text-emerald-50"
-            : mode === "complete"
-              ? "border-white/15 text-white"
-              : "border-orange-200/80 bg-orange-100 text-orange-950 dark:border-orange-900/40 dark:bg-orange-950 dark:text-orange-100"
-        }`}
-        style={mode === "complete" ? { backgroundColor: "var(--gt-session-complete-box)" } : undefined}
-      >
-        {mode === "rest" && restTimerPanelState && (
-          <div
-            className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-orange-200/70 to-orange-400/75 transition-[width] ease-linear dark:from-orange-700/35 dark:to-orange-500/40"
-            style={{
-              width: `${restTimerPanelState.progressPercent}%`,
-              transitionDuration: restTimerPanelState.paused ? "150ms" : "500ms"
-            }}
-            aria-hidden="true"
-          />
-        )}
-
-        <div className={`relative z-[1] flex flex-col px-4 ${mode === "complete" ? "py-4" : "py-2"}`}>
-          {topCardTitle && (
-            <p className={`mb-0.5 text-[11px] font-medium uppercase tracking-wide ${
-              mode === "complete"
-                ? "text-white/80"
-                : mode === "next"
-                  ? "text-emerald-50/80"
-                  : "text-orange-900/75 dark:text-orange-100/80"
-            }`}>
-              {topCardTitle}
-            </p>
-          )}
-
-          {mode === "complete" && completionStats ? (
+      {mode === "complete" && completionStats ? (
+        <div
+          className={`z-20 ${UP_NEXT_BOX_CLASS} border-white/15 text-white`}
+          style={{ backgroundColor: "var(--gt-session-complete-box)" }}
+        >
+          <div className="relative z-[1] flex flex-col px-4 py-4">
             <CompletionStats
               stats={completionStats}
               weightUnit={weightUnit}
@@ -136,32 +104,33 @@ export function UpNextPanel({
               t={t}
               onComplete={onOpenCompleteDialog}
             />
-          ) : mode === "rest" && restTimerPanelState ? (
-            <>
-              <Button
-                type="button"
-                size="icon"
-                variant="secondary"
-                className="absolute right-4 top-1/2 z-[2] h-10 w-10 -translate-y-1/2 shrink-0 border-orange-800/15 bg-white/45 text-orange-950 hover:bg-white/60 dark:border-orange-100/10 dark:bg-black/20 dark:text-orange-100 dark:hover:bg-black/30"
-                aria-label={restTimerPanelState.paused ? t("resumeSession") : t("pauseTimer")}
-                onClick={onToggleRestTimer}
-              >
-                {restTimerPanelState.paused ? <PlaySolidIcon className="h-4 w-4" /> : <PauseSolidIcon className="h-4 w-4" />}
-              </Button>
-              <div className="flex flex-1 items-center pr-12" style={{ minHeight: "20px" }}>
-                <p className="text-[15px] font-semibold leading-tight tabular-nums text-orange-900/75 dark:text-orange-100/80">
-                  {formatDurationClock(restTimerPanelState.elapsedSeconds)} / {formatDurationClock(restTimerSeconds)}
-                </p>
-              </div>
-            </>
-          ) : (
-            <>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div
+            className={`z-20 ${UP_NEXT_BOX_CLASS} ${
+              nextSetIsPrimary
+                ? "border-emerald-400/40 bg-emerald-500 text-emerald-50"
+                : "border-border bg-secondary text-foreground"
+            }`}
+          >
+            <div className="relative z-[1] flex flex-col px-4 py-2">
+              <p className={`mb-0.5 text-[11px] font-medium uppercase tracking-wide ${
+                nextSetIsPrimary ? "text-emerald-50/80" : "text-foreground/45"
+              }`}>
+                {t("nextSet")}
+              </p>
               <Button
                 type="button"
                 size="icon"
                 disabled={!nextActionableSet?.id}
                 aria-label={t("done")}
-                className="absolute right-4 top-1/2 z-[2] h-10 w-10 -translate-y-1/2 shrink-0 rounded-full border border-white/20 bg-white/15 text-white hover:bg-white/25"
+                className={`absolute right-4 top-1/2 z-[2] h-10 w-10 -translate-y-1/2 shrink-0 rounded-full ${
+                  nextSetIsPrimary
+                    ? "border border-white/20 bg-white/15 text-white hover:bg-white/25"
+                    : "border border-input bg-background text-foreground hover:bg-secondary"
+                }`}
                 onClick={onCompleteUpNextSet}
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
@@ -174,78 +143,68 @@ export function UpNextPanel({
                     exercise={nextActionableExercise}
                     set={nextActionableSet}
                     hideButton
+                    variant={nextSetIsPrimary ? "colored" : "neutral-muted"}
                     weightUnitLabel={weightUnitLabel}
                     doneAriaLabel={t("done")}
                   />
                 )}
               </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Bottom card (after-card) */}
-      {mode !== "complete" && (
-        <div
-          className={`relative z-10 -mt-[48px] ${UP_NEXT_BOX_CLASS} px-4 pb-3 ${afterCardClassName}`}
-          style={{ paddingTop: `${upNextBottomCardPaddingTop}px` }}
-        >
-          {showAfterTitle && (
-            <p className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-foreground/35">
-              {t("afterward")}
-            </p>
-          )}
-
-          {mode === "next" && (
-            <div className="overflow-hidden">
-              {followingActionableExercise && followingActionableSet ? (
-                <SetCardContent
-                  exercise={followingActionableExercise}
-                  set={followingActionableSet}
-                  compact
-                  previewOnly
-                  variant="neutral-muted"
-                  weightUnitLabel={weightUnitLabel}
-                  doneAriaLabel={t("done")}
-                />
-              ) : (
-                <div className="flex items-center gap-1 text-sm font-semibold text-foreground/45">
-                  <Flag className="h-3 w-3 shrink-0" />
-                  <span className="leading-tight">{t("completeSession")}</span>
-                </div>
-              )}
             </div>
-          )}
+          </div>
 
-          {mode === "rest" && nextActionableExercise && nextActionableSet && (
-            <>
-              <Button
-                type="button"
-                size="icon"
-                disabled={!nextActionableSet.id}
-                aria-label={t("done")}
-                className="absolute right-4 z-[2] h-9 w-9 shrink-0 rounded-full border border-input bg-background text-foreground hover:bg-secondary"
-                style={{ top: `calc(50% + ${UP_NEXT_CARD_OVERLAP_PX / 2}px)`, transform: "translateY(-50%)" }}
-                onClick={onCompleteUpNextSet}
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-                  <path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </Button>
-              <div className="overflow-hidden pr-12">
-                <SetCardContent
-                  exercise={nextActionableExercise}
-                  set={nextActionableSet}
-                  compact
-                  hideButton
-                  variant="neutral-muted"
-                  weightUnitLabel={weightUnitLabel}
-                  doneAriaLabel={t("done")}
-                />
+          <div
+            className={`relative z-10 -mt-[48px] ${UP_NEXT_BOX_CLASS} px-4 pb-3 ${
+              timerIsPrimary
+                ? "border-orange-200/80 bg-orange-100 text-orange-950 dark:border-orange-900/40 dark:bg-orange-950 dark:text-orange-100"
+                : "border-border bg-secondary/90 text-foreground backdrop-blur supports-[backdrop-filter]:bg-secondary/70"
+            }`}
+            style={{ paddingTop: `${UP_NEXT_CARD_OVERLAP_PX + 6}px` }}
+          >
+            {timerIsPrimary && restTimerPanelState && (
+              <div
+                className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-orange-200/70 to-orange-400/75 transition-[width] ease-linear dark:from-orange-700/35 dark:to-orange-500/40"
+                style={{
+                  width: `${Math.max(0, Math.min(100, restTimerPanelState.progressPercent))}%`,
+                  transitionDuration: restTimerPanelState.paused ? "150ms" : "500ms"
+                }}
+                aria-hidden="true"
+              />
+            )}
+
+            <div className="relative z-[1]">
+              <p className={`mb-0.5 text-[11px] font-medium uppercase tracking-wide ${
+                timerIsPrimary ? "text-orange-900/75 dark:text-orange-100/80" : "text-foreground/45"
+              }`}>
+                {t("rest")}
+              </p>
+              {restTimerPanelState?.hasStarted && !restTimerPanelState.isExpired && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="secondary"
+                  className={`absolute right-0 z-[2] h-10 w-10 -translate-y-1/2 shrink-0 ${
+                    timerIsPrimary
+                      ? "border-orange-800/15 bg-white/45 text-orange-950 hover:bg-white/60 dark:border-orange-100/10 dark:bg-black/20 dark:text-orange-100 dark:hover:bg-black/30"
+                      : "border-input bg-background text-foreground hover:bg-secondary"
+                  }`}
+                  style={{ top: "50%" }}
+                  aria-label={restTimerPanelState.paused ? t("resumeSession") : t("pauseTimer")}
+                  onClick={onToggleRestTimer}
+                >
+                  {restTimerPanelState.paused ? <PlaySolidIcon className="h-4 w-4" /> : <PauseSolidIcon className="h-4 w-4" />}
+                </Button>
+              )}
+              <div className="flex min-h-[20px] items-center pr-12">
+                <p className={`inline-flex items-center gap-1 text-[15px] font-semibold leading-tight tabular-nums ${
+                  timerIsPrimary ? "text-orange-900/75 dark:text-orange-100/80" : "text-foreground/70"
+                }`}>
+                  <Clock3 className="h-3.5 w-3.5" />
+                  {timerLabel}
+                </p>
               </div>
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+        </>
       )}
     </section>
   );

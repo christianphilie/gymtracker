@@ -1,5 +1,5 @@
-import type { RefCallback } from "react";
-import { Check, NotebookPen, Trash2 } from "lucide-react";
+import type { ButtonHTMLAttributes, RefCallback } from "react";
+import { Check, GripVertical, NotebookPen, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +33,7 @@ interface ExerciseCardProps {
   lastSessionSetSummary?: string;
   weightUnitLabel: string;
   focusedWeightSetId: number | null;
-  cardRef: RefCallback<HTMLDivElement>;
+  cardRef?: RefCallback<HTMLDivElement>;
   badgeRef: RefCallback<HTMLSpanElement>;
   t: (key: TranslationKey) => string;
   onToggleCollapse: () => void;
@@ -42,6 +42,10 @@ interface ExerciseCardProps {
   onUpdateReps: (set: SessionExerciseSet, value: number) => Promise<void>;
   onUpdateWeight: (set: SessionExerciseSet, value: number) => void;
   onRequestDeleteExercise: (key: string) => void;
+  reorderMode?: boolean;
+  isDragging?: boolean;
+  dragHandleAttributes?: Record<string, unknown>;
+  dragHandleListeners?: Record<string, unknown>;
 }
 
 export function ExerciseCard({
@@ -61,18 +65,30 @@ export function ExerciseCard({
   onFocusChange,
   onUpdateReps,
   onUpdateWeight,
-  onRequestDeleteExercise
+  onRequestDeleteExercise,
+  reorderMode = false,
+  isDragging = false,
+  dragHandleAttributes,
+  dragHandleListeners
 }: ExerciseCardProps) {
   const allCompleted = exercise.sets.length > 0 && exercise.sets.every((s) => s.completed);
+  const mergedDragHandleProps = {
+    ...(dragHandleAttributes as ButtonHTMLAttributes<HTMLButtonElement> | undefined),
+    ...(dragHandleListeners as ButtonHTMLAttributes<HTMLButtonElement> | undefined)
+  };
 
   return (
-    <Card ref={cardRef} className="transition-all duration-200">
+    <Card
+      ref={cardRef}
+      className={`transition-all duration-200 ${isDragging ? "ring-2 ring-emerald-400/60" : ""}`}
+    >
       <CardHeader className="space-y-2">
         <div className="flex min-h-5 items-start justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-start gap-0.5">
             <button
               type="button"
               className="flex min-w-0 flex-1 items-start gap-0.5 text-left"
+              disabled={reorderMode}
               aria-label={isCollapsed ? t("expandExercise") : t("collapseExercise")}
               onClick={onToggleCollapse}
             >
@@ -91,28 +107,41 @@ export function ExerciseCard({
               </span>
             )}
           </div>
-          {allCompleted && (
-            <div className="flex items-center gap-1">
-              {sessionIsCompleted && (
-                <ExerciseInfoDialogButton
-                  exerciseName={exercise.exerciseName}
-                  aiInfo={exercise.exerciseAiInfo}
-                />
-              )}
-              <span
-                ref={badgeRef}
-                className={`${SUCCESS_CIRCLE_CLASS} transition-all duration-200 ease-out ${
-                  showDoneBadge ? "scale-100 opacity-100" : "pointer-events-none scale-50 opacity-0"
-                }`}
-                aria-label={t("done")}
+          <div className="flex items-center gap-1">
+            {reorderMode && (
+              <button
+                type="button"
+                className="inline-flex h-6 w-6 touch-none items-center justify-center rounded-md border border-input text-muted-foreground hover:bg-secondary hover:text-foreground active:cursor-grabbing"
+                aria-label={t("reorderExercise")}
+                title={t("reorderExercise")}
+                {...mergedDragHandleProps}
               >
-                <Check className="h-3 w-3" />
-              </span>
-            </div>
-          )}
-          {!allCompleted && sessionIsCompleted && (
-            <ExerciseInfoDialogButton exerciseName={exercise.exerciseName} aiInfo={exercise.exerciseAiInfo} />
-          )}
+                <GripVertical className="h-4 w-4 cursor-grab" />
+              </button>
+            )}
+            {allCompleted && (
+              <div className="flex items-center gap-1">
+                {sessionIsCompleted && (
+                  <ExerciseInfoDialogButton
+                    exerciseName={exercise.exerciseName}
+                    aiInfo={exercise.exerciseAiInfo}
+                  />
+                )}
+                <span
+                  ref={badgeRef}
+                  className={`${SUCCESS_CIRCLE_CLASS} transition-all duration-200 ease-out ${
+                    showDoneBadge ? "scale-100 opacity-100" : "pointer-events-none scale-50 opacity-0"
+                  }`}
+                  aria-label={t("done")}
+                >
+                  <Check className="h-3 w-3" />
+                </span>
+              </div>
+            )}
+            {!allCompleted && sessionIsCompleted && (
+              <ExerciseInfoDialogButton exerciseName={exercise.exerciseName} aiInfo={exercise.exerciseAiInfo} />
+            )}
+          </div>
         </div>
 
         {lastSessionSetSummary && (

@@ -1,3 +1,4 @@
+import { Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -52,7 +53,10 @@ export function DiscardSessionDialog({ open, onOpenChange, onConfirm, t }: Disca
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
-          <Button className={DANGER_BUTTON_CLASS} onClick={onConfirm}>{t("discardSession")}</Button>
+          <Button className={DANGER_BUTTON_CLASS} onClick={onConfirm}>
+            <Square className="mr-2 h-4 w-4" />
+            {t("discardSession")}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -85,6 +89,59 @@ export function CompleteSessionDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
           <Button variant="outline" onClick={onCompleteWithoutTemplate}>{t("completeWithoutTemplate")}</Button>
           <Button className="sm:min-w-[230px]" onClick={onCompleteWithTemplate}>{t("completeWithTemplate")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface ReorderModeDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+  t: (key: TranslationKey) => string;
+}
+
+export function ReorderModeDialog({ open, onOpenChange, onConfirm, t }: ReorderModeDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("reorderMode")}</DialogTitle>
+          <DialogDescription>{t("reorderModeDescription")}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
+          <Button onClick={onConfirm}>{t("reorderModeStart")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface ReverseSessionOrderDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => Promise<void>;
+  t: (key: TranslationKey) => string;
+}
+
+export function ReverseSessionOrderDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+  t
+}: ReverseSessionOrderDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("reverseSessionExerciseOrder")}</DialogTitle>
+          <DialogDescription>{t("reverseSessionExerciseOrderConfirm")}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
+          <Button onClick={onConfirm}>{t("reverseSessionExerciseOrder")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

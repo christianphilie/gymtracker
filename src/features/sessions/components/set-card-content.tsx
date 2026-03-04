@@ -53,20 +53,13 @@ export function SetCardContent({
       <div className="min-w-0 flex-1">
         <p className={`${titleClass} overflow-hidden whitespace-nowrap font-semibold leading-tight ${mainColorClass}`}>
           <span>{exercise.exerciseName}</span>
-          {(setPositionLabel || (!previewOnly && exercise.exerciseNotes)) && (
+          {!previewOnly && exercise.exerciseNotes && (
             <span className={`${metaClass} font-medium ${metaColorClass}`}>
-              {setPositionLabel && (
-                <><span className="mx-1 inline-block" aria-hidden="true">·</span>{setPositionLabel}</>
-              )}
-              {!previewOnly && exercise.exerciseNotes && (
-                <>
-                  <span className="mx-1 inline-block" aria-hidden="true">·</span>
-                  <span className="inline-flex items-center gap-1 align-middle">
-                    <NotebookPen className="h-[0.9em] w-[0.9em] shrink-0" />
-                    <span>{exercise.exerciseNotes}</span>
-                  </span>
-                </>
-              )}
+              <span className="mx-1 inline-block" aria-hidden="true">·</span>
+              <span className="inline-flex items-center gap-1 align-middle">
+                <NotebookPen className="h-[0.9em] w-[0.9em] shrink-0" />
+                <span>{exercise.exerciseNotes}</span>
+              </span>
             </span>
           )}
         </p>
@@ -76,6 +69,7 @@ export function SetCardContent({
             style={{ marginTop: compact ? "2px" : "-0.5px" }}
           >
             {repsValue} × {formatNumber(weightValue, 0)} {weightUnitLabel}
+            {setPositionLabel && <span className="opacity-75"> · {setPositionLabel}</span>}
           </p>
         )}
       </div>
