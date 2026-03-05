@@ -99,7 +99,7 @@ export const messages = {
     sessionDiscarded: "Session verworfen",
     completeSessionTemplatePrompt: "Soll diese Session als neue Vorlage für das Workout übernommen werden?",
     completeWithoutTemplate: "Nur speichern",
-    completeWithTemplate: "Speichern und Werte übernehmen",
+    completeWithTemplate: "Speichern und als Vorlage übernehmen",
     deleteWorkout: "Workout löschen",
     deleteWorkoutConfirm: "Workout wirklich vollständig löschen? Alle Sessions und Session-Daten dazu werden ebenfalls gelöscht.",
     workoutDeleted: "Workout gelöscht",

@@ -111,7 +111,7 @@ export function ExerciseCard({
             {reorderMode && (
               <button
                 type="button"
-                className="inline-flex h-6 w-6 touch-none items-center justify-center rounded-md border border-input text-muted-foreground hover:bg-secondary hover:text-foreground active:cursor-grabbing"
+                className="inline-flex touch-none items-center justify-center text-muted-foreground active:cursor-grabbing"
                 aria-label={t("reorderExercise")}
                 title={t("reorderExercise")}
                 {...mergedDragHandleProps}

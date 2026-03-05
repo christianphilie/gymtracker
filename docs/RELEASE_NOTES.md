@@ -8,6 +8,7 @@
 3. Bottom tab links and key route navigations now use browser View Transitions, with an updated lightweight route-enter fallback animation.
 4. Bottom tab bar dark mode styling now removes the visible border and uses shadow-based separation from page content.
 5. Up Next rest timer dark mode styling now uses a friendlier lighter orange treatment.
+6. App manifest and favicon assets now switch by `RELEASE_CHANNEL`, so non-production deployments show a dedicated beta badge icon while production keeps the default icon set.
 
 ### Fixed
 1. Removed the legacy header set-progress widget that could briefly flash during Home/Active Session view changes.

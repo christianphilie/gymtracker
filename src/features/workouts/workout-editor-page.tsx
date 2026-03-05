@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowUpDown, ChevronDown, GripVertical, PersonStanding, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, GripVertical, PersonStanding, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
@@ -285,7 +285,9 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [collapsedExercises, setCollapsedExercises] = useState<Record<number, boolean>>({});
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragUiKey, setDragUiKey] = useState<string | null>(null);
+  const [isReorderMode, setIsReorderMode] = useState(false);
+  const collapsedBeforeReorderRef = useRef<Record<number, boolean> | null>(null);
   const [isAddExerciseExpanded, setIsAddExerciseExpanded] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState("");
   const [deleteExerciseIndex, setDeleteExerciseIndex] = useState<number | null>(null);
@@ -293,8 +295,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const [isGeneratingExerciseInfo, setIsGeneratingExerciseInfo] = useState(false);
   const attemptedAutoExerciseInfoKeysRef = useRef<Set<string>>(new Set());
   const exerciseCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const dragIndexRef = useRef<number | null>(null);
-  const pointerDragExerciseIndexRef = useRef<number | null>(null);
+  const dragUiKeyRef = useRef<string | null>(null);
   const pointerDragPointerIdRef = useRef<number | null>(null);
   const pendingReorderAnimationRef = useRef<{ beforeTops: Map<string, number> } | null>(null);
 
@@ -832,8 +833,6 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
     setDraft((prev) => reorderExercises(prev, fromIndex, toIndex));
     setExerciseUiKeys((prev) => reorderList(prev, fromIndex, toIndex));
     setCollapsedExercises((prev) => reorderCollapsedExerciseMap(prev, fromIndex, toIndex, draft.exercises.length));
-    dragIndexRef.current = toIndex;
-    setDragIndex(toIndex);
   }, [captureExerciseCardTops, draft.exercises.length]);
 
   const getExerciseIndexAtClientY = useCallback((clientY: number) => {
@@ -854,22 +853,27 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
 
   const finishPointerExerciseReorder = useCallback(() => {
     pointerDragPointerIdRef.current = null;
-    pointerDragExerciseIndexRef.current = null;
-    dragIndexRef.current = null;
-    setDragIndex(null);
+    dragUiKeyRef.current = null;
+    setDragUiKey(null);
   }, []);
 
-  const handleReverseExerciseOrder = useCallback(() => {
-    if (draft.exercises.length < 2) {
-      return;
+  const startReorderMode = useCallback(() => {
+    collapsedBeforeReorderRef.current = { ...collapsedExercises };
+    setCollapsedExercises(() => {
+      const next: Record<number, boolean> = {};
+      for (let i = 0; i < draft.exercises.length; i++) next[i] = true;
+      return next;
+    });
+    setIsReorderMode(true);
+  }, [collapsedExercises, draft.exercises.length]);
+
+  const stopReorderMode = useCallback(() => {
+    if (collapsedBeforeReorderRef.current !== null) {
+      setCollapsedExercises(collapsedBeforeReorderRef.current);
+      collapsedBeforeReorderRef.current = null;
     }
-    pendingReorderAnimationRef.current = {
-      beforeTops: captureExerciseCardTops()
-    };
-    setDraft((prev) => reverseExercises(prev));
-    setExerciseUiKeys((prev) => reverseList(prev));
-    setCollapsedExercises((prev) => reverseCollapsedExerciseMap(prev, draft.exercises.length));
-  }, [captureExerciseCardTops, draft.exercises.length]);
+    setIsReorderMode(false);
+  }, []);
 
   return (
     <section className="space-y-4">
@@ -929,28 +933,11 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="inline-flex items-center gap-2 text-base font-semibold">
-          {t("exercises")}
-        </h2>
-        <div className="flex items-center gap-1.5">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="h-7 gap-1 px-2 text-xs"
-            onClick={handleToggleAllExercisesCollapsed}
-            disabled={!hasExercises}
-          >
-            <ChevronDown className={`h-3 w-3 shrink-0 ${areAllExercisesCollapsed ? "-rotate-90" : ""}`} />
-            {areAllExercisesCollapsed ? t("expandAllExercises") : t("collapseAllExercises")}
-          </Button>
-        </div>
-      </div>
+      <h2 className="text-base font-semibold">{t("exercises")}</h2>
 
       {draft.exercises.map((exercise, exerciseIndex) => {
         const exerciseUiKey = exerciseUiKeys[exerciseIndex] ?? `exercise-fallback-${exerciseIndex}`;
-        const collapsed = collapsedExercises[exerciseIndex] ?? false;
+        const collapsed = isReorderMode ? true : (collapsedExercises[exerciseIndex] ?? false);
         const title = exercise.name.trim() || t("exerciseNew");
 
         return (
@@ -961,24 +948,27 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
             key={exerciseUiKey}
             onDragOver={(event) => {
               event.preventDefault();
-              const currentDragIndex = dragIndexRef.current;
-              if (currentDragIndex === null || currentDragIndex === exerciseIndex) {
-                return;
-              }
-              applyExerciseReorder(currentDragIndex, exerciseIndex);
+              const draggingUiKey = dragUiKeyRef.current;
+              if (!draggingUiKey || draggingUiKey === exerciseUiKey) return;
+              const fromIndex = exerciseUiKeys.indexOf(draggingUiKey);
+              const toIndex = exerciseUiKeys.indexOf(exerciseUiKey);
+              if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
+              applyExerciseReorder(fromIndex, toIndex);
             }}
             onDrop={(event) => {
               event.preventDefault();
-              const rawFromData = event.dataTransfer.getData("text/plain");
-              const fromData = rawFromData.length ? Number(rawFromData) : Number.NaN;
-              const fromIndex = Number.isNaN(fromData) ? dragIndexRef.current : fromData;
-              if (fromIndex !== null && !Number.isNaN(fromIndex) && fromIndex !== exerciseIndex) {
-                applyExerciseReorder(fromIndex, exerciseIndex);
+              const fromUiKey = event.dataTransfer.getData("text/plain");
+              if (fromUiKey && fromUiKey !== exerciseUiKey) {
+                const fromIndex = exerciseUiKeys.indexOf(fromUiKey);
+                const toIndex = exerciseUiKeys.indexOf(exerciseUiKey);
+                if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
+                  applyExerciseReorder(fromIndex, toIndex);
+                }
               }
-              dragIndexRef.current = null;
-              setDragIndex(null);
+              dragUiKeyRef.current = null;
+              setDragUiKey(null);
             }}
-            className={dragIndex === exerciseIndex ? "border-foreground/30" : undefined}
+            className={dragUiKey === exerciseUiKey ? "border-foreground/30" : undefined}
           >
             <CardHeader className="space-y-3">
               <div className="flex items-start justify-between gap-2">
@@ -1005,18 +995,18 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                       ×2
                     </span>
                   )}
-                  <button
+                  {isReorderMode && <button
                     type="button"
                     draggable={true}
                     onDragStart={(event) => {
-                      dragIndexRef.current = exerciseIndex;
-                      setDragIndex(exerciseIndex);
+                      dragUiKeyRef.current = exerciseUiKey;
+                      setDragUiKey(exerciseUiKey);
                       event.dataTransfer.effectAllowed = "move";
-                      event.dataTransfer.setData("text/plain", String(exerciseIndex));
+                      event.dataTransfer.setData("text/plain", exerciseUiKey);
                     }}
                     onDragEnd={() => {
-                      dragIndexRef.current = null;
-                      setDragIndex(null);
+                      dragUiKeyRef.current = null;
+                      setDragUiKey(null);
                     }}
                     onPointerDown={(event) => {
                       if (event.pointerType === "mouse") {
@@ -1024,9 +1014,8 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                       }
                       event.preventDefault();
                       pointerDragPointerIdRef.current = event.pointerId;
-                      pointerDragExerciseIndexRef.current = exerciseIndex;
-                      dragIndexRef.current = exerciseIndex;
-                      setDragIndex(exerciseIndex);
+                      dragUiKeyRef.current = exerciseUiKey;
+                      setDragUiKey(exerciseUiKey);
                       event.currentTarget.setPointerCapture(event.pointerId);
                     }}
                     onPointerMove={(event) => {
@@ -1034,15 +1023,14 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                         return;
                       }
                       event.preventDefault();
-                      const fromIndex = pointerDragExerciseIndexRef.current;
-                      if (fromIndex === null) {
-                        return;
-                      }
+                      const draggingUiKey = dragUiKeyRef.current;
+                      if (!draggingUiKey) return;
+                      const fromIndex = exerciseUiKeys.indexOf(draggingUiKey);
+                      if (fromIndex === -1) return;
                       const targetIndex = getExerciseIndexAtClientY(event.clientY);
                       if (targetIndex === fromIndex) {
                         return;
                       }
-                      pointerDragExerciseIndexRef.current = targetIndex;
                       applyExerciseReorder(fromIndex, targetIndex);
                     }}
                     onPointerUp={(event) => {
@@ -1072,7 +1060,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                     className="touch-none cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
                   >
                     <GripVertical className="h-4 w-4" />
-                  </button>
+                  </button>}
                 </div>
               </div>
 
@@ -1316,28 +1304,38 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
 
       {!isAddExerciseExpanded && (
         <div className="flex items-center justify-between gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="h-8 gap-1.5 px-3"
-            onClick={() => setIsAddExerciseExpanded(true)}
-            aria-label={t("addExercise")}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {t("addExercise")}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            onClick={handleReverseExerciseOrder}
-            disabled={draft.exercises.length < 2}
-            aria-label={t("reverseSessionExerciseOrder")}
-            title={t("reverseSessionExerciseOrder")}
-          >
-            <ArrowUpDown className="h-4 w-4" />
-          </Button>
+          {!isReorderMode ? (
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 gap-1.5 px-3"
+                onClick={() => setIsAddExerciseExpanded(true)}
+                aria-label={t("addExercise")}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t("addExercise")}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-8 gap-1.5"
+                onClick={startReorderMode}
+                disabled={draft.exercises.length < 2}
+              >
+                <ArrowUpDown className="h-3.5 w-3.5" />
+                {t("reorderMode")}
+              </Button>
+            </>
+          ) : (
+            <div className="ml-auto">
+              <Button variant="default" size="sm" className="h-8 gap-1.5" onClick={stopReorderMode}>
+                <Check className="h-3.5 w-3.5" />
+                {t("saveSorting")}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1440,7 +1438,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
             <DialogDescription>{t("deleteExerciseConfirm")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteExerciseIndex(null)}>
+            <Button variant="ghost" onClick={() => setDeleteExerciseIndex(null)}>
               {t("cancel")}
             </Button>
             <Button
@@ -1501,7 +1499,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
             <DialogDescription>{t("deleteWorkoutConfirm")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
+            <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
               {t("cancel")}
             </Button>
             <Button
