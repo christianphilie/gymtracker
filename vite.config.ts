@@ -73,35 +73,53 @@ function createDevApiPlugin(): Plugin {
   };
 }
 
+function createDeploymentBrandingPlugin(): Plugin {
+  return {
+    name: "deployment-branding",
+    transformIndexHtml(html) {
+      const isProductionRelease = process.env.RELEASE_CHANNEL === "production";
+      const replacements = {
+        "__APP_MANIFEST__": isProductionRelease ? "/site.webmanifest" : "/site-beta.webmanifest",
+        "__APP_ICON_SVG__": isProductionRelease ? "/favicon.svg" : "/favicon-beta.svg",
+        "__APP_ICON_192__": isProductionRelease ? "/icon-192.png" : "/icon-192-beta.png",
+        "__APP_ICON_512__": isProductionRelease ? "/icon-512.png" : "/icon-512-beta.png",
+        "__APPLE_TOUCH_ICON__": isProductionRelease ? "/apple-touch-icon.png" : "/apple-touch-icon-beta.png"
+      };
+
+      return Object.entries(replacements).reduce(
+        (currentHtml, [placeholder, value]) => currentHtml.replaceAll(placeholder, value),
+        html
+      );
+    }
+  };
+}
+
 export default defineConfig(({ mode }) => {
   Object.assign(process.env, loadEnv(mode, process.cwd(), ""));
 
   return {
     plugins: [
       createDevApiPlugin(),
+      createDeploymentBrandingPlugin(),
       react(),
       VitePWA({
-      registerType: "autoUpdate",
-      includeAssets: ["favicon.svg", "apple-touch-icon.png"],
-      manifest: {
-        name: "Gymtracker",
-        short_name: "Gymtracker",
-        description: "Simple workout tracker PWA",
-        theme_color: "#ffffff",
-        background_color: "#ffffff",
-        display: "standalone",
-        start_url: "/",
-        icons: [
-          {
-            src: "favicon.svg",
-            sizes: "any",
-            type: "image/svg+xml"
-          }
-        ]
-      },
-      workbox: {
-        globPatterns: ["**/*.{js,css,html,svg,png,ico}"]
-      }
+        registerType: "autoUpdate",
+        includeAssets: [
+          "favicon.svg",
+          "favicon-beta.svg",
+          "icon-192.png",
+          "icon-512.png",
+          "apple-touch-icon.png",
+          "icon-192-beta.png",
+          "icon-512-beta.png",
+          "apple-touch-icon-beta.png",
+          "site.webmanifest",
+          "site-beta.webmanifest"
+        ],
+        manifest: false,
+        workbox: {
+          globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest}"]
+        }
       })
     ],
     resolve: {
