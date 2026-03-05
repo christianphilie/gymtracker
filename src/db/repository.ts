@@ -1,5 +1,4 @@
 import { db } from "@/db/db";
-import { ensureDefaultSettings } from "@/db/repository-settings";
 import type {
   Exercise,
   ExerciseTemplateSet,

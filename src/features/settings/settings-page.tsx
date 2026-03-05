@@ -2,38 +2,16 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
-  Clock3,
   Coffee,
   Database,
-  Download,
-  Dumbbell,
-  Flame,
   Github,
   Heart,
-  RotateCcw,
   Settings,
-  Target,
-  Upload,
   User,
-  Weight,
-  X
 } from "lucide-react";
 import { useSettings } from "@/app/settings-context";
 import { APP_VERSION } from "@/app/version";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   clearAllData,
   exportAllDataSnapshot,
@@ -50,8 +28,6 @@ import { SettingsDataTab } from "@/features/settings/settings-data-tab";
 import { SettingsPersonalTab } from "@/features/settings/settings-personal-tab";
 import {
   ConfirmDialog,
-  OptionTabsCard,
-  SettingsCardTitle,
   type TabsOption
 } from "@/features/settings/settings-page-primitives";
 import { toast } from "sonner";

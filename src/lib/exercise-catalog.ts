@@ -1,6 +1,5 @@
 import type { AppLanguage, ExerciseAiInfo } from "../db/types";
 import {
-  getCanonicalMuscleDetailLabel,
   getCanonicalMuscleLabel,
   type CanonicalMuscleKey
 } from "./muscle-taxonomy";

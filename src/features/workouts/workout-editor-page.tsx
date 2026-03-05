@@ -88,12 +88,6 @@ function reorderExercises(draft: WorkoutDraft, fromIndex: number, toIndex: numbe
   return next;
 }
 
-function reverseExercises(draft: WorkoutDraft) {
-  const next = structuredClone(draft);
-  next.exercises.reverse();
-  return next;
-}
-
 function reorderCollapsedExerciseMap(
   current: Record<number, boolean>,
   fromIndex: number,
@@ -117,21 +111,6 @@ function reorderCollapsedExerciseMap(
   return next;
 }
 
-function reverseCollapsedExerciseMap(current: Record<number, boolean>, length: number) {
-  if (length <= 1) {
-    return current;
-  }
-
-  const flags = Array.from({ length }, (_, index) => current[index] ?? false).reverse();
-  const next: Record<number, boolean> = {};
-  flags.forEach((isCollapsed, index) => {
-    if (isCollapsed) {
-      next[index] = true;
-    }
-  });
-  return next;
-}
-
 function reorderList<T>(items: T[], fromIndex: number, toIndex: number) {
   if (fromIndex === toIndex) {
     return items;
@@ -143,10 +122,6 @@ function reorderList<T>(items: T[], fromIndex: number, toIndex: number) {
   }
   next.splice(toIndex, 0, moved);
   return next;
-}
-
-function reverseList<T>(items: T[]) {
-  return [...items].reverse();
 }
 
 function normalizeExerciseName(value: string) {
@@ -736,24 +711,6 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
       window.removeEventListener("gymtracker:cancel-workout-editor", onCancelRequest);
     };
   }, [handleCancel, mode]);
-
-  const hasExercises = draft.exercises.length > 0;
-  const areAllExercisesCollapsed =
-    hasExercises && draft.exercises.every((_, exerciseIndex) => collapsedExercises[exerciseIndex] ?? false);
-
-  const handleToggleAllExercisesCollapsed = () => {
-    setCollapsedExercises(() => {
-      if (areAllExercisesCollapsed) {
-        return {};
-      }
-
-      const next: Record<number, boolean> = {};
-      for (let exerciseIndex = 0; exerciseIndex < draft.exercises.length; exerciseIndex += 1) {
-        next[exerciseIndex] = true;
-      }
-      return next;
-    });
-  };
 
   const captureExerciseCardTops = useCallback(() => {
     const beforeTops = new Map<string, number>();

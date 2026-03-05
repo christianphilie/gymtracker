@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
@@ -302,7 +302,7 @@ export function AppShell() {
     );
   }, [sessionState, timerPaused]);
   const showLockerNote = lockerNoteEnabled && !isWorkoutEditRoute;
-  const handleToggleTimer = () => {
+  const handleToggleTimer = useCallback(() => {
     if (!sessionState?.sinceIso) {
       return;
     }
@@ -321,7 +321,7 @@ export function AppShell() {
 
     setTimerPauseStartedAt(toggleAtMs);
     setTimerPaused(true);
-  };
+  }, [sessionState?.sinceIso, timerPauseStartedAt, timerPaused]);
 
   useEffect(() => {
     if (!sessionMeta?.sessionId) {
