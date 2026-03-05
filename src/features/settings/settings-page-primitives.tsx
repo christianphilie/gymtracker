@@ -116,7 +116,7 @@ export function ConfirmDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>{cancelLabel}</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>{cancelLabel}</Button>
           <Button className={confirmClassName} disabled={confirmDisabled} onClick={onConfirm}>
             {confirmLabel}
           </Button>

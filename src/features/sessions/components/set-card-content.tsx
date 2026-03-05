@@ -65,7 +65,7 @@ export function SetCardContent({
         </p>
         {!previewOnly && (
           <p
-            className={`${valueClass} font-semibold tabular-nums ${valueColorClass}`}
+            className={`${valueClass} font-normal tabular-nums ${valueColorClass}`}
             style={{ marginTop: compact ? "2px" : "-0.5px" }}
           >
             {repsValue} × {formatNumber(weightValue, 0)} {weightUnitLabel}

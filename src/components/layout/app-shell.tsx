@@ -355,6 +355,12 @@ export function AppShell() {
   //   setShowIosWebAppHint(false);
   // };
 
+  useEffect(() => {
+    if (!location.pathname.startsWith("/sessions/")) {
+      window.scrollTo(0, 0);
+    }
+  }, [location.pathname]);
+
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col bg-background">
       <header className={activeSessionId ? "border-x-0 border-b border-t-0 bg-background" : "sticky top-0 z-20 border-x-0 border-b border-t-0 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70"}>
@@ -392,10 +398,20 @@ export function AppShell() {
           <Outlet />
         </div>
       </main>
+      <div
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-[29] h-36 bg-gradient-to-t from-background/70 to-transparent"
+        style={{
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          maskImage: "linear-gradient(to top, black 30%, transparent)",
+          WebkitMaskImage: "linear-gradient(to top, black 30%, transparent)"
+        }}
+        aria-hidden="true"
+      />
       <div className="pointer-events-none fixed inset-x-0 bottom-6 z-30 px-4">
         <div className="relative mx-auto max-w-3xl">
           <nav className="pointer-events-auto flex justify-center" aria-label="Primary">
-            <div className="flex items-center gap-0 rounded-full border border-white/50 bg-background/80 p-0.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08),0_22px_52px_rgba(15,23,42,0.14)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/70 dark:border-transparent dark:shadow-[0_-12px_26px_rgba(0,0,0,0.4),0_24px_48px_rgba(0,0,0,0.52)]">
+            <div className="flex items-center gap-0 rounded-full border border-white/50 bg-background/80 p-0.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08),0_22px_52px_rgba(15,23,42,0.14)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/70 dark:border-transparent dark:bg-card/85 dark:ring-1 dark:ring-border/40 dark:shadow-[0_-12px_26px_rgba(0,0,0,0.4),0_24px_48px_rgba(0,0,0,0.52)] dark:supports-[backdrop-filter]:bg-card/75">
               <BottomNavItem
                 to="/"
                 isActive={isHomeTabRoute}

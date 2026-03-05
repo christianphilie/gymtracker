@@ -675,7 +675,7 @@ export function WorkoutHistoryPage() {
             })}
           </div>
           <DialogFooter className="pt-2 sm:pt-3">
-            <Button variant="outline" onClick={closeEditDialog}>{t("cancel")}</Button>
+            <Button variant="ghost" onClick={closeEditDialog}>{t("cancel")}</Button>
             <Button className="gap-1.5" disabled={isSavingEdit} onClick={() => void handleSaveSessionEdit()}>
               <Save className="h-4 w-4" />
               {t("save")}
@@ -691,7 +691,7 @@ export function WorkoutHistoryPage() {
             <DialogDescription>{t("deleteSessionConfirm")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteSessionId(null)}>{t("cancel")}</Button>
+            <Button variant="ghost" onClick={() => setDeleteSessionId(null)}>{t("cancel")}</Button>
             <Button
               className="border-red-700 bg-red-700 text-white hover:bg-red-800"
               onClick={async () => {

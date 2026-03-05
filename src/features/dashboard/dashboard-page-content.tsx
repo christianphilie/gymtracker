@@ -12,7 +12,7 @@ import {
   PenSquare,
   Plus,
   Repeat,
-  Square,
+  X,
   Sparkles,
   Weight
 } from "lucide-react";
@@ -320,11 +320,16 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     const start = new Date(weekStart);
     const end = new Date(weekStart);
     end.setDate(end.getDate() + 6);
-    const formatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
+    const startFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
       day: "2-digit",
       month: "2-digit"
     });
-    return `${formatter.format(start)} – ${formatter.format(end)}`;
+    const endFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    });
+    return `${startFormatter.format(start)} – ${endFormatter.format(end)}`;
   }, [language, weekStart]);
 
   const handleStartSession = async (workoutId: number) => {
@@ -855,14 +860,14 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
             <DialogDescription>{t("discardSessionConfirm")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDiscardConfirmSessionId(null)}>
+            <Button variant="ghost" onClick={() => setDiscardConfirmSessionId(null)}>
               {t("cancel")}
             </Button>
             <Button
               className="border-red-700 bg-red-700 text-white hover:bg-red-800"
               onClick={() => void handleDiscardConfirmed()}
             >
-              <Square className="mr-2 h-4 w-4" />
+              <X className="mr-2 h-4 w-4" />
               {t("discardSession")}
             </Button>
           </DialogFooter>

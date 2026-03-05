@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, type NavigateOptions, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from "@dnd-kit/core";
-import { ArrowUpDown, Check, Flag, Plus, Square, X } from "lucide-react";
+import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent, type DragMoveEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
+import { ArrowUpDown, Check, Flag, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { Button } from "@/components/ui/button";
@@ -108,6 +108,7 @@ export function SessionPage() {
   const [focusedWeightSetId, setFocusedWeightSetId] = useState<number | null>(null);
   const [sharedRestTimerUiState, setSharedRestTimerUiState] = useState<SharedRestTimerUiState | null>(null);
   const [draggedExerciseKey, setDraggedExerciseKey] = useState<string | null>(null);
+  const [liveDisplayOrder, setLiveDisplayOrder] = useState<string[] | null>(null);
 
   const exerciseCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const exerciseDoneBadgeRefs = useRef<Record<string, HTMLSpanElement | null>>({});
@@ -189,6 +190,21 @@ export function SessionPage() {
       })
       .sort((a, b) => a.exerciseOrder - b.exerciseOrder);
   }, [groupedSets, templateExerciseInfoMap]);
+
+  const lockedExerciseKeys = useMemo(() => {
+    const locked = new Set<string>();
+    for (const exercise of sessionExercises) {
+      if (exercise.sets.length === 0 || !exercise.sets.every((s) => s.completed)) break;
+      locked.add(exercise.sessionExerciseKey);
+    }
+    return locked;
+  }, [sessionExercises]);
+
+  const displayExercises = useMemo(() => {
+    if (!liveDisplayOrder) return sessionExercises;
+    const map = new Map(sessionExercises.map((e) => [e.sessionExerciseKey, e]));
+    return liveDisplayOrder.map((key) => map.get(key)).filter((e): e is SessionExercise => !!e);
+  }, [sessionExercises, liveDisplayOrder]);
 
   const isCompleted = payload?.session.status === "completed";
   const orderedSets = useMemo(() => sessionExercises.flatMap((e) => e.sets), [sessionExercises]);
@@ -587,6 +603,29 @@ export function SessionPage() {
   const handleDndDragStart = (event: DragStartEvent) => {
     if (!isReorderMode) return;
     setDraggedExerciseKey(getDragExerciseKey(event.active.id));
+    setLiveDisplayOrder(null);
+  };
+
+  const handleDndDragOver = (event: DragOverEvent) => {
+    if (!isReorderMode) return;
+    const activeKey = getDragExerciseKey(event.active.id);
+    if (!activeKey) return;
+    const overId = event.over?.id ?? null;
+    if (!overId) return;
+    const baseOrder = liveDisplayOrder ?? sessionExercises.map((e) => e.sessionExerciseKey);
+    const withoutActive = baseOrder.filter((k) => k !== activeKey);
+    const dropBeforeKey = getDropBeforeExerciseKey(overId);
+    const dropOverExerciseKey = getDragExerciseKey(overId);
+    const targetIndex =
+      dropBeforeKey ? withoutActive.indexOf(dropBeforeKey)
+      : dropOverExerciseKey ? withoutActive.indexOf(dropOverExerciseKey)
+      : isDropAfterLast(overId) ? withoutActive.length
+      : -1;
+    if (targetIndex < 0) return;
+    const nextOrder = [...withoutActive];
+    nextOrder.splice(targetIndex, 0, activeKey);
+    const dbOrder = sessionExercises.map((e) => e.sessionExerciseKey);
+    setLiveDisplayOrder(nextOrder.join("|") === dbOrder.join("|") ? null : nextOrder);
   };
 
   const handleDndDragMove = (event: DragMoveEvent) => {
@@ -621,12 +660,14 @@ export function SessionPage() {
     const activeKey = getDragExerciseKey(event.active.id);
     const overId = event.over?.id ?? null;
     setDraggedExerciseKey(null);
+    const baseOrder = liveDisplayOrder ?? sessionExercises.map((e) => e.sessionExerciseKey);
+    setLiveDisplayOrder(null);
     if (!isReorderMode || !activeKey || !overId) return;
 
     const currentOrder = sessionExercises.map((exercise) => exercise.sessionExerciseKey);
     if (currentOrder.length < 2) return;
 
-    const withoutActive = currentOrder.filter((key) => key !== activeKey);
+    const withoutActive = baseOrder.filter((key) => key !== activeKey);
     const dropBeforeKey = getDropBeforeExerciseKey(overId);
     const dropOverExerciseKey = getDragExerciseKey(overId);
     const targetIndex =
@@ -657,6 +698,7 @@ export function SessionPage() {
 
   const handleDndDragCancel = () => {
     setDraggedExerciseKey(null);
+    setLiveDisplayOrder(null);
     stopDndAutoScroll();
   };
 
@@ -901,31 +943,48 @@ export function SessionPage() {
       <DndContext
         sensors={dndSensors}
         onDragStart={handleDndDragStart}
+        onDragOver={handleDndDragOver}
         onDragMove={handleDndDragMove}
         onDragEnd={(event) => void handleDndDragEnd(event)}
         onDragCancel={handleDndDragCancel}
       >
         <div className="space-y-2">
-          {sessionExercises.map((exercise, index) => {
+          {displayExercises.map((exercise, index) => {
             const isCollapsed = isReorderMode ? true : (collapsedExercises[exercise.sessionExerciseKey] ?? false);
             const allCompleted = exercise.sets.length > 0 && exercise.sets.every((s) => s.completed);
             const completionFeedback = exerciseCompletionFeedback[exercise.sessionExerciseKey];
             const showDoneBadge = isCompleted || (allCompleted && completionFeedback !== "pending-badge");
+            const isLocked = isReorderMode && lockedExerciseKeys.has(exercise.sessionExerciseKey);
             const lastTemplateSets =
               exercise.templateExerciseId !== undefined
                 ? payload.previousSummary?.templateExerciseSets[exercise.templateExerciseId]
                 : undefined;
-            const lastSessionSetSummary = lastTemplateSets
-              ?.sort((a, b) => a.templateSetOrder - b.templateSetOrder)
-              .map((s) => `${s.actualReps ?? s.targetReps} × ${s.actualWeight ?? s.targetWeight} ${weightUnitLabel}`)
-              .join(" | ");
+            const lastSessionSetSummary = (() => {
+              if (!lastTemplateSets || lastTemplateSets.length === 0) return undefined;
+              const sortedPrev = [...lastTemplateSets].sort((a, b) => a.templateSetOrder - b.templateSetOrder);
+              const currentSets = exercise.sets; // already sorted by templateSetOrder
+              const hasDeviation =
+                sortedPrev.length !== currentSets.length ||
+                sortedPrev.some((prevSet, i) => {
+                  const currSet = currentSets[i];
+                  if (!currSet) return true;
+                  const prevReps = prevSet.actualReps ?? prevSet.targetReps;
+                  const prevWeight = prevSet.actualWeight ?? prevSet.targetWeight;
+                  return prevReps !== currSet.targetReps || prevWeight !== currSet.targetWeight;
+                });
+              if (!hasDeviation) return undefined;
+              return sortedPrev
+                .map((s) => `${s.actualReps ?? s.targetReps} × ${s.actualWeight ?? s.targetWeight} ${weightUnitLabel}`)
+                .join(" | ");
+            })();
 
             return (
               <ReorderableExerciseCard
                 key={exercise.sessionExerciseKey}
                 exerciseKey={exercise.sessionExerciseKey}
-                isLast={index === sessionExercises.length - 1}
+                isLast={index === displayExercises.length - 1}
                 reorderMode={isReorderMode}
+                isLocked={isLocked}
                 cardRef={(node) => { exerciseCardRefs.current[exercise.sessionExerciseKey] = node; }}
               >
                 {({ isDragging, dragHandleAttributes, dragHandleListeners }) => (
@@ -1097,8 +1156,8 @@ export function SessionPage() {
             <Flag className="mr-2 h-4 w-4" />
             {t("completeSession")}
           </Button>
-          <Button variant="outline" className="w-full" onClick={() => setIsDiscardDialogOpen(true)}>
-            <Square className="mr-2 h-4 w-4" />
+          <Button variant="ghost" className="w-full" onClick={() => setIsDiscardDialogOpen(true)}>
+            <X className="mr-2 h-4 w-4" />
             {t("discardSession")}
           </Button>
         </div>

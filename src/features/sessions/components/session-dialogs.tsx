@@ -1,4 +1,4 @@
-import { Square } from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,7 +28,7 @@ export function DeleteExerciseDialog({ open, onOpenChange, onConfirm, t }: Delet
           <DialogDescription>{t("deleteExerciseConfirm")}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
           <Button className={DANGER_BUTTON_CLASS} onClick={onConfirm}>{t("removeExercise")}</Button>
         </DialogFooter>
       </DialogContent>
@@ -52,9 +52,9 @@ export function DiscardSessionDialog({ open, onOpenChange, onConfirm, t }: Disca
           <DialogDescription>{t("discardSessionConfirm")}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
           <Button className={DANGER_BUTTON_CLASS} onClick={onConfirm}>
-            <Square className="mr-2 h-4 w-4" />
+            <X className="mr-2 h-4 w-4" />
             {t("discardSession")}
           </Button>
         </DialogFooter>
@@ -86,7 +86,7 @@ export function CompleteSessionDialog({
           <DialogDescription>{t("completeSessionTemplatePrompt")}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
           <Button variant="outline" onClick={onCompleteWithoutTemplate}>{t("completeWithoutTemplate")}</Button>
           <Button className="sm:min-w-[230px]" onClick={onCompleteWithTemplate}>{t("completeWithTemplate")}</Button>
         </DialogFooter>
@@ -111,7 +111,7 @@ export function ReorderModeDialog({ open, onOpenChange, onConfirm, t }: ReorderM
           <DialogDescription>{t("reorderModeDescription")}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
           <Button onClick={onConfirm}>{t("reorderModeStart")}</Button>
         </DialogFooter>
       </DialogContent>
@@ -140,7 +140,7 @@ export function ReverseSessionOrderDialog({
           <DialogDescription>{t("reverseSessionExerciseOrderConfirm")}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
           <Button onClick={onConfirm}>{t("reverseSessionExerciseOrder")}</Button>
         </DialogFooter>
       </DialogContent>

@@ -9,6 +9,7 @@ interface ReorderableExerciseCardProps {
   exerciseKey: string;
   isLast: boolean;
   reorderMode: boolean;
+  isLocked?: boolean;
   cardRef: RefCallback<HTMLDivElement>;
   children: (args: {
     isDragging: boolean;
@@ -35,16 +36,17 @@ export function ReorderableExerciseCard({
   exerciseKey,
   isLast,
   reorderMode,
+  isLocked = false,
   cardRef,
   children
 }: ReorderableExerciseCardProps) {
   const draggable = useDraggable({
     id: `${DRAGGABLE_ID_PREFIX}${exerciseKey}`,
-    disabled: !reorderMode
+    disabled: !reorderMode || isLocked
   });
   const dropBefore = useDroppable({
     id: `${DROP_BEFORE_ID_PREFIX}${exerciseKey}`,
-    disabled: !reorderMode
+    disabled: !reorderMode || isLocked
   });
   const dropAfterLast = useDroppable({
     id: DROP_AFTER_LAST_ID,
@@ -59,39 +61,26 @@ export function ReorderableExerciseCard({
     : undefined;
 
   return (
-    <div className="space-y-1.5">
-      {reorderMode && (
-        <div
-          ref={dropBefore.setNodeRef}
-          className={`h-2 rounded-full border border-dashed transition-colors ${
-            dropBefore.isOver ? "border-emerald-500 bg-emerald-100/80 dark:bg-emerald-900/40" : "border-border/60"
-          }`}
-        />
-      )}
-
+    <>
       <div
         ref={(node) => {
           draggable.setNodeRef(node);
+          dropBefore.setNodeRef(node);
           cardRef(node);
         }}
-        className={draggable.isDragging ? "opacity-85" : undefined}
+        className={`${draggable.isDragging ? "opacity-85" : ""} ${reorderMode && isLocked ? "pointer-events-none opacity-40" : ""}`}
         style={dragStyle}
       >
         {children({
           isDragging: draggable.isDragging,
-          dragHandleAttributes: reorderMode ? (draggable.attributes as unknown as Record<string, unknown>) : undefined,
-          dragHandleListeners: reorderMode ? (draggable.listeners as Record<string, unknown>) : undefined
+          dragHandleAttributes: reorderMode && !isLocked ? (draggable.attributes as unknown as Record<string, unknown>) : undefined,
+          dragHandleListeners: reorderMode && !isLocked ? (draggable.listeners as Record<string, unknown>) : undefined
         })}
       </div>
 
       {reorderMode && isLast && (
-        <div
-          ref={dropAfterLast.setNodeRef}
-          className={`h-2 rounded-full border border-dashed transition-colors ${
-            dropAfterLast.isOver ? "border-emerald-500 bg-emerald-100/80 dark:bg-emerald-900/40" : "border-border/60"
-          }`}
-        />
+        <div ref={dropAfterLast.setNodeRef} className="h-2" aria-hidden="true" />
       )}
-    </div>
+    </>
   );
 }

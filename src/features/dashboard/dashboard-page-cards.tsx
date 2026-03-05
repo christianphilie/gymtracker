@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ChartNoAxesCombined, PenSquare, Square } from "lucide-react";
+import { ChartNoAxesCombined, PenSquare, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { WorkoutNameLabel } from "@/components/workouts/workout-name-label";
@@ -176,7 +176,7 @@ export function WorkoutListCard({
               aria-label={t("discardSession")}
               onClick={() => workout.activeSessionId && onDiscardActiveSession(workout.activeSessionId)}
             >
-              <Square className="h-4 w-4" />
+              <X className="h-4 w-4" />
             </Button>
           )}
           <Button

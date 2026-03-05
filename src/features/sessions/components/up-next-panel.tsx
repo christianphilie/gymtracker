@@ -109,10 +109,12 @@ export function UpNextPanel({
       ) : (
         <>
           <div
-            className={`z-20 ${UP_NEXT_BOX_CLASS} ${
+            className={`z-20 ${UP_NEXT_BOX_CLASS} backdrop-blur-xl ${
               nextSetIsPrimary
-                ? "border-emerald-400/40 bg-emerald-500 text-emerald-50"
-                : "border-border bg-secondary text-foreground"
+                ? "border-emerald-400/40 bg-emerald-500/90 text-emerald-50 supports-[backdrop-filter]:bg-emerald-500/80"
+                : showRestTimer
+                  ? "border-border bg-secondary text-foreground"
+                  : "border-border bg-secondary/90 text-foreground supports-[backdrop-filter]:bg-secondary/75"
             }`}
           >
             <div className="relative z-[1] flex flex-col px-4 py-2">
@@ -154,16 +156,16 @@ export function UpNextPanel({
 
           {showRestTimer && (
             <div
-              className={`relative z-10 -mt-[48px] ${UP_NEXT_BOX_CLASS} px-4 pb-3 ${
+              className={`relative z-10 -mt-[48px] ${UP_NEXT_BOX_CLASS} px-4 pb-3 backdrop-blur-xl ${
                 timerIsPrimary
-                  ? "border-orange-200/80 bg-orange-100 text-orange-950 dark:border-orange-700/35 dark:bg-orange-900/40 dark:text-orange-100"
-                  : "border-border bg-secondary/90 text-foreground backdrop-blur supports-[backdrop-filter]:bg-secondary/70"
+                  ? "border-orange-200/80 bg-orange-100/90 text-orange-950 supports-[backdrop-filter]:bg-orange-100/80 dark:border-amber-600/30 dark:bg-amber-900/40 dark:text-amber-100 dark:supports-[backdrop-filter]:bg-amber-900/30"
+                  : "border-border bg-secondary/90 text-foreground supports-[backdrop-filter]:bg-secondary/70"
               }`}
               style={{ paddingTop: `${UP_NEXT_CARD_OVERLAP_PX + 6}px` }}
             >
               {timerIsPrimary && restTimerPanelState && (
                 <div
-                  className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-orange-200/70 to-orange-400/75 transition-[width] ease-linear dark:from-orange-500/28 dark:to-orange-300/36"
+                  className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-orange-200/70 to-orange-400/75 transition-[width] ease-linear dark:from-amber-700/35 dark:to-amber-500/40"
                   style={{
                     width: `${Math.max(0, Math.min(100, restTimerPanelState.progressPercent))}%`,
                     transitionDuration: restTimerPanelState.paused ? "150ms" : "500ms"
@@ -174,7 +176,7 @@ export function UpNextPanel({
 
               <div className="relative z-[1]">
                 <p className={`mb-0.5 text-[11px] font-medium uppercase tracking-wide ${
-                  timerIsPrimary ? "text-orange-900/75 dark:text-orange-100/85" : "text-foreground/45"
+                  timerIsPrimary ? "text-orange-900/75 dark:text-amber-100/85" : "text-foreground/45"
                 }`}>
                   {t("rest")}
                 </p>
@@ -185,7 +187,7 @@ export function UpNextPanel({
                     variant="secondary"
                     className={`absolute right-0 z-[2] h-10 w-10 -translate-y-1/2 shrink-0 ${
                       timerIsPrimary
-                        ? "border-orange-800/15 bg-white/45 text-orange-950 hover:bg-white/60 dark:border-orange-200/15 dark:bg-orange-950/45 dark:text-orange-100 dark:hover:bg-orange-950/65"
+                        ? "border-orange-800/15 bg-white/45 text-orange-950 hover:bg-white/60 dark:border-amber-200/15 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-950/55"
                         : "border-input bg-background text-foreground hover:bg-secondary"
                     }`}
                     style={{ top: "50%" }}
@@ -197,7 +199,7 @@ export function UpNextPanel({
                 )}
                 <div className="flex min-h-[20px] items-center pr-12">
                   <p className={`inline-flex items-center gap-1 text-[15px] font-semibold leading-tight tabular-nums ${
-                    timerIsPrimary ? "text-orange-900/75 dark:text-orange-100/85" : "text-foreground/70"
+                    timerIsPrimary ? "text-orange-900/75 dark:text-amber-100/85" : "text-foreground/70"
                   }`}>
                     <Clock3 className="h-3.5 w-3.5" />
                     {timerLabel}
