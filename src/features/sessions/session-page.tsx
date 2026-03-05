@@ -362,23 +362,6 @@ export function SessionPage() {
 
   // ── Animation helpers ─────────────────────────────────────────────────────
 
-  const animatePageScrollBy = (deltaY: number, durationMs = 220) => {
-    if (Math.abs(deltaY) < 1) return;
-    const scrollRoot = getPageScrollRoot();
-    if (!scrollRoot) { window.scrollBy(0, deltaY); return; }
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { scrollRoot.scrollTop += deltaY; return; }
-
-    const startY = scrollRoot.scrollTop;
-    const start = performance.now();
-    const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
-    const frame = (now: number) => {
-      const progress = Math.min(1, (now - start) / durationMs);
-      scrollRoot.scrollTop = startY + deltaY * easeOut(progress);
-      if (progress < 1) window.requestAnimationFrame(frame);
-    };
-    window.requestAnimationFrame(frame);
-  };
-
   const animateExerciseReorder = (beforeTops: Map<string, number>) => {
     if (beforeTops.size === 0 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const durationMs = 220;
@@ -943,7 +926,27 @@ export function SessionPage() {
           items={displayExercises.map((exercise) => exercise.sessionExerciseKey)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="space-y-2">
+          <div className={isReorderMode ? "relative space-y-2 pr-7" : "space-y-2"}>
+            {isReorderMode && (
+              <>
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-auto absolute inset-y-0 right-0 z-10 w-5 rounded-sm touch-pan-y dark:hidden"
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(to bottom, rgba(161, 161, 170, 0.28) 0px, rgba(161, 161, 170, 0.28) 1px, transparent 1px, transparent 8px)"
+                  }}
+                />
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-auto absolute inset-y-0 right-0 z-10 hidden w-5 rounded-sm touch-pan-y dark:block"
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(to bottom, rgba(113, 113, 122, 0.5) 0px, rgba(113, 113, 122, 0.5) 1px, transparent 1px, transparent 8px)"
+                  }}
+                />
+              </>
+            )}
             {displayExercises.map((exercise) => {
             const isCollapsed = isReorderMode ? true : (collapsedExercises[exercise.sessionExerciseKey] ?? false);
             const allCompleted = exercise.sets.length > 0 && exercise.sets.every((s) => s.completed);

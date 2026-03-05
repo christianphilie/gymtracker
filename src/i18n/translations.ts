@@ -497,7 +497,7 @@ export const messages = {
     targetMuscles: "Target muscles",
     executionGuide: "Execution guide",
     coachingTips: "Coaching tips",
-    moreExerciseResearch: "Instructions",
+    moreExerciseResearch: "Search the web",
     exerciseInfoAiDisclaimerShort: "AI-generated info",
     exerciseInfoAiDisclaimerWithMatch: "AI-generated info for: {name}",
     aiImport: "AI Import",

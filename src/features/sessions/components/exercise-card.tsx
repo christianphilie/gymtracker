@@ -170,7 +170,7 @@ export function ExerciseCard({
                   {lastSessionSetSummary.map((summary, index) => (
                     <span
                       key={`${summary}-${index}`}
-                      className="inline-flex rounded-full border border-border/80 bg-white px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70"
+                      className="inline-flex rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70"
                     >
                       {summary}
                     </span>

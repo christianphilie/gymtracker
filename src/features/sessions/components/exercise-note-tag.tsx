@@ -40,7 +40,7 @@ export function ExerciseNoteTag({ note, className }: ExerciseNoteTagProps) {
   return (
     <span
       className={cx(
-        "relative inline-flex max-w-full overflow-visible border-x border-b border-t-0 border-zinc-200/80 px-2.5 pb-1.5 pt-2.5 text-[11px] leading-tight text-zinc-500/85",
+        "relative inline-flex max-w-full overflow-visible border-x border-b border-t-0 border-zinc-200/80 px-2.5 pb-1.5 pt-2.5 text-[11px] leading-tight text-zinc-500/85 dark:border-zinc-700/80",
         "rounded-b-[4px]",
         className
       )}
@@ -49,10 +49,21 @@ export function ExerciseNoteTag({ note, className }: ExerciseNoteTagProps) {
     >
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute left-[-1px] right-[-1px] top-[-1px] h-[4px]"
+        className="pointer-events-none absolute left-[-1px] right-[-1px] top-[-1px] h-[4px] dark:hidden"
         style={{
           backgroundImage:
             "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='4' viewBox='0 0 10 4'%3E%3Cpath d='M0 1 L5 4 L10 1' fill='none' stroke='%23e4e4e7' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")",
+          backgroundSize: "10px 4px",
+          backgroundRepeat: "repeat-x",
+          backgroundPosition: "left top"
+        }}
+      />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute left-[-1px] right-[-1px] top-[-1px] hidden h-[4px] dark:block"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='4' viewBox='0 0 10 4'%3E%3Cpath d='M0 1 L5 4 L10 1' fill='none' stroke='%2352525b' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")",
           backgroundSize: "10px 4px",
           backgroundRepeat: "repeat-x",
           backgroundPosition: "left top"
