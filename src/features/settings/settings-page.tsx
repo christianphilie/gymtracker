@@ -447,7 +447,7 @@ export function SettingsPage() {
   return (
     <section className="space-y-4">
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as SettingsTabKey)} className="space-y-4">
-        <TabsList className="grid h-auto w-full grid-cols-3">
+        <TabsList className="sticky top-[4.5rem] z-10 grid h-auto w-full grid-cols-3 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <TabsTrigger value="app" className="flex gap-2">
             <Settings className="h-4 w-4" />
             {t("appSettingsTab")}

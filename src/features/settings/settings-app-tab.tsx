@@ -99,6 +99,14 @@ export function SettingsAppTab({
         </CardContent>
       </Card>
 
+      <OptionTabsCard
+        icon={SunMoon}
+        title={t("colorScheme")}
+        value={colorScheme}
+        onValueChange={(value) => setColorScheme(value as ColorScheme)}
+        options={colorSchemeOptions}
+      />
+
       <div className="grid gap-4 md:grid-cols-2">
         <OptionTabsCard
           icon={Globe}
@@ -115,14 +123,6 @@ export function SettingsAppTab({
           options={weightOptions}
         />
       </div>
-
-      <OptionTabsCard
-        icon={SunMoon}
-        title={t("colorScheme")}
-        value={colorScheme}
-        onValueChange={(value) => setColorScheme(value as ColorScheme)}
-        options={colorSchemeOptions}
-      />
     </TabsContent>
   );
 }
