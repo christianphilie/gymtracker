@@ -399,10 +399,10 @@ export function AppShell() {
         </div>
       </main>
       <div
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-[29] h-36 bg-gradient-to-t from-background/70 to-transparent"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-[29] h-36"
         style={{
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
+          backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
           maskImage: "linear-gradient(to top, black 30%, transparent)",
           WebkitMaskImage: "linear-gradient(to top, black 30%, transparent)"
         }}
