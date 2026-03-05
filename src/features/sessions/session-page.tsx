@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { DndContext, PointerSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type DragMoveEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
+import { DndContext, PointerSensor, TouchSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { ArrowUpDown, Check, Flag, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
@@ -32,7 +33,7 @@ import { ExerciseCard } from "./components/exercise-card";
 import type { UpNextMode, RestTimerPanelState } from "./components/up-next-panel";
 import { UpNextPanel } from "./components/up-next-panel";
 import { CompletionStats } from "./components/completion-stats";
-import { ReorderableExerciseCard, getDragExerciseKey, getDropZoneExerciseKey, isDropAfterLast } from "./components/reorderable-exercise-card";
+import { ReorderableExerciseCard } from "./components/reorderable-exercise-card";
 import {
   DeleteExerciseDialog,
   DiscardSessionDialog,
@@ -46,8 +47,6 @@ const SESSION_COLLAPSED_STORAGE_KEY_PREFIX = "gymtracker:session-collapsed:";
 const SESSION_SCROLL_STORAGE_KEY_PREFIX = "gymtracker:session-scroll:";
 const EXERCISE_DONE_BADGE_DELAY_MS = 500;
 const EXERCISE_DONE_BADGE_POP_DURATION_MS = 1500;
-const DND_VIEWPORT_EDGE_THRESHOLD_PX = 88;
-const DND_MAX_SCROLL_SPEED_PX = 22;
 
 type ExerciseCompletionFeedbackState = "pending-badge" | "show-badge";
 
@@ -69,6 +68,7 @@ interface PendingReorderAnimation {
   beforeTops: Map<string, number>;
   followExerciseKey: string | null;
   followExerciseBeforeTop: number | null;
+  followBehaviour: "keep-visible" | "preserve-offset";
 }
 
 function animateDoneBadgePop(node: HTMLSpanElement | null) {
@@ -105,7 +105,8 @@ export function SessionPage() {
   const [focusedWeightSetId, setFocusedWeightSetId] = useState<number | null>(null);
   const [sharedRestTimerUiState, setSharedRestTimerUiState] = useState<SharedRestTimerUiState | null>(null);
   const [draggedExerciseKey, setDraggedExerciseKey] = useState<string | null>(null);
-  const [liveDisplayOrder, setLiveDisplayOrder] = useState<string[] | null>(null);
+  const [isDraggingExercise, setIsDraggingExercise] = useState(false);
+  const [optimisticExerciseOrder, setOptimisticExerciseOrder] = useState<string[] | null>(null);
 
   const exerciseCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const exerciseDoneBadgeRefs = useRef<Record<string, HTMLSpanElement | null>>({});
@@ -115,13 +116,12 @@ export function SessionPage() {
   const exerciseCompletionTimersRef = useRef<Record<string, ExerciseCompletionFeedbackTimers>>({});
   const previousExerciseCompletionFeedbackRef = useRef<Record<string, ExerciseCompletionFeedbackState>>({});
   const collapsedBeforeReorderRef = useRef<Record<string, boolean> | null>(null);
-  const dndAutoScrollFrameRef = useRef<number | null>(null);
-  const dndAutoScrollVelocityRef = useRef(0);
   const upNextPanelRef = useRef<HTMLElement | null>(null);
 
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { distance: 0 } })
+    useSensor(TouchSensor, { activationConstraint: { distance: 0 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   // ── Data queries ──────────────────────────────────────────────────────────
@@ -198,11 +198,23 @@ export function SessionPage() {
     return locked;
   }, [sessionExercises]);
 
+  const sessionExerciseOrder = useMemo(
+    () => sessionExercises.map((exercise) => exercise.sessionExerciseKey),
+    [sessionExercises]
+  );
+  const displayExerciseOrder = useMemo(() => {
+    if (!optimisticExerciseOrder) return sessionExerciseOrder;
+    if (optimisticExerciseOrder.length !== sessionExerciseOrder.length) return sessionExerciseOrder;
+    const sessionKeySet = new Set(sessionExerciseOrder);
+    if (optimisticExerciseOrder.some((key) => !sessionKeySet.has(key))) return sessionExerciseOrder;
+    return optimisticExerciseOrder;
+  }, [optimisticExerciseOrder, sessionExerciseOrder]);
   const displayExercises = useMemo(() => {
-    if (!liveDisplayOrder) return sessionExercises;
-    const map = new Map(sessionExercises.map((e) => [e.sessionExerciseKey, e]));
-    return liveDisplayOrder.map((key) => map.get(key)).filter((e): e is SessionExercise => !!e);
-  }, [sessionExercises, liveDisplayOrder]);
+    const byKey = new Map(sessionExercises.map((exercise) => [exercise.sessionExerciseKey, exercise]));
+    return displayExerciseOrder
+      .map((key) => byKey.get(key))
+      .filter((exercise): exercise is SessionExercise => exercise !== undefined);
+  }, [displayExerciseOrder, sessionExercises]);
 
   const isCompleted = payload?.session.status === "completed";
   const orderedSets = useMemo(() => sessionExercises.flatMap((e) => e.sets), [sessionExercises]);
@@ -415,82 +427,41 @@ export function SessionPage() {
   const animateReorderAndKeepExerciseInView = (
     beforeTops: Map<string, number>,
     sessionExerciseKey: string | null,
-    beforeTop: number | null
+    beforeTop: number | null,
+    followBehaviour: PendingReorderAnimation["followBehaviour"]
   ) => {
     animateExerciseReorder(beforeTops);
     if (!sessionExerciseKey || beforeTop === null) return;
-    const afterTop = exerciseCardRefs.current[sessionExerciseKey]?.getBoundingClientRect().top;
-    if (typeof afterTop === "number") {
-      const desiredTop = Math.max(beforeTop, getStickySessionInsetTop());
-      animatePageScrollBy(afterTop - desiredTop);
-    }
-  };
 
-  const getReorderedExerciseKeys = (
-    activeKey: string,
-    overId: unknown,
-    overRect: { top: number; height: number } | null | undefined,
-    translatedRect: { top: number; height: number } | null | undefined,
-    baseOrder: string[]
-  ) => {
-    const withoutActive = baseOrder.filter((key) => key !== activeKey);
-    const dropZoneKey = getDropZoneExerciseKey(overId);
-    const dropOverExerciseKey = getDragExerciseKey(overId);
+    const shouldReduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const animationDurationMs = shouldReduceMotion ? 0 : 280;
+    const stopAtMs = performance.now() + animationDurationMs + 80;
 
-    let targetIndex =
-      dropZoneKey ? withoutActive.indexOf(dropZoneKey)
-      : dropOverExerciseKey ? withoutActive.indexOf(dropOverExerciseKey)
-      : isDropAfterLast(overId) ? withoutActive.length
-      : -1;
+    const keepExerciseVisible = () => {
+      const element = exerciseCardRefs.current[sessionExerciseKey];
+      const scrollRoot = getPageScrollRoot();
+      if (!element || !scrollRoot) return;
 
-    if (targetIndex < 0) return null;
+      const desiredTop =
+        followBehaviour === "keep-visible"
+          ? getStickySessionInsetTop()
+          : Math.max(beforeTop, getStickySessionInsetTop());
+      const currentTop = element.getBoundingClientRect().top;
+      const delta = currentTop - desiredTop;
 
-    const hoveredExerciseKey = dropZoneKey ?? dropOverExerciseKey;
-    if (hoveredExerciseKey && translatedRect && overRect) {
-      const hoveredIndex = withoutActive.indexOf(hoveredExerciseKey);
-      const translatedMidY = translatedRect.top + translatedRect.height / 2;
-      const hoveredMidY = overRect.top + overRect.height / 2;
-      targetIndex = hoveredIndex + (translatedMidY > hoveredMidY ? 1 : 0);
-    }
+      if (Math.abs(delta) > 1) {
+        scrollRoot.scrollTop += delta;
+      }
 
-    targetIndex = Math.max(0, Math.min(withoutActive.length, targetIndex));
-    const nextOrder = [...withoutActive];
-    nextOrder.splice(targetIndex, 0, activeKey);
-    return nextOrder;
+      if (performance.now() < stopAtMs) {
+        window.requestAnimationFrame(keepExerciseVisible);
+      }
+    };
+
+    window.requestAnimationFrame(keepExerciseVisible);
   };
 
   // ── DnD helpers ───────────────────────────────────────────────────────────
-
-  const stopDndAutoScroll = () => {
-    dndAutoScrollVelocityRef.current = 0;
-    if (dndAutoScrollFrameRef.current !== null) {
-      window.cancelAnimationFrame(dndAutoScrollFrameRef.current);
-      dndAutoScrollFrameRef.current = null;
-    }
-  };
-
-  const startDndAutoScroll = () => {
-    if (dndAutoScrollFrameRef.current !== null) return;
-    const tick = () => {
-      const velocity = dndAutoScrollVelocityRef.current;
-      if (Math.abs(velocity) < 0.01) {
-        dndAutoScrollFrameRef.current = null;
-        return;
-      }
-      window.scrollBy({ top: velocity, left: 0, behavior: "auto" });
-      dndAutoScrollFrameRef.current = window.requestAnimationFrame(tick);
-    };
-    dndAutoScrollFrameRef.current = window.requestAnimationFrame(tick);
-  };
-
-  const setDndAutoScrollVelocity = (nextVelocity: number) => {
-    if (Math.abs(nextVelocity) < 0.25) {
-      stopDndAutoScroll();
-      return;
-    }
-    dndAutoScrollVelocityRef.current = nextVelocity;
-    startDndAutoScroll();
-  };
 
   const startReorderMode = () => {
     if (isCompleted || sessionExercises.length < 2) return;
@@ -498,13 +469,14 @@ export function SessionPage() {
     const allCollapsed = Object.fromEntries(sessionExercises.map((item) => [item.sessionExerciseKey, true]));
     setCollapsedExercises(allCollapsed);
     setIsAddExerciseExpanded(false);
+    setOptimisticExerciseOrder(null);
     setIsReorderMode(true);
   };
 
   const stopReorderMode = () => {
     setIsReorderMode(false);
     setDraggedExerciseKey(null);
-    stopDndAutoScroll();
+    setOptimisticExerciseOrder(null);
     const previousCollapsed = collapsedBeforeReorderRef.current;
     if (previousCollapsed) {
       setCollapsedExercises(previousCollapsed);
@@ -598,7 +570,8 @@ export function SessionPage() {
       expectedOrderKey: nextOrder.join("|"),
       beforeTops: beforeCardTops,
       followExerciseKey: exercise.sessionExerciseKey,
-      followExerciseBeforeTop: beforeExerciseTop
+      followExerciseBeforeTop: beforeExerciseTop,
+      followBehaviour: "keep-visible"
     };
     try {
       await reorderSessionExercises(numericSessionId, nextOrder);
@@ -630,7 +603,8 @@ export function SessionPage() {
       expectedOrderKey: nextOrder.join("|"),
       beforeTops: captureExerciseCardTops(),
       followExerciseKey: null,
-      followExerciseBeforeTop: null
+      followExerciseBeforeTop: null,
+      followBehaviour: "preserve-offset"
     };
     try {
       await reorderSessionExercises(numericSessionId, nextOrder);
@@ -642,97 +616,54 @@ export function SessionPage() {
 
   const handleDndDragStart = (event: DragStartEvent) => {
     if (!isReorderMode) return;
-    setDraggedExerciseKey(getDragExerciseKey(event.active.id));
-    setLiveDisplayOrder(null);
-  };
-
-  const handleDndDragOver = (event: DragOverEvent) => {
-    if (!isReorderMode) return;
-    const activeKey = getDragExerciseKey(event.active.id);
-    if (!activeKey) return;
-    const overId = event.over?.id ?? null;
-    if (!overId) return;
-    const baseOrder = liveDisplayOrder ?? sessionExercises.map((e) => e.sessionExerciseKey);
-    const nextOrder = getReorderedExerciseKeys(
-      activeKey,
-      overId,
-      event.over?.rect ?? null,
-      event.active.rect.current.translated,
-      baseOrder
-    );
-    if (!nextOrder) return;
-    const dbOrder = sessionExercises.map((e) => e.sessionExerciseKey);
-    setLiveDisplayOrder(nextOrder.join("|") === dbOrder.join("|") ? null : nextOrder);
-  };
-
-  const handleDndDragMove = (event: DragMoveEvent) => {
-    if (!isReorderMode) return;
-    const translatedRect = event.active.rect.current.translated;
-    if (!translatedRect) {
-      stopDndAutoScroll();
-      return;
-    }
-
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-    const distanceToTop = translatedRect.top;
-    const distanceToBottom = viewportHeight - translatedRect.bottom;
-
-    if (distanceToTop < DND_VIEWPORT_EDGE_THRESHOLD_PX) {
-      const ratio = Math.min(1, (DND_VIEWPORT_EDGE_THRESHOLD_PX - distanceToTop) / DND_VIEWPORT_EDGE_THRESHOLD_PX);
-      setDndAutoScrollVelocity(-ratio * DND_MAX_SCROLL_SPEED_PX);
-      return;
-    }
-
-    if (distanceToBottom < DND_VIEWPORT_EDGE_THRESHOLD_PX) {
-      const ratio = Math.min(1, (DND_VIEWPORT_EDGE_THRESHOLD_PX - distanceToBottom) / DND_VIEWPORT_EDGE_THRESHOLD_PX);
-      setDndAutoScrollVelocity(ratio * DND_MAX_SCROLL_SPEED_PX);
-      return;
-    }
-
-    stopDndAutoScroll();
+    setIsDraggingExercise(true);
+    setDraggedExerciseKey(String(event.active.id));
   };
 
   const handleDndDragEnd = async (event: DragEndEvent) => {
-    stopDndAutoScroll();
-    const activeKey = getDragExerciseKey(event.active.id);
-    const overId = event.over?.id ?? null;
+    setIsDraggingExercise(false);
     setDraggedExerciseKey(null);
-    const baseOrder = liveDisplayOrder ?? sessionExercises.map((e) => e.sessionExerciseKey);
-    setLiveDisplayOrder(null);
-    if (!isReorderMode || !activeKey || !overId) return;
+    if (!isReorderMode) return;
 
-    const currentOrder = sessionExercises.map((exercise) => exercise.sessionExerciseKey);
+    const activeKey = typeof event.active.id === "string" ? event.active.id : null;
+    const overKey = typeof event.over?.id === "string" ? event.over.id : null;
+    if (!activeKey || !overKey || activeKey === overKey) return;
+
+    const currentOrder = displayExercises.map((exercise) => exercise.sessionExerciseKey);
     if (currentOrder.length < 2) return;
 
-    const nextOrder = getReorderedExerciseKeys(
-      activeKey,
-      overId,
-      event.over?.rect ?? null,
-      event.active.rect.current.translated,
-      baseOrder
-    );
-    if (!nextOrder) return;
+    const activeIndex = currentOrder.indexOf(activeKey);
+    const overIndex = currentOrder.indexOf(overKey);
+    if (activeIndex < 0 || overIndex < 0) return;
+
+    const firstUnlockedIndex = currentOrder.findIndex((key) => !lockedExerciseKeys.has(key));
+    if (firstUnlockedIndex < 0) return;
+    if (activeIndex < firstUnlockedIndex || overIndex < firstUnlockedIndex) return;
+
+    const nextOrder = arrayMove(currentOrder, activeIndex, overIndex);
     if (nextOrder.join("|") === currentOrder.join("|")) return;
+    setOptimisticExerciseOrder(nextOrder);
 
     pendingReorderAnimationRef.current = {
       expectedOrderKey: nextOrder.join("|"),
       beforeTops: captureExerciseCardTops(),
       followExerciseKey: activeKey,
-      followExerciseBeforeTop: exerciseCardRefs.current[activeKey]?.getBoundingClientRect().top ?? null
+      followExerciseBeforeTop: exerciseCardRefs.current[activeKey]?.getBoundingClientRect().top ?? null,
+      followBehaviour: "preserve-offset"
     };
 
     try {
       await reorderSessionExercises(numericSessionId, nextOrder);
     } catch {
+      setOptimisticExerciseOrder(null);
       pendingReorderAnimationRef.current = null;
       toast.error("Reordering failed");
     }
   };
 
   const handleDndDragCancel = () => {
+    setIsDraggingExercise(false);
     setDraggedExerciseKey(null);
-    setLiveDisplayOrder(null);
-    stopDndAutoScroll();
   };
 
   const handleToggleRestTimer = () => {
@@ -745,9 +676,9 @@ export function SessionPage() {
     if (Number.isNaN(numericSessionId)) return;
     setIsReorderMode(false);
     setDraggedExerciseKey(null);
+    setOptimisticExerciseOrder(null);
     setIsReverseOrderDialogOpen(false);
     collapsedBeforeReorderRef.current = null;
-    stopDndAutoScroll();
     clearAllExerciseCompletionFeedback();
     exerciseDoneBadgeRefs.current = {};
     setLoadedCollapsedStateSessionId(null);
@@ -767,7 +698,6 @@ export function SessionPage() {
     return () => {
       clearAllExerciseCompletionFeedback(false);
       exerciseDoneBadgeRefs.current = {};
-      stopDndAutoScroll();
     };
   }, []);
 
@@ -785,7 +715,7 @@ export function SessionPage() {
 
   useEffect(() => {
     if (typeof document === "undefined") return;
-    if (draggedExerciseKey) {
+    if (isDraggingExercise) {
       document.body.style.overflow = "hidden";
       document.body.style.touchAction = "none";
     } else {
@@ -796,7 +726,7 @@ export function SessionPage() {
       document.body.style.overflow = "";
       document.body.style.touchAction = "";
     };
-  }, [draggedExerciseKey]);
+  }, [isDraggingExercise]);
 
   useEffect(() => {
     const previous = previousExerciseCompletionFeedbackRef.current;
@@ -869,10 +799,22 @@ export function SessionPage() {
   }, [handleSetCompletedToggle, isCompleted, numericSessionId, orderedSets, sessionExercises]);
 
   useEffect(() => {
+    if (!optimisticExerciseOrder) return;
+    if (optimisticExerciseOrder.join("|") === sessionExerciseOrderKey) {
+      setOptimisticExerciseOrder(null);
+    }
+  }, [optimisticExerciseOrder, sessionExerciseOrderKey]);
+
+  useEffect(() => {
     const pending = pendingReorderAnimationRef.current;
     if (!pending || pending.expectedOrderKey !== sessionExerciseOrderKey) return;
     pendingReorderAnimationRef.current = null;
-    animateReorderAndKeepExerciseInView(pending.beforeTops, pending.followExerciseKey, pending.followExerciseBeforeTop);
+    animateReorderAndKeepExerciseInView(
+      pending.beforeTops,
+      pending.followExerciseKey,
+      pending.followExerciseBeforeTop,
+      pending.followBehaviour
+    );
   }, [sessionExerciseOrderKey]);
 
   useEffect(() => {
@@ -994,13 +936,15 @@ export function SessionPage() {
         collisionDetection={closestCenter}
         autoScroll={false}
         onDragStart={handleDndDragStart}
-        onDragOver={handleDndDragOver}
-        onDragMove={handleDndDragMove}
         onDragEnd={(event) => void handleDndDragEnd(event)}
         onDragCancel={handleDndDragCancel}
       >
-        <div className="space-y-2">
-          {displayExercises.map((exercise, index) => {
+        <SortableContext
+          items={displayExercises.map((exercise) => exercise.sessionExerciseKey)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="space-y-2">
+            {displayExercises.map((exercise) => {
             const isCollapsed = isReorderMode ? true : (collapsedExercises[exercise.sessionExerciseKey] ?? false);
             const allCompleted = exercise.sets.length > 0 && exercise.sets.every((s) => s.completed);
             const completionFeedback = exerciseCompletionFeedback[exercise.sessionExerciseKey];
@@ -1021,7 +965,9 @@ export function SessionPage() {
                   if (!currSet) return true;
                   const prevReps = prevSet.actualReps ?? prevSet.targetReps;
                   const prevWeight = prevSet.actualWeight ?? prevSet.targetWeight;
-                  return prevReps !== currSet.targetReps || prevWeight !== currSet.targetWeight;
+                  const currentReps = currSet.actualReps ?? currSet.targetReps;
+                  const currentWeight = currSet.actualWeight ?? currSet.targetWeight;
+                  return prevReps !== currentReps || prevWeight !== currentWeight;
                 });
               if (!hasDeviation) return undefined;
               return sortedPrev
@@ -1032,12 +978,11 @@ export function SessionPage() {
               <ReorderableExerciseCard
                 key={exercise.sessionExerciseKey}
                 exerciseKey={exercise.sessionExerciseKey}
-                isLast={index === displayExercises.length - 1}
                 reorderMode={isReorderMode}
                 isLocked={isLocked}
                 cardRef={(node) => { exerciseCardRefs.current[exercise.sessionExerciseKey] = node; }}
               >
-                {({ isDragging, dragHandleAttributes, dragHandleListeners }) => (
+                {({ isDragging }) => (
                   <ExerciseCard
                     exercise={exercise}
                     sessionId={numericSessionId}
@@ -1051,8 +996,6 @@ export function SessionPage() {
                     t={t}
                     reorderMode={isReorderMode}
                     isDragging={draggedExerciseKey === exercise.sessionExerciseKey && isDragging}
-                    dragHandleAttributes={dragHandleAttributes}
-                    dragHandleListeners={dragHandleListeners}
                     onToggleCollapse={() =>
                       !isReorderMode &&
                       setCollapsedExercises((prev) => ({
@@ -1075,8 +1018,9 @@ export function SessionPage() {
                 )}
               </ReorderableExerciseCard>
             );
-          })}
-        </div>
+            })}
+          </div>
+        </SortableContext>
       </DndContext>
 
       {!isCompleted && payload.previousSummary && payload.previousSummary.extraExercises.length > 0 && (

@@ -110,14 +110,14 @@ export function UpNextPanel({
           </div>
         </div>
       ) : (
-        <div className="rounded-[30px] border border-white/55 bg-background/85 p-1.5 shadow-[0_12px_28px_rgba(15,23,42,0.08)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/72">
+        <>
           <div
-            className={`z-20 ${UP_NEXT_BOX_CLASS} ${
+            className={`z-20 ${UP_NEXT_BOX_CLASS} backdrop-blur-xl ${
               nextSetIsPrimary
-                ? "border-emerald-400/35 bg-emerald-500 text-emerald-50"
+                ? "border-emerald-400/40 bg-emerald-500/90 text-emerald-50 supports-[backdrop-filter]:bg-emerald-500/80"
                 : showRestTimer
-                  ? "border-border bg-card text-foreground"
-                  : "border-border bg-card text-foreground"
+                  ? "border-border bg-secondary text-foreground"
+                  : "border-border bg-secondary/90 text-foreground supports-[backdrop-filter]:bg-secondary/75"
             }`}
           >
             <div className="relative z-[1] flex flex-col px-4 py-2">
@@ -148,6 +148,7 @@ export function UpNextPanel({
                     exercise={nextActionableExercise}
                     set={nextActionableSet}
                     hideButton
+                    noteStyle="inline"
                     variant={nextSetIsPrimary ? "colored" : "neutral-muted"}
                     weightUnitLabel={weightUnitLabel}
                     doneAriaLabel={t("done")}
@@ -159,10 +160,10 @@ export function UpNextPanel({
 
           {showRestTimer && (
             <div
-              className={`relative z-10 -mt-[48px] ${UP_NEXT_BOX_CLASS} px-4 pb-3 ${
+              className={`relative z-10 -mt-[48px] ${UP_NEXT_BOX_CLASS} px-4 pb-3 backdrop-blur-xl ${
                 timerIsPrimary
-                  ? "border-orange-200/90 bg-orange-100 text-orange-950 dark:border-amber-600/30 dark:bg-amber-900/60 dark:text-amber-100"
-                  : "border-border bg-card text-foreground"
+                  ? "border-orange-200/80 bg-orange-100/90 text-orange-950 supports-[backdrop-filter]:bg-orange-100/80 dark:border-amber-600/30 dark:bg-amber-900/40 dark:text-amber-100 dark:supports-[backdrop-filter]:bg-amber-900/30"
+                  : "border-border bg-secondary/90 text-foreground supports-[backdrop-filter]:bg-secondary/70"
               }`}
               style={{ paddingTop: `${UP_NEXT_CARD_OVERLAP_PX + 6}px` }}
             >
@@ -211,7 +212,7 @@ export function UpNextPanel({
               </div>
             </div>
           )}
-        </div>
+        </>
       )}
     </section>
   );

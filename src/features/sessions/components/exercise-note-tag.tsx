@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { NotebookPen } from "lucide-react";
 
 interface ExerciseNoteTagProps {
@@ -5,22 +6,64 @@ interface ExerciseNoteTagProps {
   className?: string;
 }
 
+const NOTE_ZIGZAG_STEP_PX = 10;
+const NOTE_HORIZONTAL_PADDING_PX = 20;
+const NOTE_BORDER_PX = 2;
+const NOTE_ICON_AND_GAP_PX = 14;
+
 function cx(...parts: Array<string | null | undefined | false>) {
   return parts.filter(Boolean).join(" ");
 }
 
 export function ExerciseNoteTag({ note, className }: ExerciseNoteTagProps) {
+  const textRef = useRef<HTMLSpanElement | null>(null);
+  const [snappedWidth, setSnappedWidth] = useState<number | null>(null);
+
+  useEffect(() => {
+    const node = textRef.current;
+    if (!node) return;
+
+    const updateWidth = () => {
+      const textWidth = Math.ceil(node.getBoundingClientRect().width);
+      const rawWidth = textWidth + NOTE_HORIZONTAL_PADDING_PX + NOTE_BORDER_PX + NOTE_ICON_AND_GAP_PX;
+      setSnappedWidth(Math.ceil(rawWidth / NOTE_ZIGZAG_STEP_PX) * NOTE_ZIGZAG_STEP_PX);
+    };
+
+    updateWidth();
+
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [note]);
+
   return (
     <span
       className={cx(
-        "relative inline-flex max-w-full items-start gap-1.5 overflow-hidden rounded-[11px] border border-zinc-300/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,244,245,0.98))] px-2.5 py-1.5 text-[11px] leading-tight text-zinc-600",
-        "before:pointer-events-none before:absolute before:inset-x-2 before:top-0 before:h-px before:bg-[repeating-linear-gradient(to_right,rgba(212,212,216,0.9)_0_10px,transparent_10px_15px)]",
+        "relative inline-flex max-w-full overflow-visible border-x border-b border-t-0 border-zinc-200/80 px-2.5 pb-1.5 pt-2.5 text-[11px] leading-tight text-zinc-500/85",
+        "rounded-b-[4px]",
         className
       )}
+      style={snappedWidth ? { width: `${snappedWidth}px`, maxWidth: "100%" } : undefined}
       aria-label={note}
     >
-      <NotebookPen className="mt-[1px] h-3 w-3 shrink-0 text-zinc-400" aria-hidden="true" />
-      <span className="min-w-0">{note}</span>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute left-[-1px] right-[-1px] top-[-1px] h-[4px]"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='4' viewBox='0 0 10 4'%3E%3Cpath d='M0 1 L5 4 L10 1' fill='none' stroke='%23e4e4e7' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")",
+          backgroundSize: "10px 4px",
+          backgroundRepeat: "repeat-x",
+          backgroundPosition: "left top"
+        }}
+      />
+      <span aria-hidden="true" className="mt-[1px] mr-1 inline-flex shrink-0 text-zinc-400/80">
+        <NotebookPen className="h-3 w-3" />
+      </span>
+      <span ref={textRef} className="min-w-0">
+        {note}
+      </span>
     </span>
   );
 }

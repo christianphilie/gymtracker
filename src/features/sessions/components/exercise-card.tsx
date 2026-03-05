@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, RefCallback } from "react";
+import type { RefCallback } from "react";
 import { Check, GripVertical, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
@@ -45,8 +45,6 @@ interface ExerciseCardProps {
   onRequestDeleteExercise: (key: string) => void;
   reorderMode?: boolean;
   isDragging?: boolean;
-  dragHandleAttributes?: Record<string, unknown>;
-  dragHandleListeners?: Record<string, unknown>;
 }
 
 export function ExerciseCard({
@@ -68,20 +66,14 @@ export function ExerciseCard({
   onUpdateWeight,
   onRequestDeleteExercise,
   reorderMode = false,
-  isDragging = false,
-  dragHandleAttributes,
-  dragHandleListeners
+  isDragging = false
 }: ExerciseCardProps) {
   const allCompleted = exercise.sets.length > 0 && exercise.sets.every((s) => s.completed);
-  const mergedDragHandleProps = {
-    ...(dragHandleAttributes as ButtonHTMLAttributes<HTMLButtonElement> | undefined),
-    ...(dragHandleListeners as ButtonHTMLAttributes<HTMLButtonElement> | undefined)
-  };
 
   return (
     <Card
       ref={cardRef}
-      className={`transition-all duration-200 ${isDragging ? "ring-2 ring-emerald-400/60" : ""}`}
+      className={`transition-all duration-200 ${isDragging ? "ring-2 ring-emerald-400/60" : ""} ${reorderMode ? "pointer-events-none" : ""}`}
     >
       <CardHeader className="space-y-2">
         <div className="flex min-h-5 items-start justify-between gap-2">
@@ -110,15 +102,13 @@ export function ExerciseCard({
           </div>
           <div className="flex items-center gap-1">
             {reorderMode && (
-              <button
-                type="button"
-                className="inline-flex touch-none select-none items-center justify-center text-muted-foreground active:cursor-grabbing [-webkit-touch-callout:none] [-webkit-user-select:none]"
-                aria-label={t("reorderExercise")}
+              <span
+                aria-hidden
+                className="inline-flex pointer-events-none items-center justify-center text-muted-foreground/70"
                 title={t("reorderExercise")}
-                {...mergedDragHandleProps}
               >
                 <GripVertical className="h-4 w-4 cursor-grab" />
-              </button>
+              </span>
             )}
             {allCompleted && (
               <div className="flex items-center gap-1">
@@ -150,7 +140,7 @@ export function ExerciseCard({
       <div className={`grid transition-all duration-200 ${isCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}>
         <div className="overflow-hidden">
           {exercise.exerciseNotes && (
-            <div className="px-6 pb-2">
+            <div className="px-4 pb-2">
               <ExerciseNoteTag note={exercise.exerciseNotes} />
             </div>
           )}
@@ -180,7 +170,7 @@ export function ExerciseCard({
                   {lastSessionSetSummary.map((summary, index) => (
                     <span
                       key={`${summary}-${index}`}
-                      className="inline-flex rounded-full border border-border/80 bg-secondary/60 px-2.5 py-1 text-[11px] font-medium tabular-nums text-foreground/80"
+                      className="inline-flex rounded-full border border-border/80 bg-white px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70"
                     >
                       {summary}
                     </span>

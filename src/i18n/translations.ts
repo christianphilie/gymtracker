@@ -201,7 +201,7 @@ export const messages = {
     targetMuscles: "Zielmuskeln",
     executionGuide: "Ausführung",
     coachingTips: "Coaching-Tipps",
-    moreExerciseResearch: "Anleitung",
+    moreExerciseResearch: "Im Internet suchen",
     exerciseInfoAiDisclaimerShort: "KI-generierte Infos",
     exerciseInfoAiDisclaimerWithMatch: "KI-generierte Infos für: {name}",
     aiImport: "KI-Import",

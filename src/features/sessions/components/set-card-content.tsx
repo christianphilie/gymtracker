@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/utils";
 import type { SessionExerciseSet } from "@/db/types";
@@ -17,6 +17,7 @@ interface SetCardContentProps {
   compact?: boolean;
   previewOnly?: boolean;
   hideButton?: boolean;
+  noteStyle?: "tag" | "inline";
   weightUnitLabel: string;
   onDone?: () => void;
   doneAriaLabel: string;
@@ -29,6 +30,7 @@ export function SetCardContent({
   compact = false,
   previewOnly = false,
   hideButton = false,
+  noteStyle = "tag",
   weightUnitLabel,
   onDone,
   doneAriaLabel
@@ -43,7 +45,6 @@ export function SetCardContent({
   const isNeutral = variant !== "colored";
 
   const titleClass = compact ? "text-sm" : "text-[15px]";
-  const metaClass = compact ? "text-[11px]" : "text-xs";
   const valueClass = compact ? "text-xs" : "text-sm";
   const mainColorClass = isMuted ? "text-foreground/55" : "";
   const metaColorClass = isMuted ? "text-foreground/40" : "opacity-80";
@@ -59,9 +60,18 @@ export function SetCardContent({
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <p className={`${valueClass} font-normal tabular-nums ${valueColorClass}`}>
               {repsValue} × {formatNumber(weightValue, 0)} {weightUnitLabel}
-              {setPositionLabel && <span className={`opacity-75 ${metaClass}`}> · {setPositionLabel}</span>}
+              {setPositionLabel && <span className="opacity-75"> · {setPositionLabel}</span>}
+              {noteStyle === "inline" && exercise.exerciseNotes && (
+                <span className="opacity-75">
+                  <span className="mx-1 inline-block" aria-hidden="true">·</span>
+                  <span className="inline-flex items-center gap-1 align-middle">
+                    <NotebookPen className="h-[0.9em] w-[0.9em] shrink-0" />
+                    <span>{exercise.exerciseNotes}</span>
+                  </span>
+                </span>
+              )}
             </p>
-            {exercise.exerciseNotes && (
+            {noteStyle === "tag" && exercise.exerciseNotes && (
               <ExerciseNoteTag
                 note={exercise.exerciseNotes}
                 className={`${isMuted ? "border-zinc-300/70 text-zinc-500" : ""} ${compact ? "px-2 py-1 text-[10px]" : ""} ${metaColorClass}`}
