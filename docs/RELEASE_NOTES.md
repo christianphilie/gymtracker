@@ -2,18 +2,26 @@
 
 ## Unreleased
 
+---
+
+## 1.3.3 - 2026-03-05
+
 ### Changed
 1. Weekly Data navigation now derives the earliest available week from completed sessions and disables backward navigation once no older data exists; week switching uses only left/right arrows.
 2. Active session exercise cards now show last-session set details inside the collapsible exercise content instead of the card header area.
-3. Bottom tab links and key route navigations now use browser View Transitions, with an updated lightweight route-enter fallback animation.
+3. iPhone active-session exercise reordering now uses more stable touch drag behavior with improved drop targeting, easier dragging to the last position, and preserved edge auto-scroll while dragging near the viewport boundaries.
 4. Bottom tab bar dark mode styling now removes the visible border and uses shadow-based separation from page content.
-5. Up Next rest timer dark mode styling now uses a friendlier lighter orange treatment.
+5. Up Next now shows exercise notes beneath the title next to the set count, uses a lighter opaque stacked-card treatment, and styles notes as small torn-paper labels instead of plain inline text.
 6. App manifest and favicon assets now switch by `RELEASE_CHANNEL`, so non-production deployments show a dedicated beta badge icon while production keeps the default icon set.
+7. Exercise info target-muscle rows now group repeated sub-muscles under a shared middle-group total (for example quadriceps) while listing the contributing detail muscles underneath.
+8. Last-session set history in active exercise cards now uses compact pills instead of a separated text line.
 
 ### Fixed
 1. Removed the legacy header set-progress widget that could briefly flash during Home/Active Session view changes.
 2. Removed the `Done` suffix from the running rest-timer label while keeping elapsed timer visibility.
 3. Up Next now fully hides rest-timer label and timer content when the rest timer is disabled in settings.
+4. Bottom tab bar blur and active-session Up Next blur now avoid the iPhone view-change flicker caused by the previous extra transition/blur layering.
+5. Automatically reordering an exercise after completing a set now scrolls with the moving card so its title stays visible below the sticky Up Next panel.
 
 ---
 

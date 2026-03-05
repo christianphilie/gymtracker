@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode, RefCallback } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 
 const DRAGGABLE_ID_PREFIX = "session-exercise:";
-const DROP_BEFORE_ID_PREFIX = "session-drop-before:";
+const DROP_ZONE_ID_PREFIX = "session-drop-zone:";
 const DROP_AFTER_LAST_ID = "session-drop-after-last";
 
 interface ReorderableExerciseCardProps {
@@ -23,9 +23,9 @@ export function getDragExerciseKey(value: unknown) {
   return value.slice(DRAGGABLE_ID_PREFIX.length) || null;
 }
 
-export function getDropBeforeExerciseKey(value: unknown) {
-  if (typeof value !== "string" || !value.startsWith(DROP_BEFORE_ID_PREFIX)) return null;
-  return value.slice(DROP_BEFORE_ID_PREFIX.length) || null;
+export function getDropZoneExerciseKey(value: unknown) {
+  if (typeof value !== "string" || !value.startsWith(DROP_ZONE_ID_PREFIX)) return null;
+  return value.slice(DROP_ZONE_ID_PREFIX.length) || null;
 }
 
 export function isDropAfterLast(value: unknown) {
@@ -44,8 +44,8 @@ export function ReorderableExerciseCard({
     id: `${DRAGGABLE_ID_PREFIX}${exerciseKey}`,
     disabled: !reorderMode || isLocked
   });
-  const dropBefore = useDroppable({
-    id: `${DROP_BEFORE_ID_PREFIX}${exerciseKey}`,
+  const dropZone = useDroppable({
+    id: `${DROP_ZONE_ID_PREFIX}${exerciseKey}`,
     disabled: !reorderMode || isLocked
   });
   const dropAfterLast = useDroppable({
@@ -65,10 +65,10 @@ export function ReorderableExerciseCard({
       <div
         ref={(node) => {
           draggable.setNodeRef(node);
-          dropBefore.setNodeRef(node);
+          dropZone.setNodeRef(node);
           cardRef(node);
         }}
-        className={`${draggable.isDragging ? "opacity-85" : ""} ${reorderMode && isLocked ? "pointer-events-none opacity-40" : ""}`}
+        className={`${draggable.isDragging ? "opacity-85" : ""} ${reorderMode ? "select-none [-webkit-user-select:none]" : ""} ${reorderMode && isLocked ? "pointer-events-none opacity-40" : ""}`}
         style={dragStyle}
       >
         {children({
@@ -79,7 +79,7 @@ export function ReorderableExerciseCard({
       </div>
 
       {reorderMode && isLast && (
-        <div ref={dropAfterLast.setNodeRef} className="h-2" aria-hidden="true" />
+        <div ref={dropAfterLast.setNodeRef} className="h-16" aria-hidden="true" />
       )}
     </>
   );

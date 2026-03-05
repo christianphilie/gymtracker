@@ -1,7 +1,8 @@
-import { Check, NotebookPen } from "lucide-react";
+import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/utils";
 import type { SessionExerciseSet } from "@/db/types";
+import { ExerciseNoteTag } from "./exercise-note-tag";
 
 export type SetCardVariant = "colored" | "neutral" | "neutral-muted";
 
@@ -53,24 +54,20 @@ export function SetCardContent({
       <div className="min-w-0 flex-1">
         <p className={`${titleClass} overflow-hidden whitespace-nowrap font-semibold leading-tight ${mainColorClass}`}>
           <span>{exercise.exerciseName}</span>
-          {!previewOnly && exercise.exerciseNotes && (
-            <span className={`${metaClass} font-medium ${metaColorClass}`}>
-              <span className="mx-1 inline-block" aria-hidden="true">·</span>
-              <span className="inline-flex items-center gap-1 align-middle">
-                <NotebookPen className="h-[0.9em] w-[0.9em] shrink-0" />
-                <span>{exercise.exerciseNotes}</span>
-              </span>
-            </span>
-          )}
         </p>
         {!previewOnly && (
-          <p
-            className={`${valueClass} font-normal tabular-nums ${valueColorClass}`}
-            style={{ marginTop: compact ? "2px" : "-0.5px" }}
-          >
-            {repsValue} × {formatNumber(weightValue, 0)} {weightUnitLabel}
-            {setPositionLabel && <span className="opacity-75"> · {setPositionLabel}</span>}
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <p className={`${valueClass} font-normal tabular-nums ${valueColorClass}`}>
+              {repsValue} × {formatNumber(weightValue, 0)} {weightUnitLabel}
+              {setPositionLabel && <span className={`opacity-75 ${metaClass}`}> · {setPositionLabel}</span>}
+            </p>
+            {exercise.exerciseNotes && (
+              <ExerciseNoteTag
+                note={exercise.exerciseNotes}
+                className={`${isMuted ? "border-zinc-300/70 text-zinc-500" : ""} ${compact ? "px-2 py-1 text-[10px]" : ""} ${metaColorClass}`}
+              />
+            )}
+          </div>
         )}
       </div>
       {!previewOnly && !hideButton && (

@@ -76,7 +76,6 @@ function BottomNavItem({
     <div className="flex w-[4.8875rem] shrink-0 justify-center">
       <Link
         to={to}
-        viewTransition
         aria-label={label}
         title={label}
         className={cn(
@@ -394,18 +393,10 @@ export function AppShell() {
         </div>
       </header>
       <main className="container flex-1 py-4 pb-28 sm:pb-24">
-        <div key={location.pathname} className="gt-route-enter">
-          <Outlet />
-        </div>
+        <Outlet />
       </main>
       <div
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-[29] h-36"
-        style={{
-          backdropFilter: "blur(14px)",
-          WebkitBackdropFilter: "blur(14px)",
-          maskImage: "linear-gradient(to top, black 30%, transparent)",
-          WebkitMaskImage: "linear-gradient(to top, black 30%, transparent)"
-        }}
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-[29] h-28 bg-gradient-to-t from-background/95 via-background/72 to-transparent"
         aria-hidden="true"
       />
       <div className="pointer-events-none fixed inset-x-0 bottom-6 z-30 px-4">

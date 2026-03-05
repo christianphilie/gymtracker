@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, type NavigateOptions, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
   ChevronDown,
@@ -82,10 +82,6 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
   const [muscleMetricMode, setMuscleMetricMode] = useState<MuscleMetricMode>("reps");
   const [homeWeeklyGoalKey, setHomeWeeklyGoalKey] = useState<"workouts" | "duration" | "calories" | "weight" | null>(null);
   const earliestCompletedWeekStart = useEarliestCompletedWeekStart();
-
-  const navigateWithTransition = (to: string, options?: NavigateOptions) => {
-    navigate(to, { ...options, viewTransition: true });
-  };
 
   useEffect(() => {
     const timer = window.setInterval(() => setClockTick(Date.now()), 60_000);
@@ -335,7 +331,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
   const handleStartSession = async (workoutId: number) => {
     try {
       const sessionId = await startSession(workoutId);
-      navigateWithTransition(`/sessions/${sessionId}`);
+      navigate(`/sessions/${sessionId}`);
     } catch {
       toast.error("Session start failed");
     }
@@ -375,7 +371,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
               variant="secondary"
               size="sm"
               className="gap-1.5"
-              onClick={() => navigateWithTransition("/workouts/add")}
+              onClick={() => navigate("/workouts/add")}
             >
               <Plus className="h-4 w-4" />
               {t("add")}
@@ -407,7 +403,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
             <Button
               variant="secondary"
               className="h-auto w-full items-center justify-start gap-3 whitespace-normal py-3 text-left"
-              onClick={() => navigateWithTransition("/workouts/new")}
+              onClick={() => navigate("/workouts/new")}
             >
               <Plus className="h-4 w-4 shrink-0" />
               <span className="flex flex-col items-start">
@@ -418,7 +414,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
             <Button
               variant="secondary"
               className="h-auto w-full items-center justify-start gap-3 whitespace-normal py-3 text-left"
-              onClick={() => navigateWithTransition("/import")}
+              onClick={() => navigate("/import")}
             >
               <Sparkles className="h-4 w-4 shrink-0" />
               <span className="flex flex-col items-start">
@@ -434,7 +430,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
             variant="secondary"
             size="sm"
             className="w-full justify-start gap-2"
-            onClick={() => navigateWithTransition("/settings#data-import")}
+            onClick={() => navigate("/settings#data-import")}
           >
             <Download className="h-4 w-4" />
             {t("dashboardImportExistingData")}
@@ -454,8 +450,8 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
               recommendedWorkoutId={recommendedWorkoutId}
               language={language}
               t={t}
-              onOpenHistory={(workoutId) => navigateWithTransition(`/workouts/${workoutId}/history`)}
-              onEditWorkout={(workoutId) => navigateWithTransition(`/workouts/${workoutId}/edit`)}
+              onOpenHistory={(workoutId) => navigate(`/workouts/${workoutId}/history`)}
+              onEditWorkout={(workoutId) => navigate(`/workouts/${workoutId}/edit`)}
               onDiscardActiveSession={(sessionId) => setDiscardConfirmSessionId(sessionId)}
               onStartOrResume={handleStartSession}
             />
@@ -478,8 +474,8 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
               recommendedWorkoutId={recommendedWorkoutId}
               language={language}
               t={t}
-              onOpenHistory={(workoutId) => navigateWithTransition(`/workouts/${workoutId}/history`)}
-              onEditWorkout={(workoutId) => navigateWithTransition(`/workouts/${workoutId}/edit`)}
+              onOpenHistory={(workoutId) => navigate(`/workouts/${workoutId}/history`)}
+              onEditWorkout={(workoutId) => navigate(`/workouts/${workoutId}/edit`)}
               onDiscardActiveSession={(sessionId) => setDiscardConfirmSessionId(sessionId)}
               onStartOrResume={handleStartSession}
             />
@@ -656,7 +652,6 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                     <Link
                       key={item.sessionId}
                       to={`/workouts/${item.workoutId}/history#session-${item.sessionId}`}
-                      viewTransition
                       title={item.title}
                       className="group absolute bottom-4"
                       style={{
@@ -709,7 +704,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                     {t("weeklyGoals")}
                   </p>
                   <Button asChild variant="secondary" size="sm" className="h-7 gap-1 px-2 text-xs">
-                    <Link to="/settings#weekly-goals" viewTransition>
+                    <Link to="/settings#weekly-goals">
                       <PenSquare className="h-3 w-3" />
                       {t("edit")}
                     </Link>

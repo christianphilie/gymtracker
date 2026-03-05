@@ -11,6 +11,7 @@ import {
 import type { ExerciseAiInfo } from "@/db/types";
 import {
   getCanonicalMuscleDetailLabel,
+  getCanonicalMuscleMiddleGroup,
   getCanonicalMuscleMiddleLabel,
   isCanonicalMuscleKey
 } from "@/lib/muscle-taxonomy";
@@ -64,8 +65,29 @@ export function ExerciseInfoDialogButton({
     () => [...(aiInfo?.targetMuscles ?? [])].sort((a, b) => b.involvementPercent - a.involvementPercent),
     [aiInfo?.targetMuscles]
   );
+  const groupedMuscles = useMemo(() => {
+    const groups = new Map<string, { label: string; detailLabels: string[]; total: number }>();
 
-  if (!aiInfo || sortedMuscles.length === 0) {
+    for (const muscle of sortedMuscles) {
+      const middleLabel = getDisplayMuscleLabel(muscle.muscle, muscle.muscleKey, language);
+      const detailLabel = getDisplayMuscleDetailLabel(muscle.muscle, muscle.muscleKey, language);
+      const groupKey = isCanonicalMuscleKey(muscle.muscleKey)
+        ? getCanonicalMuscleMiddleGroup(muscle.muscleKey)
+        : middleLabel.toLowerCase();
+      const current = groups.get(groupKey) ?? { label: middleLabel, detailLabels: [], total: 0 };
+
+      current.total += muscle.involvementPercent;
+      if (detailLabel && detailLabel !== middleLabel && !current.detailLabels.includes(detailLabel)) {
+        current.detailLabels.push(detailLabel);
+      }
+
+      groups.set(groupKey, current);
+    }
+
+    return [...groups.values()].sort((a, b) => b.total - a.total);
+  }, [language, sortedMuscles]);
+
+  if (!aiInfo || groupedMuscles.length === 0) {
     return null;
   }
 
@@ -104,40 +126,30 @@ export function ExerciseInfoDialogButton({
             <section className="space-y-2">
               <h3 className="text-sm font-medium">{t("targetMuscles")}</h3>
               <div className="space-y-2">
-                {sortedMuscles.map((muscle, index) => (
+                {groupedMuscles.map((muscle, index) => (
                   <div
-                    key={`${String(muscle.muscleKey ?? muscle.muscle)}-${muscle.involvementPercent}-${index}`}
+                    key={`${muscle.label}-${muscle.total}-${index}`}
                     className="space-y-1"
                   >
-                    {(() => {
-                      const middleLabel = getDisplayMuscleLabel(muscle.muscle, muscle.muscleKey, language);
-                      const detailLabel = getDisplayMuscleDetailLabel(muscle.muscle, muscle.muscleKey, language);
-                      const showDetail = !!detailLabel && detailLabel !== middleLabel;
-
-                      return (
-                        <>
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="min-w-0 text-xs font-medium text-foreground">
-                              <span>{middleLabel}</span>
-                              {showDetail && (
-                                <span className="ml-1 text-[10px] font-normal text-muted-foreground/60">
-                                  {detailLabel}
-                                </span>
-                              )}
-                            </p>
-                            <p className="text-xs font-medium tabular-nums text-muted-foreground">
-                              {muscle.involvementPercent}%
-                            </p>
-                          </div>
-                          <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
-                            <div
-                              className="h-full rounded-full bg-primary"
-                              style={{ width: `${Math.max(0, Math.min(100, muscle.involvementPercent))}%` }}
-                            />
-                          </div>
-                        </>
-                      );
-                    })()}
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="min-w-0 text-xs font-medium text-foreground">
+                        <span>{muscle.label}</span>
+                      </p>
+                      <p className="text-xs font-medium tabular-nums text-muted-foreground">
+                        {muscle.total}%
+                      </p>
+                    </div>
+                    {muscle.detailLabels.length > 0 && (
+                      <p className="text-[10px] leading-tight text-muted-foreground/70">
+                        {muscle.detailLabels.join(", ")}
+                      </p>
+                    )}
+                    <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+                      <div
+                        className="h-full rounded-full bg-primary"
+                        style={{ width: `${Math.max(0, Math.min(100, muscle.total))}%` }}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>

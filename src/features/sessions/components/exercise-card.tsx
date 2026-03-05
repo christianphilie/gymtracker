@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, RefCallback } from "react";
-import { Check, GripVertical, NotebookPen, Trash2 } from "lucide-react";
+import { Check, GripVertical, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import type { ExerciseAiInfo, SessionExerciseSet } from "@/db/types";
 import type { TranslationKey } from "@/i18n/translations";
 import { addSessionSet, removeSessionSet } from "@/db/repository";
 import { SetRow } from "./set-row";
+import { ExerciseNoteTag } from "./exercise-note-tag";
 
 const SUCCESS_CIRCLE_CLASS =
   "inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-500 dark:bg-emerald-800 dark:text-emerald-100";
@@ -30,7 +31,7 @@ interface ExerciseCardProps {
   isCollapsed: boolean;
   showDoneBadge: boolean;
   sessionIsCompleted: boolean;
-  lastSessionSetSummary?: string;
+  lastSessionSetSummary?: string[];
   weightUnitLabel: string;
   focusedWeightSetId: number | null;
   cardRef?: RefCallback<HTMLDivElement>;
@@ -111,7 +112,7 @@ export function ExerciseCard({
             {reorderMode && (
               <button
                 type="button"
-                className="inline-flex touch-none items-center justify-center text-muted-foreground active:cursor-grabbing"
+                className="inline-flex touch-none select-none items-center justify-center text-muted-foreground active:cursor-grabbing [-webkit-touch-callout:none] [-webkit-user-select:none]"
                 aria-label={t("reorderExercise")}
                 title={t("reorderExercise")}
                 {...mergedDragHandleProps}
@@ -150,10 +151,7 @@ export function ExerciseCard({
         <div className="overflow-hidden">
           {exercise.exerciseNotes && (
             <div className="px-6 pb-2">
-              <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                <NotebookPen className="h-3 w-3 shrink-0" />
-                <span>{exercise.exerciseNotes}</span>
-              </p>
+              <ExerciseNoteTag note={exercise.exerciseNotes} />
             </div>
           )}
           <CardContent className="space-y-2">
@@ -173,11 +171,21 @@ export function ExerciseCard({
               />
             ))}
 
-            {lastSessionSetSummary && (
-              <div className="border-t pt-2">
-                <p className="text-xs text-muted-foreground">
-                  {t("lastSession")}: {lastSessionSetSummary}
+            {lastSessionSetSummary && lastSessionSetSummary.length > 0 && (
+              <div className="space-y-1 pt-1">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                  {t("lastSession")}
                 </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {lastSessionSetSummary.map((summary, index) => (
+                    <span
+                      key={`${summary}-${index}`}
+                      className="inline-flex rounded-full border border-border/80 bg-secondary/60 px-2.5 py-1 text-[11px] font-medium tabular-nums text-foreground/80"
+                    >
+                      {summary}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
 

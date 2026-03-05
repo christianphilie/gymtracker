@@ -1,3 +1,4 @@
+import type { RefCallback } from "react";
 import { Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDurationClock } from "@/lib/utils";
@@ -39,6 +40,7 @@ function PauseSolidIcon({ className }: { className?: string }) {
 }
 
 interface UpNextPanelProps {
+  panelRef?: RefCallback<HTMLElement>;
   mode: UpNextMode;
   nextActionableSet: SessionExerciseSet | null;
   nextActionableExercise: SessionExercise | null;
@@ -68,6 +70,7 @@ function formatFinishedDurationLabel(durationMinutes: number, language: "de" | "
 }
 
 export function UpNextPanel({
+  panelRef,
   mode,
   nextActionableSet,
   nextActionableExercise,
@@ -90,7 +93,7 @@ export function UpNextPanel({
     : `${formatDurationClock(restTimerPanelState.elapsedSeconds)} / ${formatDurationClock(restTimerSeconds)}`;
 
   return (
-    <section className="sticky top-2 z-10 isolate">
+    <section ref={panelRef} className="sticky top-2 z-10 isolate">
       {mode === "complete" && completionStats ? (
         <div
           className={`z-20 ${UP_NEXT_BOX_CLASS} border-white/15 text-white`}
@@ -107,14 +110,14 @@ export function UpNextPanel({
           </div>
         </div>
       ) : (
-        <>
+        <div className="rounded-[30px] border border-white/55 bg-background/85 p-1.5 shadow-[0_12px_28px_rgba(15,23,42,0.08)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/72">
           <div
-            className={`z-20 ${UP_NEXT_BOX_CLASS} backdrop-blur-xl ${
+            className={`z-20 ${UP_NEXT_BOX_CLASS} ${
               nextSetIsPrimary
-                ? "border-emerald-400/40 bg-emerald-500/90 text-emerald-50 supports-[backdrop-filter]:bg-emerald-500/80"
+                ? "border-emerald-400/35 bg-emerald-500 text-emerald-50"
                 : showRestTimer
-                  ? "border-border bg-secondary text-foreground"
-                  : "border-border bg-secondary/90 text-foreground supports-[backdrop-filter]:bg-secondary/75"
+                  ? "border-border bg-card text-foreground"
+                  : "border-border bg-card text-foreground"
             }`}
           >
             <div className="relative z-[1] flex flex-col px-4 py-2">
@@ -156,10 +159,10 @@ export function UpNextPanel({
 
           {showRestTimer && (
             <div
-              className={`relative z-10 -mt-[48px] ${UP_NEXT_BOX_CLASS} px-4 pb-3 backdrop-blur-xl ${
+              className={`relative z-10 -mt-[48px] ${UP_NEXT_BOX_CLASS} px-4 pb-3 ${
                 timerIsPrimary
-                  ? "border-orange-200/80 bg-orange-100/90 text-orange-950 supports-[backdrop-filter]:bg-orange-100/80 dark:border-amber-600/30 dark:bg-amber-900/40 dark:text-amber-100 dark:supports-[backdrop-filter]:bg-amber-900/30"
-                  : "border-border bg-secondary/90 text-foreground supports-[backdrop-filter]:bg-secondary/70"
+                  ? "border-orange-200/90 bg-orange-100 text-orange-950 dark:border-amber-600/30 dark:bg-amber-900/60 dark:text-amber-100"
+                  : "border-border bg-card text-foreground"
               }`}
               style={{ paddingTop: `${UP_NEXT_CARD_OVERLAP_PX + 6}px` }}
             >
@@ -208,7 +211,7 @@ export function UpNextPanel({
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </section>
   );

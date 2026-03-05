@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, type NavigateOptions, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent, type DragMoveEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
+import { DndContext, PointerSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type DragMoveEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
 import { ArrowUpDown, Check, Flag, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
@@ -32,7 +32,7 @@ import { ExerciseCard } from "./components/exercise-card";
 import type { UpNextMode, RestTimerPanelState } from "./components/up-next-panel";
 import { UpNextPanel } from "./components/up-next-panel";
 import { CompletionStats } from "./components/completion-stats";
-import { ReorderableExerciseCard, getDragExerciseKey, getDropBeforeExerciseKey, isDropAfterLast } from "./components/reorderable-exercise-card";
+import { ReorderableExerciseCard, getDragExerciseKey, getDropZoneExerciseKey, isDropAfterLast } from "./components/reorderable-exercise-card";
 import {
   DeleteExerciseDialog,
   DiscardSessionDialog,
@@ -90,9 +90,6 @@ export function SessionPage() {
   const navigate = useNavigate();
   const { t, weightUnit, weightUnitLabel, language, restTimerEnabled, restTimerSeconds } = useSettings();
   const numericSessionId = Number(sessionId);
-  const navigateWithTransition = (to: string, options?: NavigateOptions) => {
-    navigate(to, { ...options, viewTransition: true });
-  };
 
   const [newExerciseName, setNewExerciseName] = useState("");
   const [isAddExerciseExpanded, setIsAddExerciseExpanded] = useState(false);
@@ -120,10 +117,11 @@ export function SessionPage() {
   const collapsedBeforeReorderRef = useRef<Record<string, boolean> | null>(null);
   const dndAutoScrollFrameRef = useRef<number | null>(null);
   const dndAutoScrollVelocityRef = useRef(0);
+  const upNextPanelRef = useRef<HTMLElement | null>(null);
 
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 6 } })
+    useSensor(TouchSensor, { activationConstraint: { distance: 0 } })
   );
 
   // ── Data queries ──────────────────────────────────────────────────────────
@@ -408,6 +406,12 @@ export function SessionPage() {
     return tops;
   };
 
+  const getStickySessionInsetTop = () => {
+    const rect = upNextPanelRef.current?.getBoundingClientRect();
+    if (!rect || rect.bottom <= 0 || rect.top > 16) return 8;
+    return rect.bottom + 8;
+  };
+
   const animateReorderAndKeepExerciseInView = (
     beforeTops: Map<string, number>,
     sessionExerciseKey: string | null,
@@ -416,7 +420,43 @@ export function SessionPage() {
     animateExerciseReorder(beforeTops);
     if (!sessionExerciseKey || beforeTop === null) return;
     const afterTop = exerciseCardRefs.current[sessionExerciseKey]?.getBoundingClientRect().top;
-    if (typeof afterTop === "number") animatePageScrollBy(afterTop - beforeTop);
+    if (typeof afterTop === "number") {
+      const desiredTop = Math.max(beforeTop, getStickySessionInsetTop());
+      animatePageScrollBy(afterTop - desiredTop);
+    }
+  };
+
+  const getReorderedExerciseKeys = (
+    activeKey: string,
+    overId: unknown,
+    overRect: { top: number; height: number } | null | undefined,
+    translatedRect: { top: number; height: number } | null | undefined,
+    baseOrder: string[]
+  ) => {
+    const withoutActive = baseOrder.filter((key) => key !== activeKey);
+    const dropZoneKey = getDropZoneExerciseKey(overId);
+    const dropOverExerciseKey = getDragExerciseKey(overId);
+
+    let targetIndex =
+      dropZoneKey ? withoutActive.indexOf(dropZoneKey)
+      : dropOverExerciseKey ? withoutActive.indexOf(dropOverExerciseKey)
+      : isDropAfterLast(overId) ? withoutActive.length
+      : -1;
+
+    if (targetIndex < 0) return null;
+
+    const hoveredExerciseKey = dropZoneKey ?? dropOverExerciseKey;
+    if (hoveredExerciseKey && translatedRect && overRect) {
+      const hoveredIndex = withoutActive.indexOf(hoveredExerciseKey);
+      const translatedMidY = translatedRect.top + translatedRect.height / 2;
+      const hoveredMidY = overRect.top + overRect.height / 2;
+      targetIndex = hoveredIndex + (translatedMidY > hoveredMidY ? 1 : 0);
+    }
+
+    targetIndex = Math.max(0, Math.min(withoutActive.length, targetIndex));
+    const nextOrder = [...withoutActive];
+    nextOrder.splice(targetIndex, 0, activeKey);
+    return nextOrder;
   };
 
   // ── DnD helpers ───────────────────────────────────────────────────────────
@@ -613,17 +653,14 @@ export function SessionPage() {
     const overId = event.over?.id ?? null;
     if (!overId) return;
     const baseOrder = liveDisplayOrder ?? sessionExercises.map((e) => e.sessionExerciseKey);
-    const withoutActive = baseOrder.filter((k) => k !== activeKey);
-    const dropBeforeKey = getDropBeforeExerciseKey(overId);
-    const dropOverExerciseKey = getDragExerciseKey(overId);
-    const targetIndex =
-      dropBeforeKey ? withoutActive.indexOf(dropBeforeKey)
-      : dropOverExerciseKey ? withoutActive.indexOf(dropOverExerciseKey)
-      : isDropAfterLast(overId) ? withoutActive.length
-      : -1;
-    if (targetIndex < 0) return;
-    const nextOrder = [...withoutActive];
-    nextOrder.splice(targetIndex, 0, activeKey);
+    const nextOrder = getReorderedExerciseKeys(
+      activeKey,
+      overId,
+      event.over?.rect ?? null,
+      event.active.rect.current.translated,
+      baseOrder
+    );
+    if (!nextOrder) return;
     const dbOrder = sessionExercises.map((e) => e.sessionExerciseKey);
     setLiveDisplayOrder(nextOrder.join("|") === dbOrder.join("|") ? null : nextOrder);
   };
@@ -667,18 +704,14 @@ export function SessionPage() {
     const currentOrder = sessionExercises.map((exercise) => exercise.sessionExerciseKey);
     if (currentOrder.length < 2) return;
 
-    const withoutActive = baseOrder.filter((key) => key !== activeKey);
-    const dropBeforeKey = getDropBeforeExerciseKey(overId);
-    const dropOverExerciseKey = getDragExerciseKey(overId);
-    const targetIndex =
-      dropBeforeKey ? withoutActive.indexOf(dropBeforeKey)
-      : dropOverExerciseKey ? withoutActive.indexOf(dropOverExerciseKey)
-      : isDropAfterLast(overId) ? withoutActive.length
-      : -1;
-    if (targetIndex < 0) return;
-
-    const nextOrder = [...withoutActive];
-    nextOrder.splice(targetIndex, 0, activeKey);
+    const nextOrder = getReorderedExerciseKeys(
+      activeKey,
+      overId,
+      event.over?.rect ?? null,
+      event.active.rect.current.translated,
+      baseOrder
+    );
+    if (!nextOrder) return;
     if (nextOrder.join("|") === currentOrder.join("|")) return;
 
     pendingReorderAnimationRef.current = {
@@ -749,6 +782,21 @@ export function SessionPage() {
       stopReorderMode();
     }
   }, [isReorderMode, sessionExercises.length]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (draggedExerciseKey) {
+      document.body.style.overflow = "hidden";
+      document.body.style.touchAction = "none";
+    } else {
+      document.body.style.overflow = "";
+      document.body.style.touchAction = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.touchAction = "";
+    };
+  }, [draggedExerciseKey]);
 
   useEffect(() => {
     const previous = previousExerciseCompletionFeedbackRef.current;
@@ -923,6 +971,7 @@ export function SessionPage() {
 
       {!isCompleted && !isReorderMode && upNextMode && (
         <UpNextPanel
+          panelRef={(node) => { upNextPanelRef.current = node; }}
           mode={upNextMode}
           nextActionableSet={nextActionableSet}
           nextActionableExercise={nextActionableExercise}
@@ -942,6 +991,8 @@ export function SessionPage() {
 
       <DndContext
         sensors={dndSensors}
+        collisionDetection={closestCenter}
+        autoScroll={false}
         onDragStart={handleDndDragStart}
         onDragOver={handleDndDragOver}
         onDragMove={handleDndDragMove}
@@ -974,8 +1025,7 @@ export function SessionPage() {
                 });
               if (!hasDeviation) return undefined;
               return sortedPrev
-                .map((s) => `${s.actualReps ?? s.targetReps} × ${s.actualWeight ?? s.targetWeight} ${weightUnitLabel}`)
-                .join(" | ");
+                .map((s) => `${s.actualReps ?? s.targetReps} × ${s.actualWeight ?? s.targetWeight} ${weightUnitLabel}`);
             })();
 
             return (
@@ -1181,7 +1231,7 @@ export function SessionPage() {
           await discardSession(numericSessionId);
           setIsDiscardDialogOpen(false);
           toast.success(t("sessionDiscarded"));
-          navigateWithTransition("/");
+          navigate("/");
         }}
         t={t}
       />
@@ -1192,12 +1242,12 @@ export function SessionPage() {
         onCompleteWithoutTemplate={async () => {
           await completeSession(numericSessionId, false);
           toast.success(t("sessionCompleted"));
-          navigateWithTransition("/");
+          navigate("/");
         }}
         onCompleteWithTemplate={async () => {
           await completeSession(numericSessionId, true);
           toast.success(t("sessionCompleted"));
-          navigateWithTransition("/");
+          navigate("/");
         }}
         t={t}
       />
