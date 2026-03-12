@@ -638,6 +638,65 @@ export async function addSessionExercise(sessionId: number, name: string) {
   return { sessionExerciseKey, normalizedBase };
 }
 
+export async function addSessionExerciseFromPrevious(sessionId: number, previousSets: SessionExerciseSet[]) {
+  if (previousSets.length === 0) {
+    throw new Error("Previous exercise sets are required");
+  }
+
+  const session = await db.sessions.get(sessionId);
+  if (!session || session.status !== "active") {
+    throw new Error("Active session not found");
+  }
+
+  const sortedPreviousSets = [...previousSets].sort((a, b) => a.templateSetOrder - b.templateSetOrder);
+  const firstSet = sortedPreviousSets[0];
+  const trimmedName = firstSet.exerciseName.trim();
+  if (!trimmedName) {
+    throw new Error("Exercise name is required");
+  }
+
+  const currentSets = await db.sessionExerciseSets.where("sessionId").equals(sessionId).toArray();
+  const existingNames = new Set(currentSets.map((set) => set.exerciseName.trim().toLowerCase()));
+
+  const normalizedBase = trimmedName.toLowerCase();
+  let finalName = trimmedName;
+  let suffix = 2;
+  while (existingNames.has(finalName.toLowerCase())) {
+    finalName = `${trimmedName} ${suffix}`;
+    suffix += 1;
+  }
+
+  const maxOrder = currentSets.reduce((maxValue, set) => Math.max(maxValue, set.exerciseOrder), -1);
+  const sessionExerciseKey = `custom-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  await db.transaction("rw", db.sessionExerciseSets, async () => {
+    for (let index = 0; index < sortedPreviousSets.length; index += 1) {
+      const set = sortedPreviousSets[index];
+      const targetReps = set.actualReps ?? set.targetReps;
+      const targetWeight = set.actualWeight ?? set.targetWeight;
+      await db.sessionExerciseSets.add({
+        sessionId,
+        sessionExerciseKey,
+        exerciseName: finalName,
+        exerciseNotes: firstSet.exerciseNotes,
+        exerciseAiInfo: firstSet.exerciseAiInfo,
+        exerciseOrder: maxOrder + 1,
+        isTemplateExercise: false,
+        x2Enabled: firstSet.x2Enabled ?? false,
+        negativeWeightEnabled: firstSet.negativeWeightEnabled ?? false,
+        templateSetOrder: index,
+        targetReps,
+        targetWeight,
+        actualReps: targetReps,
+        actualWeight: targetWeight,
+        completed: false
+      });
+    }
+  });
+
+  return { sessionExerciseKey, normalizedBase };
+}
+
 export async function removeSessionSet(setId: number) {
   const set = await db.sessionExerciseSets.get(setId);
   if (!set) {

@@ -10,9 +10,9 @@ export interface WeeklyStatsWorkoutEntry {
   weekdayLabel: string;
   startedAt: string;
   finishedAt: string | null;
-  midpointAt: string;
 }
 
+export type StatisticsPeriod = "week" | "month" | "year";
 export type MuscleMetricMode = "reps" | "sets" | "weight";
 export type MuscleGroupKey = "back" | "shoulders" | "core" | "arms" | "chest" | "legs";
 
@@ -46,6 +46,9 @@ export interface WeeklyDashboardStats {
 }
 
 export const MUSCLE_GROUP_ORDER: MuscleGroupKey[] = ["back", "shoulders", "core", "arms", "chest", "legs"];
+export const STATS_PERIOD_SEARCH_PARAM = "period";
+export const STATS_OFFSET_SEARCH_PARAM = "offset";
+const LEGACY_STATS_WEEK_SEARCH_PARAM = "week";
 
 export function createEmptyMuscleGroupMetrics(): WeeklyMuscleGroupMetrics {
   return {
@@ -87,6 +90,180 @@ export function getWeekEndExclusive(weekStart: Date) {
   const next = new Date(weekStart);
   next.setDate(next.getDate() + 7);
   return next;
+}
+
+export function getMonthStart(date: Date) {
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  target.setDate(1);
+  return target;
+}
+
+export function getYearStart(date: Date) {
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  target.setMonth(0, 1);
+  return target;
+}
+
+export function getStatisticsPeriodStart(date: Date, period: StatisticsPeriod) {
+  if (period === "month") {
+    return getMonthStart(date);
+  }
+
+  if (period === "year") {
+    return getYearStart(date);
+  }
+
+  return getWeekStart(date);
+}
+
+export function getStatisticsPeriodEndExclusive(periodStart: Date, period: StatisticsPeriod) {
+  if (period === "month") {
+    const next = new Date(periodStart);
+    next.setMonth(next.getMonth() + 1);
+    return next;
+  }
+
+  if (period === "year") {
+    const next = new Date(periodStart);
+    next.setFullYear(next.getFullYear() + 1);
+    return next;
+  }
+
+  return getWeekEndExclusive(periodStart);
+}
+
+export function shiftStatisticsPeriodStart(periodStart: Date, period: StatisticsPeriod, amount: number) {
+  const next = new Date(periodStart);
+
+  if (period === "month") {
+    next.setMonth(next.getMonth() + amount);
+    return getMonthStart(next);
+  }
+
+  if (period === "year") {
+    next.setFullYear(next.getFullYear() + amount);
+    return getYearStart(next);
+  }
+
+  next.setDate(next.getDate() + amount * 7);
+  return getWeekStart(next);
+}
+
+export function getStatisticsPeriodOffset(currentStart: Date, targetStart: Date, period: StatisticsPeriod) {
+  if (period === "month") {
+    return (
+      (targetStart.getFullYear() - currentStart.getFullYear()) * 12 +
+      (targetStart.getMonth() - currentStart.getMonth())
+    );
+  }
+
+  if (period === "year") {
+    return targetStart.getFullYear() - currentStart.getFullYear();
+  }
+
+  const diffMs = targetStart.getTime() - currentStart.getTime();
+  return Math.floor(diffMs / (7 * 86_400_000));
+}
+
+export function parseStatisticsPeriod(value: string | null): StatisticsPeriod {
+  if (value === "month" || value === "year") {
+    return value;
+  }
+
+  return "week";
+}
+
+export function parseStatisticsOffset(value: string | null, legacyWeekValue?: string | null) {
+  const raw = value ?? legacyWeekValue ?? null;
+  if (raw === null) {
+    return 0;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed > 0) {
+    return 0;
+  }
+
+  return parsed;
+}
+
+export function formatStatisticsPeriodLabel(
+  periodStart: Date,
+  period: StatisticsPeriod,
+  language: "de" | "en"
+) {
+  if (period === "month") {
+    return new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
+      month: "short",
+      year: "numeric"
+    })
+      .format(periodStart)
+      .replace(/\.$/, "");
+  }
+
+  if (period === "year") {
+    return new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
+      year: "numeric"
+    }).format(periodStart);
+  }
+
+  const start = new Date(periodStart);
+  const end = new Date(periodStart);
+  end.setDate(end.getDate() + 6);
+
+  const startFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
+    day: "2-digit",
+    month: "2-digit"
+  });
+  const endFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  });
+
+  return `${startFormatter.format(start)} – ${endFormatter.format(end)}`;
+}
+
+export function getStatisticsPeriodTitleKey(period: StatisticsPeriod) {
+  if (period === "month") {
+    return "monthlyData" as const;
+  }
+
+  if (period === "year") {
+    return "yearlyData" as const;
+  }
+
+  return "weeklyData" as const;
+}
+
+export function getPreviousStatisticsPeriodLabelKey(period: StatisticsPeriod) {
+  if (period === "month") {
+    return "previousMonth" as const;
+  }
+
+  if (period === "year") {
+    return "previousYear" as const;
+  }
+
+  return "previousWeek" as const;
+}
+
+export function getNextStatisticsPeriodLabelKey(period: StatisticsPeriod) {
+  if (period === "month") {
+    return "nextMonth" as const;
+  }
+
+  if (period === "year") {
+    return "nextYear" as const;
+  }
+
+  return "nextWeek" as const;
+}
+
+export function clearLegacyStatisticsWeekParam(searchParams: URLSearchParams) {
+  searchParams.delete(LEGACY_STATS_WEEK_SEARCH_PARAM);
 }
 
 export function normalizeWeeklyGoal(value: unknown) {

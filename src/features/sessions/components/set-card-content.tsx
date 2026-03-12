@@ -1,6 +1,6 @@
 import { Check, NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatNumber } from "@/lib/utils";
+import { formatWeightValue } from "@/lib/utils";
 import type { SessionExerciseSet } from "@/db/types";
 import { ExerciseNoteTag } from "./exercise-note-tag";
 
@@ -59,7 +59,7 @@ export function SetCardContent({
         {!previewOnly && (
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <p className={`${valueClass} font-normal tabular-nums ${valueColorClass}`}>
-              {repsValue} × {formatNumber(weightValue, 0)} {weightUnitLabel}
+              {repsValue} × {formatWeightValue(weightValue)} {weightUnitLabel}
               {setPositionLabel && <span className="opacity-75"> · {setPositionLabel}</span>}
               {noteStyle === "inline" && exercise.exerciseNotes && (
                 <span className="opacity-75">

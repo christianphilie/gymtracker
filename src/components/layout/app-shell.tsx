@@ -1,8 +1,11 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   ChartNoAxesCombined,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Check,
   Dumbbell,
   House,
@@ -17,10 +20,33 @@ import {
   X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { LockerNoteInput } from "@/components/forms/locker-note-input";
 import { useSettings } from "@/app/settings-context";
 import { db } from "@/db/db";
 import { cn } from "@/lib/utils";
+import { useEarliestCompletedPeriodStart } from "@/features/dashboard/use-dashboard-page-data";
+import {
+  clearLegacyStatisticsWeekParam,
+  formatStatisticsPeriodLabel,
+  getNextStatisticsPeriodLabelKey,
+  getPreviousStatisticsPeriodLabelKey,
+  getStatisticsPeriodOffset,
+  getStatisticsPeriodStart,
+  getStatisticsPeriodTitleKey,
+  parseStatisticsOffset,
+  parseStatisticsPeriod,
+  shiftStatisticsPeriodStart,
+  STATS_OFFSET_SEARCH_PARAM,
+  STATS_PERIOD_SEARCH_PARAM,
+  type StatisticsPeriod
+} from "@/features/statistics/weekly-data-utils";
 
 // iOS homescreen hint (temporarily disabled; keep for later re-enable)
 // const IOS_WEBAPP_HINT_DISMISSED_KEY = "gymtracker:ios-webapp-hint-dismissed";
@@ -53,6 +79,23 @@ interface HeaderActionsProps {
   showEditorSave: boolean;
   onEditorCancel: () => void;
   onEditorSave: () => void;
+}
+
+interface StatisticsWeekHeaderControlsProps {
+  weekLabel: string;
+  canGoPrevious: boolean;
+  canGoNext: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+  previousLabel: string;
+  nextLabel: string;
+}
+
+interface StatisticsPeriodSelectProps {
+  value: StatisticsPeriod;
+  onChange: (period: StatisticsPeriod) => void;
+  label: string;
+  options: Array<{ value: StatisticsPeriod; label: string }>;
 }
 
 interface BottomNavItemProps {
@@ -122,9 +165,85 @@ function HeaderActions({
   return null;
 }
 
+function StatisticsWeekHeaderControls({
+  weekLabel,
+  canGoPrevious,
+  canGoNext,
+  onPrevious,
+  onNext,
+  previousLabel,
+  nextLabel
+}: StatisticsWeekHeaderControlsProps) {
+  return (
+    <div className="flex items-center gap-1 rounded-full border border-border/80 bg-secondary/75 p-1">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 rounded-full"
+        onClick={onPrevious}
+        aria-label={previousLabel}
+        title={previousLabel}
+        disabled={!canGoPrevious}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <p className="min-w-[8.5rem] max-w-[8.5rem] truncate whitespace-nowrap px-1 text-center text-[11px] font-semibold tabular-nums leading-none text-foreground/80 sm:min-w-[9.5rem] sm:max-w-[9.5rem] sm:text-xs">
+        {weekLabel}
+      </p>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 rounded-full"
+        onClick={onNext}
+        aria-label={nextLabel}
+        title={nextLabel}
+        disabled={!canGoNext}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
+function StatisticsPeriodSelect({
+  value,
+  onChange,
+  label,
+  options
+}: StatisticsPeriodSelectProps) {
+  const selectedLabel = options.find((option) => option.value === value)?.label ?? label;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          className="inline-flex min-w-0 items-center gap-1 rounded-full px-1 py-0.5 text-left text-lg font-semibold text-foreground transition-colors hover:bg-secondary/70"
+        >
+          <span className="truncate">{selectedLabel}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-44">
+        <DropdownMenuRadioGroup value={value} onValueChange={(nextValue) => onChange(nextValue as StatisticsPeriod)}>
+          {options.map((option) => (
+            <DropdownMenuRadioItem key={option.value} value={option.value}>
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function AppShell() {
-  const { t, lockerNoteEnabled } = useSettings();
+  const { t, lockerNoteEnabled, language } = useSettings();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const pathname = location.pathname;
   const sessionMatch = location.pathname.match(/^\/sessions\/(\d+)$/);
   const workoutEditMatch = location.pathname.match(/^\/workouts\/(\d+)\/edit$/);
@@ -143,6 +262,53 @@ export function AppShell() {
     pathname === "/settings" ||
     pathname === "/legal" ||
     pathname === "/privacy";
+  const showStatisticsPeriodHeader = pathname === "/statistics";
+  const statisticsPeriod = useMemo(
+    () => parseStatisticsPeriod(searchParams.get(STATS_PERIOD_SEARCH_PARAM)),
+    [searchParams]
+  );
+  const statisticsOffset = useMemo(
+    () =>
+      parseStatisticsOffset(
+        searchParams.get(STATS_OFFSET_SEARCH_PARAM),
+        searchParams.get("week")
+      ),
+    [searchParams]
+  );
+  const statisticsPeriodOptions = useMemo(
+    () => [
+      { value: "week" as const, label: t("weeklyData") },
+      { value: "month" as const, label: t("monthlyData") },
+      { value: "year" as const, label: t("yearlyData") }
+    ],
+    [t]
+  );
+  const statisticsTitle = t(getStatisticsPeriodTitleKey(statisticsPeriod));
+  const earliestCompletedPeriodStart = useEarliestCompletedPeriodStart(statisticsPeriod);
+  const currentStatisticsPeriodStart = getStatisticsPeriodStart(new Date(), statisticsPeriod);
+  const earliestStatisticsOffset = useMemo(() => {
+    if (!earliestCompletedPeriodStart) {
+      return null;
+    }
+
+    return getStatisticsPeriodOffset(
+      currentStatisticsPeriodStart,
+      earliestCompletedPeriodStart,
+      statisticsPeriod
+    );
+  }, [currentStatisticsPeriodStart, earliestCompletedPeriodStart, statisticsPeriod]);
+  const visibleStatisticsPeriodStart = useMemo(
+    () => shiftStatisticsPeriodStart(currentStatisticsPeriodStart, statisticsPeriod, statisticsOffset),
+    [currentStatisticsPeriodStart, statisticsPeriod, statisticsOffset]
+  );
+  const statisticsPeriodLabel = useMemo(
+    () => formatStatisticsPeriodLabel(visibleStatisticsPeriodStart, statisticsPeriod, language),
+    [language, statisticsPeriod, visibleStatisticsPeriodStart]
+  );
+  const canNavigateToPreviousStatisticsPeriod =
+    showStatisticsPeriodHeader && earliestStatisticsOffset !== null && statisticsOffset > earliestStatisticsOffset;
+  const canNavigateToNextStatisticsPeriod = showStatisticsPeriodHeader && statisticsOffset < 0;
+
   const pageHeader = useMemo(() => {
     let title = t("appName");
     let Icon = Dumbbell;
@@ -157,7 +323,7 @@ export function AppShell() {
       titleClassName = "text-emerald-500 dark:text-emerald-200";
       containerClassName = "rounded-full bg-emerald-100 px-3.5 py-1.5 dark:bg-emerald-950";
     } else if (location.pathname === "/statistics") {
-      title = t("weeklyData");
+      title = statisticsTitle;
       Icon = ChartNoAxesCombined;
     } else if (location.pathname === "/settings") {
       title = t("settings");
@@ -189,7 +355,7 @@ export function AppShell() {
     }
 
     return { title, Icon, iconClassName, titleClassName, containerClassName };
-  }, [location.pathname, t]);
+  }, [location.pathname, statisticsTitle, t]);
 
   const sessionMeta = useLiveQuery(async () => {
     if (!activeSessionId || Number.isNaN(activeSessionId)) {
@@ -302,7 +468,47 @@ export function AppShell() {
       })
     );
   }, [sessionState, timerPaused]);
-  const showLockerNote = lockerNoteEnabled && !isWorkoutEditRoute;
+
+  const updateStatisticsRouteState = useCallback(
+    (nextPeriod: StatisticsPeriod, nextOffset: number) => {
+      const normalizedOffset = Number.isInteger(nextOffset) && nextOffset <= 0 ? nextOffset : 0;
+      const nextSearchParams = new URLSearchParams(searchParams);
+
+      if (nextPeriod === "week") {
+        nextSearchParams.delete(STATS_PERIOD_SEARCH_PARAM);
+      } else {
+        nextSearchParams.set(STATS_PERIOD_SEARCH_PARAM, nextPeriod);
+      }
+
+      if (normalizedOffset === 0) {
+        nextSearchParams.delete(STATS_OFFSET_SEARCH_PARAM);
+      } else {
+        nextSearchParams.set(STATS_OFFSET_SEARCH_PARAM, String(normalizedOffset));
+      }
+
+      clearLegacyStatisticsWeekParam(nextSearchParams);
+      setSearchParams(nextSearchParams, { replace: true });
+    },
+    [searchParams, setSearchParams]
+  );
+
+  useEffect(() => {
+    if (!showStatisticsPeriodHeader || earliestStatisticsOffset === null) {
+      return;
+    }
+
+    if (statisticsOffset < earliestStatisticsOffset) {
+      updateStatisticsRouteState(statisticsPeriod, earliestStatisticsOffset);
+    }
+  }, [
+    earliestStatisticsOffset,
+    showStatisticsPeriodHeader,
+    statisticsOffset,
+    statisticsPeriod,
+    updateStatisticsRouteState
+  ]);
+
+  const showLockerNote = lockerNoteEnabled && !isWorkoutEditRoute && !showStatisticsPeriodHeader;
   const handleToggleTimer = useCallback(() => {
     if (!sessionState?.sinceIso) {
       return;
@@ -367,7 +573,16 @@ export function AppShell() {
         <div className="container flex h-14 items-center justify-between">
           <div className={`flex min-w-0 items-center gap-2 ${pageHeader.containerClassName}`}>
             <pageHeader.Icon className={`h-5 w-5 shrink-0 ${pageHeader.iconClassName}`} />
-            <p className={`truncate text-lg font-semibold ${pageHeader.titleClassName}`}>{pageHeader.title}</p>
+            {showStatisticsPeriodHeader ? (
+              <StatisticsPeriodSelect
+                value={statisticsPeriod}
+                onChange={(nextPeriod) => updateStatisticsRouteState(nextPeriod, 0)}
+                label={t("statisticsPeriod")}
+                options={statisticsPeriodOptions}
+              />
+            ) : (
+              <p className={`truncate text-lg font-semibold ${pageHeader.titleClassName}`}>{pageHeader.title}</p>
+            )}
             {activeSessionId && sessionState && (() => {
               const pct = sessionState.total > 0 ? Math.round((sessionState.completed / sessionState.total) * 100) : 0;
               return (
@@ -389,6 +604,25 @@ export function AppShell() {
               onEditorCancel={handleEditorCancel}
               onEditorSave={handleEditorSave}
             />
+            {showStatisticsPeriodHeader && (
+              <StatisticsWeekHeaderControls
+                weekLabel={statisticsPeriodLabel}
+                canGoPrevious={canNavigateToPreviousStatisticsPeriod}
+                canGoNext={canNavigateToNextStatisticsPeriod}
+                onPrevious={() => {
+                  if (earliestStatisticsOffset === null) {
+                    return;
+                  }
+                  updateStatisticsRouteState(
+                    statisticsPeriod,
+                    Math.max(earliestStatisticsOffset, statisticsOffset - 1)
+                  );
+                }}
+                onNext={() => updateStatisticsRouteState(statisticsPeriod, Math.min(0, statisticsOffset + 1))}
+                previousLabel={t(getPreviousStatisticsPeriodLabelKey(statisticsPeriod))}
+                nextLabel={t(getNextStatisticsPeriodLabelKey(statisticsPeriod))}
+              />
+            )}
             {showLockerNote && <LockerNoteInput />}
           </div>
         </div>

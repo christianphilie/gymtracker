@@ -65,7 +65,7 @@ function formatFinishedDurationLabel(durationMinutes: number, language: "de" | "
   const hours = Math.floor(rounded / 60);
   const minutes = rounded % 60;
   return language === "de"
-    ? `${hours}:${String(minutes).padStart(2, "0")} Stunden`
+    ? `${hours}:${String(minutes).padStart(2, "0")} h`
     : `${hours}:${String(minutes).padStart(2, "0")} h`;
 }
 

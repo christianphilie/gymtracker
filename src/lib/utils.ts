@@ -81,6 +81,17 @@ export function formatNumber(value: number | undefined, fractionDigits = 0) {
   }).format(value);
 }
 
+export function formatWeightValue(value: number | undefined) {
+  if (value === undefined || Number.isNaN(value)) {
+    return "-";
+  }
+
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1
+  }).format(value);
+}
+
 export function formatDurationClock(totalSeconds: number) {
   const safe = Math.max(0, Math.floor(totalSeconds));
   const minutes = Math.floor(safe / 60)
@@ -99,7 +110,7 @@ export function formatDurationLabel(durationMinutes: number, language: "de" | "e
   const hours = Math.floor(roundedMinutes / 60);
   const minutes = roundedMinutes % 60;
   return language === "de"
-    ? `${hours}:${String(minutes).padStart(2, "0")} Stunden`
+    ? `${hours}:${String(minutes).padStart(2, "0")} h`
     : `${hours}:${String(minutes).padStart(2, "0")} h`;
 }
 

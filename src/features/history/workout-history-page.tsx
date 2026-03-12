@@ -464,7 +464,7 @@ export function WorkoutHistoryPage() {
                       </div>
                       {firstSet.x2Enabled && (
                         <span className="rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-                          ×2
+                          2×
                         </span>
                       )}
                     </div>
@@ -580,7 +580,7 @@ export function WorkoutHistoryPage() {
                       </CardTitle>
                       {firstSet.x2Enabled && (
                         <span className="rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-                          ×2
+                          2×
                         </span>
                       )}
                     </div>

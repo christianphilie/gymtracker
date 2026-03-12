@@ -6,6 +6,7 @@ import { WeightInput } from "./weight-input";
 
 interface SetRowProps {
   set: SessionExerciseSet;
+  x2Enabled: boolean;
   negativeWeightEnabled: boolean;
   sessionIsCompleted: boolean;
   weightUnitLabel: string;
@@ -19,6 +20,7 @@ interface SetRowProps {
 
 export function SetRow({
   set,
+  x2Enabled,
   negativeWeightEnabled,
   sessionIsCompleted,
   weightUnitLabel,
@@ -34,37 +36,49 @@ export function SetRow({
   const showRepsHint = actualReps !== set.targetReps;
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 py-1">
-      <div className="min-w-0">
-        <div className="relative">
-          <DecimalInput
-            value={actualReps}
-            min={0}
-            step={1}
-            disabled={sessionIsCompleted}
-            className={`pr-14 ${set.completed ? "border-muted bg-muted/70 text-muted-foreground opacity-75" : ""}`}
-            onCommit={onUpdateReps}
-          />
-          <div className={`pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-base text-muted-foreground ${set.completed ? "opacity-50" : ""}`}>
-            {showRepsHint && <span className="line-through">{set.targetReps}</span>}
-            <span>×</span>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-1">
+      <div className="relative grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+        <div className="min-w-0">
+          <div className="relative">
+            <DecimalInput
+              value={actualReps}
+              min={0}
+              step={1}
+              disabled={sessionIsCompleted}
+              className={`pr-14 ${set.completed ? "border-muted bg-muted/70 text-muted-foreground opacity-75" : ""}`}
+              onCommit={onUpdateReps}
+            />
+            <div className={`pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-base text-muted-foreground ${set.completed ? "opacity-50" : ""}`}>
+              {showRepsHint && <span className="line-through">{set.targetReps}</span>}
+              <span>×</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="min-w-0">
-        <WeightInput
-          value={actualWeight}
-          negativeWeightEnabled={negativeWeightEnabled}
-          disabled={sessionIsCompleted}
-          completed={set.completed}
-          targetWeight={set.targetWeight}
-          weightUnitLabel={weightUnitLabel}
-          focusedSetId={focusedWeightSetId}
-          setId={set.id}
-          onFocusChange={onFocusChange}
-          onCommit={onUpdateWeight}
-        />
+        {x2Enabled && (
+          <span
+            className={`pointer-events-none absolute left-1/2 top-0 z-10 inline-flex -translate-x-1/2 -translate-y-[22%] items-center rounded-full border border-border/70 bg-background px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground shadow-sm ${
+              set.completed ? "opacity-60" : ""
+            }`}
+          >
+            2×
+          </span>
+        )}
+
+        <div className="min-w-0">
+          <WeightInput
+            value={actualWeight}
+            negativeWeightEnabled={negativeWeightEnabled}
+            disabled={sessionIsCompleted}
+            completed={set.completed}
+            targetWeight={set.targetWeight}
+            weightUnitLabel={weightUnitLabel}
+            focusedSetId={focusedWeightSetId}
+            setId={set.id}
+            onFocusChange={onFocusChange}
+            onCommit={onUpdateWeight}
+          />
+        </div>
       </div>
 
       <div className="flex items-center justify-end">

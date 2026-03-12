@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ChevronLeft,
   ChevronDown,
-  ChevronRight,
   Clock3,
   Download,
   Dumbbell,
@@ -46,19 +44,25 @@ import {
 } from "@/features/dashboard/dashboard-page-cards";
 import {
   useDashboardWorkoutsData,
-  useEarliestCompletedWeekStart,
-  useWeeklyStatsData
+  useEarliestCompletedPeriodStart,
+  useStatisticsPeriodData
 } from "@/features/dashboard/use-dashboard-page-data";
 import {
+  clearLegacyStatisticsWeekParam,
   buildRoundedRadarPath,
   EMPTY_WEEKLY_STATS,
   formatDurationShort,
   formatMuscleMetricValue,
   getMuscleGroupLabel,
   getMuscleMetricValue,
-  getWeekEndExclusive,
-  getWeekStart,
+  getStatisticsPeriodStart,
+  getStatisticsPeriodEndExclusive,
   MUSCLE_GROUP_ORDER,
+  parseStatisticsOffset,
+  parseStatisticsPeriod,
+  STATS_OFFSET_SEARCH_PARAM,
+  STATS_PERIOD_SEARCH_PARAM,
+  type StatisticsPeriod,
   type MuscleMetricMode
 } from "@/features/statistics/weekly-data-utils";
 
@@ -67,51 +71,104 @@ export type DashboardPageSection = "workouts" | "statistics";
 export function DashboardPageContent({ section }: { section: DashboardPageSection }) {
   const { t, language, weightUnit, restTimerEnabled, restTimerSeconds } = useSettings();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [clockTick, setClockTick] = useState(() => Date.now());
-  const [statsWeekOffset, setStatsWeekOffset] = useState(0);
-  const currentWeekStart = useMemo(() => getWeekStart(new Date(clockTick)), [clockTick]);
-  const weekStart = useMemo(() => {
-    const base = new Date(currentWeekStart);
-    if (section === "statistics" && statsWeekOffset !== 0) {
-      base.setDate(base.getDate() + statsWeekOffset * 7);
+  const selectedStatisticsPeriod = useMemo(
+    () => parseStatisticsPeriod(searchParams.get(STATS_PERIOD_SEARCH_PARAM)),
+    [searchParams]
+  );
+  const selectedStatisticsOffset = useMemo(
+    () =>
+      parseStatisticsOffset(
+        searchParams.get(STATS_OFFSET_SEARCH_PARAM),
+        searchParams.get("week")
+      ),
+    [searchParams]
+  );
+  const statisticsPeriod: StatisticsPeriod = section === "statistics" ? selectedStatisticsPeriod : "week";
+  const statisticsOffset = section === "statistics" ? selectedStatisticsOffset : 0;
+  const currentPeriodStart = useMemo(
+    () => getStatisticsPeriodStart(new Date(clockTick), statisticsPeriod),
+    [clockTick, statisticsPeriod]
+  );
+  const periodStart = useMemo(() => {
+    if (statisticsOffset === 0) {
+      return currentPeriodStart;
     }
-    return getWeekStart(base);
-  }, [currentWeekStart, section, statsWeekOffset]);
+
+    const shifted = new Date(currentPeriodStart);
+    if (statisticsPeriod === "month") {
+      shifted.setMonth(shifted.getMonth() + statisticsOffset);
+    } else if (statisticsPeriod === "year") {
+      shifted.setFullYear(shifted.getFullYear() + statisticsOffset);
+    } else {
+      shifted.setDate(shifted.getDate() + statisticsOffset * 7);
+    }
+    return getStatisticsPeriodStart(shifted, statisticsPeriod);
+  }, [currentPeriodStart, statisticsOffset, statisticsPeriod]);
   const [discardConfirmSessionId, setDiscardConfirmSessionId] = useState<number | null>(null);
   const [isCreatingStarterWorkout, setIsCreatingStarterWorkout] = useState(false);
   const [muscleMetricMode, setMuscleMetricMode] = useState<MuscleMetricMode>("reps");
   const [homeWeeklyGoalKey, setHomeWeeklyGoalKey] = useState<"workouts" | "duration" | "calories" | "weight" | null>(null);
-  const earliestCompletedWeekStart = useEarliestCompletedWeekStart();
+  const earliestCompletedPeriodStart = useEarliestCompletedPeriodStart(statisticsPeriod);
+
+  const updateStatisticsRouteState = useCallback(
+    (nextOffset: number) => {
+      const normalizedOffset = Number.isInteger(nextOffset) && nextOffset <= 0 ? nextOffset : 0;
+      const nextSearchParams = new URLSearchParams(searchParams);
+
+      if (statisticsPeriod === "week") {
+        nextSearchParams.delete(STATS_PERIOD_SEARCH_PARAM);
+      } else {
+        nextSearchParams.set(STATS_PERIOD_SEARCH_PARAM, statisticsPeriod);
+      }
+
+      if (normalizedOffset === 0) {
+        nextSearchParams.delete(STATS_OFFSET_SEARCH_PARAM);
+      } else {
+        nextSearchParams.set(STATS_OFFSET_SEARCH_PARAM, String(normalizedOffset));
+      }
+
+      clearLegacyStatisticsWeekParam(nextSearchParams);
+      setSearchParams(nextSearchParams, { replace: true });
+    },
+    [searchParams, setSearchParams, statisticsPeriod]
+  );
 
   useEffect(() => {
     const timer = window.setInterval(() => setClockTick(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (section !== "statistics" && statsWeekOffset !== 0) {
-      setStatsWeekOffset(0);
-    }
-  }, [section, statsWeekOffset]);
-
-  const earliestStatsWeekOffset = useMemo(() => {
-    if (!earliestCompletedWeekStart) {
+  const earliestStatisticsOffset = useMemo(() => {
+    if (!earliestCompletedPeriodStart) {
       return null;
     }
-    const diffMs = earliestCompletedWeekStart.getTime() - currentWeekStart.getTime();
+    if (statisticsPeriod === "month") {
+      return (
+        (earliestCompletedPeriodStart.getFullYear() - currentPeriodStart.getFullYear()) * 12 +
+        (earliestCompletedPeriodStart.getMonth() - currentPeriodStart.getMonth())
+      );
+    }
+    if (statisticsPeriod === "year") {
+      return earliestCompletedPeriodStart.getFullYear() - currentPeriodStart.getFullYear();
+    }
+    const diffMs = earliestCompletedPeriodStart.getTime() - currentPeriodStart.getTime();
     return Math.floor(diffMs / (7 * 86_400_000));
-  }, [currentWeekStart, earliestCompletedWeekStart]);
+  }, [currentPeriodStart, earliestCompletedPeriodStart, statisticsPeriod]);
 
   useEffect(() => {
-    if (section !== "statistics" || earliestStatsWeekOffset === null) {
+    if (section !== "statistics" || earliestStatisticsOffset === null) {
       return;
     }
 
-    setStatsWeekOffset((prev) => Math.max(earliestStatsWeekOffset, prev));
-  }, [earliestStatsWeekOffset, section]);
+    if (statisticsOffset < earliestStatisticsOffset) {
+      updateStatisticsRouteState(earliestStatisticsOffset);
+    }
+  }, [earliestStatisticsOffset, section, statisticsOffset, updateStatisticsRouteState]);
 
   const workouts = useDashboardWorkoutsData({ restTimerEnabled, restTimerSeconds });
-  const weeklyStats = useWeeklyStatsData({ language, weightUnit, weekStart });
+  const weeklyStats = useStatisticsPeriodData({ language, weightUnit, period: statisticsPeriod, periodStart });
 
   const { activeWorkouts, inactiveWorkouts } = useMemo(() => {
     const active = (workouts ?? [])
@@ -133,9 +190,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
   const hasWorkouts = useMemo(() => (workouts?.length ?? 0) > 0, [workouts]);
   const showWorkoutsSection = section === "workouts";
   const showStatsSection = section === "statistics";
-  const canNavigateToPreviousStatsWeek =
-    showStatsSection && earliestStatsWeekOffset !== null && statsWeekOffset > earliestStatsWeekOffset;
-  const canNavigateToNextStatsWeek = showStatsSection && statsWeekOffset < 0;
+  const showStatsSessionsSection = showStatsSection && statisticsPeriod === "week";
   const hasActiveWorkout = activeWorkouts.length > 0;
   const hasTrackedWorkoutToday = useMemo(() => {
     const dayStart = new Date(clockTick);
@@ -222,6 +277,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
 
     return items;
   }, [weeklyStats, t, weightUnit, language]);
+  const showStatsGoalsSection = showStatsSection && statisticsPeriod === "week" && weeklyGoalItems.length > 0;
 
   const selectedHomeWeeklyGoal = useMemo(
     () => weeklyGoalItems.find((item) => item.key === homeWeeklyGoalKey) ?? null,
@@ -252,8 +308,12 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
   }, [weeklyStats?.muscleGroupMetrics, t, muscleMetricMode]);
 
   const weeklySessionsTimeline = useMemo(() => {
-    const weekStartMs = weekStart.getTime();
-    const weekEndMs = getWeekEndExclusive(weekStart).getTime();
+    if (statisticsPeriod !== "week") {
+      return { dayLabels: [], ticks: [], items: [], nowTick: { leftPercent: 0 } };
+    }
+
+    const weekStartMs = periodStart.getTime();
+    const weekEndMs = getStatisticsPeriodEndExclusive(periodStart, "week").getTime();
     const totalSpanMs = Math.max(1, weekEndMs - weekStartMs);
     const nowMs = Math.max(weekStartMs, Math.min(weekEndMs, clockTick));
     const weekdayFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", { weekday: "short" });
@@ -283,18 +343,12 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     };
 
     const items = (weeklyStats?.completedWorkouts ?? []).map((item) => {
-      const midpointMs = new Date(item.midpointAt).getTime();
-      const clampedMidpointMs = Math.max(weekStartMs, Math.min(weekEndMs, midpointMs));
-      const rawLeftPercent = ((clampedMidpointMs - weekStartMs) / totalSpanMs) * 100;
+      const endMs = new Date(item.finishedAt ?? item.startedAt).getTime();
+      const clampedEndMs = Math.max(weekStartMs, Math.min(weekEndMs, endMs));
+      const rawLeftPercent = ((clampedEndMs - weekStartMs) / totalSpanMs) * 100;
       const clampedPercent = Math.max(0, Math.min(100, rawLeftPercent));
-      const anchor: "left" | "center" | "right" =
-        clampedPercent <= 5 ? "left"
-        : clampedPercent >= 95 ? "right"
-        : "center";
-      const leftPercent =
-        anchor === "left" ? 0
-        : anchor === "right" ? 100
-        : clampedPercent;
+      const anchor: "left" | "right" = clampedPercent <= 5 ? "left" : "right";
+      const leftPercent = anchor === "left" ? 0 : clampedPercent;
       const startLabel = timeFormatter.format(new Date(item.startedAt));
       const endLabel = timeFormatter.format(new Date(item.finishedAt ?? item.startedAt));
       const durationMinutes = Math.round(getSessionDurationMinutes(item.startedAt, item.finishedAt ?? item.startedAt));
@@ -310,23 +364,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     });
 
     return { dayLabels, ticks, items, nowTick };
-  }, [clockTick, language, weekStart, weeklyStats?.completedWorkouts]);
-
-  const statsWeekLabel = useMemo(() => {
-    const start = new Date(weekStart);
-    const end = new Date(weekStart);
-    end.setDate(end.getDate() + 6);
-    const startFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
-      day: "2-digit",
-      month: "2-digit"
-    });
-    const endFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric"
-    });
-    return `${startFormatter.format(start)} – ${endFormatter.format(end)}`;
-  }, [language, weekStart]);
+  }, [clockTick, language, periodStart, statisticsPeriod, weeklyStats?.completedWorkouts]);
 
   const handleStartSession = async (workoutId: number) => {
     try {
@@ -521,41 +559,6 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
 
       {showStatsSection && (
         <section className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              onClick={() =>
-                setStatsWeekOffset((prev) => {
-                  if (earliestStatsWeekOffset === null) {
-                    return prev;
-                  }
-                  return Math.max(earliestStatsWeekOffset, prev - 1);
-                })
-              }
-              aria-label={t("previousWeek")}
-              title={t("previousWeek")}
-              disabled={!canNavigateToPreviousStatsWeek}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <p className="text-sm font-medium tabular-nums text-foreground/80">{statsWeekLabel}</p>
-            <Button
-              type="button"
-              variant="secondary"
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              onClick={() => setStatsWeekOffset((prev) => Math.min(0, prev + 1))}
-              aria-label={t("nextWeek")}
-              title={t("nextWeek")}
-              disabled={!canNavigateToNextStatsWeek}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
             <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
               <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
@@ -618,85 +621,85 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
             <div className="h-px bg-border" />
           </div>
 
-          <section className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="inline-flex items-center gap-2 text-base font-semibold leading-tight text-foreground/75">
-                {t("sessions")}
-              </p>
-            </div>
-            {(weeklyStats?.completedWorkouts.length ?? 0) > 0 ? (
-              <div className="relative h-34 px-1 pt-4">
-                <div className="relative h-28">
-                  <div className="absolute inset-x-0 bottom-3 h-px bg-border" />
+          {showStatsSessionsSection && (
+            <>
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="inline-flex items-center gap-2 text-base font-semibold leading-tight text-foreground/75">
+                    {t("sessions")}
+                  </p>
+                </div>
+                {(weeklyStats?.completedWorkouts.length ?? 0) > 0 ? (
+                  <div className="relative h-34 px-1 pt-4">
+                    <div className="relative h-28">
+                      <div className="absolute inset-x-0 bottom-3 h-px bg-border" />
 
-                  {weeklySessionsTimeline.ticks.map((tick) => (
-                    <div
-                      key={`session-tick-${tick.key}`}
-                      className="absolute bottom-3 -translate-x-1/2"
-                      style={{ left: `${tick.leftPercent}%` }}
-                      aria-hidden="true"
-                    >
-                      <div className={`w-px bg-border ${tick.isDayBoundary ? "h-3.5" : "h-[7px] opacity-80"}`} />
-                    </div>
-                  ))}
-
-                  <div
-                    className="absolute bottom-3 -translate-x-1/2"
-                    style={{ left: `${weeklySessionsTimeline.nowTick.leftPercent}%` }}
-                    aria-hidden="true"
-                  >
-                    <div className="w-[2px] h-5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
-                  </div>
-
-                  {weeklySessionsTimeline.items.map((item) => (
-                    <Link
-                      key={item.sessionId}
-                      to={`/workouts/${item.workoutId}/history#session-${item.sessionId}`}
-                      title={item.title}
-                      className="group absolute bottom-4"
-                      style={{
-                        left: `${item.leftPercent}%`,
-                        transform:
-                          item.anchor === "left" ? "translateX(0)"
-                          : item.anchor === "right" ? "translateX(-100%)"
-                          : "translateX(-50%)"
-                      }}
-                    >
-                      <div className="relative inline-flex h-[6rem] w-[2rem] items-center justify-center rounded-md border bg-card px-3 py-3 shadow-sm transition-colors group-hover:bg-secondary">
-                        <div className="absolute left-1/2 top-1/2 w-[5rem] -translate-x-1/2 -translate-y-1/2 -rotate-90 overflow-hidden">
-                          <span className="block truncate text-center font-sans text-[12px] font-medium leading-none text-foreground">
-                            {item.shortLabel}
-                          </span>
+                      {weeklySessionsTimeline.ticks.map((tick) => (
+                        <div
+                          key={`session-tick-${tick.key}`}
+                          className="absolute bottom-3 -translate-x-1/2"
+                          style={{ left: `${tick.leftPercent}%` }}
+                          aria-hidden="true"
+                        >
+                          <div className={`w-px bg-border ${tick.isDayBoundary ? "h-3.5" : "h-[7px] opacity-80"}`} />
                         </div>
+                      ))}
+
+                      <div
+                        className="absolute bottom-3 -translate-x-1/2"
+                        style={{ left: `${weeklySessionsTimeline.nowTick.leftPercent}%` }}
+                        aria-hidden="true"
+                      >
+                        <div className="w-[2px] h-5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
                       </div>
-                    </Link>
-                  ))}
-                </div>
 
-                <div className="relative -mt-1 h-3">
-                  {weeklySessionsTimeline.dayLabels.map((day) => (
-                    <div
-                      key={`session-day-${day.key}`}
-                      className="absolute top-0 -translate-x-1/2 text-[10px] font-medium leading-none text-muted-foreground"
-                      style={{ left: `${day.leftPercent}%` }}
-                    >
-                      {day.label}
+                      {weeklySessionsTimeline.items.map((item) => (
+                        <Link
+                          key={item.sessionId}
+                          to={`/workouts/${item.workoutId}/history#session-${item.sessionId}`}
+                          title={item.title}
+                          className="group absolute bottom-4"
+                          style={{
+                            left: `${item.leftPercent}%`,
+                            transform: item.anchor === "left" ? "translateX(0)" : "translateX(-100%)"
+                          }}
+                        >
+                          <div className="relative inline-flex h-[6rem] w-[2rem] items-center justify-center rounded-md border bg-card px-3 py-3 shadow-sm transition-colors group-hover:bg-secondary">
+                            <div className="absolute left-1/2 top-1/2 w-[5rem] -translate-x-1/2 -translate-y-1/2 -rotate-90 overflow-hidden">
+                              <span className="block truncate text-center font-sans text-[12px] font-medium leading-none text-foreground">
+                                {item.shortLabel}
+                              </span>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="px-1 py-1">
-                <p className="text-sm text-muted-foreground">{t("noWorkoutsThisWeek")}</p>
-              </div>
-            )}
-          </section>
 
-          <div className="py-1.5">
-            <div className="h-px bg-border" />
-          </div>
+                    <div className="relative -mt-1 h-3">
+                      {weeklySessionsTimeline.dayLabels.map((day) => (
+                        <div
+                          key={`session-day-${day.key}`}
+                          className="absolute top-0 -translate-x-1/2 text-[10px] font-medium leading-none text-muted-foreground"
+                          style={{ left: `${day.leftPercent}%` }}
+                        >
+                          {day.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="px-1 py-1">
+                    <p className="text-sm text-muted-foreground">{t("noWorkoutsThisWeek")}</p>
+                  </div>
+                )}
+              </section>
+              <div className="py-1.5">
+                <div className="h-px bg-border" />
+              </div>
+            </>
+          )}
 
-          {weeklyGoalItems.length > 0 && (
+          {showStatsGoalsSection && (
             <>
               <section className="space-y-3">
                 <div className="flex items-center justify-between gap-2">

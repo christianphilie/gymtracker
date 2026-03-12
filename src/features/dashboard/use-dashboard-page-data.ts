@@ -12,10 +12,11 @@ import {
   addMuscleContributionFromSet,
   createEmptyMuscleGroupMetrics,
   EMPTY_WEEKLY_STATS,
-  getWeekEndExclusive,
-  getWeekStart,
+  getStatisticsPeriodEndExclusive,
+  getStatisticsPeriodStart,
   normalizeExerciseLookupName,
   normalizeWeeklyGoal,
+  type StatisticsPeriod,
   type WeeklyDashboardStats
 } from "@/features/statistics/weekly-data-utils";
 
@@ -147,15 +148,16 @@ export function useDashboardWorkoutsData(params: { restTimerEnabled: boolean; re
   }, [restTimerEnabled, restTimerSeconds]);
 }
 
-export function useWeeklyStatsData(params: {
+export function useStatisticsPeriodData(params: {
   language: string;
   weightUnit: WeightUnit;
-  weekStart: Date;
+  period: StatisticsPeriod;
+  periodStart: Date;
 }) {
-  const { language, weightUnit, weekStart } = params;
+  const { language, weightUnit, period, periodStart } = params;
 
   return useLiveQuery<WeeklyDashboardStats>(async () => {
-    const weekEndExclusive = getWeekEndExclusive(weekStart);
+    const periodEndExclusive = getStatisticsPeriodEndExclusive(periodStart, period);
     const settings = await db.settings.get(1);
     const weeklyWeightGoal = normalizeWeeklyGoal(settings?.weeklyWeightGoal);
     const weeklyCaloriesGoal = normalizeWeeklyGoal(settings?.weeklyCaloriesGoal);
@@ -164,7 +166,7 @@ export function useWeeklyStatsData(params: {
     const completedSessions = (await db.sessions.where("status").equals("completed").toArray())
       .filter((session) => {
         const completedAt = new Date(session.finishedAt ?? session.startedAt);
-        return completedAt >= weekStart && completedAt < weekEndExclusive;
+        return completedAt >= periodStart && completedAt < periodEndExclusive;
       })
       .sort(
         (a, b) =>
@@ -289,17 +291,13 @@ export function useWeeklyStatsData(params: {
       });
 
       const completedAt = new Date(session.finishedAt ?? session.startedAt);
-      const startedAtDate = new Date(session.startedAt);
-      const finishedAtDate = new Date(session.finishedAt ?? session.startedAt);
-      const midpointAt = new Date((startedAtDate.getTime() + finishedAtDate.getTime()) / 2);
       return {
         sessionId,
         workoutId: session.workoutId,
         workoutName: workoutNameById.get(session.workoutId) ?? "-",
         weekdayLabel: weekdayFormatter.format(completedAt),
         startedAt: session.startedAt,
-        finishedAt: session.finishedAt ?? null,
-        midpointAt: midpointAt.toISOString()
+        finishedAt: session.finishedAt ?? null
       };
     });
 
@@ -318,10 +316,23 @@ export function useWeeklyStatsData(params: {
       weeklyDurationGoal,
       muscleGroupMetrics
     };
-  }, [language, weekStart.getTime(), weightUnit]);
+  }, [language, period, periodStart.getTime(), weightUnit]);
 }
 
-export function useEarliestCompletedWeekStart() {
+export function useWeeklyStatsData(params: {
+  language: string;
+  weightUnit: WeightUnit;
+  weekStart: Date;
+}) {
+  return useStatisticsPeriodData({
+    language: params.language,
+    weightUnit: params.weightUnit,
+    period: "week",
+    periodStart: params.weekStart
+  });
+}
+
+export function useEarliestCompletedPeriodStart(period: StatisticsPeriod) {
   return useLiveQuery<Date | null>(async () => {
     const completedSessions = await db.sessions.where("status").equals("completed").toArray();
     if (completedSessions.length === 0) {
@@ -341,6 +352,10 @@ export function useEarliestCompletedWeekStart() {
       return null;
     }
 
-    return getWeekStart(new Date(earliestCompletedAtMs));
-  }, []);
+    return getStatisticsPeriodStart(new Date(earliestCompletedAtMs), period);
+  }, [period]);
+}
+
+export function useEarliestCompletedWeekStart() {
+  return useEarliestCompletedPeriodStart("week");
 }
