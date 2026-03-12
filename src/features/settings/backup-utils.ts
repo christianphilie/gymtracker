@@ -61,6 +61,7 @@ const exerciseSchema = z.object({
   order: z.number().int(),
   isTemplate: z.boolean().optional(),
   x2Enabled: z.boolean().optional(),
+  negativeWeightEnabled: z.boolean().optional(),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1)
 });
@@ -70,7 +71,7 @@ const exerciseTemplateSetSchema = z.object({
   exerciseId: z.number().int(),
   order: z.number().int(),
   targetReps: z.number().int().positive(),
-  targetWeight: z.number().nonnegative()
+  targetWeight: z.number()
 });
 
 const sessionSchema = z.object({
@@ -111,11 +112,12 @@ const sessionExerciseSetSchema = z.object({
   exerciseOrder: z.number().int(),
   isTemplateExercise: z.boolean(),
   x2Enabled: z.boolean().optional(),
+  negativeWeightEnabled: z.boolean().optional(),
   templateSetOrder: z.number().int(),
   targetReps: z.number().int().positive(),
-  targetWeight: z.number().nonnegative(),
+  targetWeight: z.number(),
   actualReps: z.number().int().positive().optional(),
-  actualWeight: z.number().nonnegative().optional(),
+  actualWeight: z.number().optional(),
   completed: z.boolean(),
   completedAt: z.string().min(1).optional()
 });
