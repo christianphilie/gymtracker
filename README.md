@@ -35,8 +35,8 @@ A minimalist workout tracking app built as a PWA — for people who already have
 
 ### Import
 
-* Paste a training plan as text → AI converts it into the app format
-* Alternatively: copy the prompt, use your own AI, paste the JSON result
+* Paste or dictate a training plan as text, or upload a PDF/photo
+* AI converts the source directly into the app format with validation + preview before import
 * Conservative auto-repair with preview before import
 
 ### Settings & Data
@@ -101,10 +101,12 @@ The app is designed as a Progressive Web App and can be installed on the home sc
 
 ## 🤖 AI Features (optional)
 
-AI-powered import and exercise-info enrichment require server endpoints (`/api/ai-import`, `/api/exercise-info`).
-Both use `GROQ_API_KEY` as an environment variable and the model `llama-3.3-70b-versatile`.
+Direct AI-powered workout import uses the server endpoint `/api/ai-import`.
+This path uses `GEMINI_API_KEY` or `GOOGLE_API_KEY` as an environment variable and defaults to the Gemini model `gemini-2.5-flash`.
 
-Without these endpoints, the manual import flow (copy prompt → use your own AI → paste JSON) continues to work without extra configuration.
+Exercise-info enrichment is no longer Groq-backed. The app currently resolves exercise metadata from the in-repo exercise catalog via `/api/exercise-info`, with frontend fallback if that endpoint is unavailable.
+
+Without `/api/ai-import`, the AI workout-import feature is unavailable.
 
 ## 📁 Project Structure
 

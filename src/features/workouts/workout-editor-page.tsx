@@ -565,16 +565,6 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         });
 
         if (!response.ok) {
-          let errorCode = "";
-          let errorDetail = "";
-          try {
-            const errorPayload = (await response.json()) as { error?: string; detail?: string };
-            errorCode = typeof errorPayload.error === "string" ? errorPayload.error : "";
-            errorDetail = typeof errorPayload.detail === "string" ? errorPayload.detail : "";
-          } catch {
-            // ignore parse errors and fall back below
-          }
-
           // In local dev / API outages, fall back to local matching in the frontend.
           payload = {
             exercises: buildLocalExerciseInfoApiItems(language, requestNames),
@@ -590,13 +580,6 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
               markAutoAttempts(attemptedAutoExerciseInfoKeysRef, language, requestNames);
             } else {
               toast.error(t("exerciseInfoEndpointUnavailable"));
-            }
-            return;
-          } else if (errorCode.includes("GROQ_API_KEY") || errorDetail.includes("GROQ_API_KEY")) {
-            if (silent) {
-              markAutoAttempts(attemptedAutoExerciseInfoKeysRef, language, requestNames);
-            } else {
-              toast.error(t("exerciseInfoProviderNotConfigured"));
             }
             return;
           } else if (!silent) {

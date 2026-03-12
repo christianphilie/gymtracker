@@ -11,7 +11,7 @@ People who already have a training plan (e.g., from coach/PDF) and want fast log
 2. Define exercises and planned sets (target reps + target weight).
 3. Start a workout session and track actual values per set.
 4. See last session values per exercise while training.
-5. Import workout plans via AI-assisted text input or manually crafted JSON.
+5. Import workout plans via AI-assisted text/file input.
 6. Resume active sessions safely after app/page exit.
 7. Export all local data and import it on another device.
 8. Review and edit completed session history per workout.
@@ -49,7 +49,7 @@ People who already have a training plan (e.g., from coach/PDF) and want fast log
 - Allow deleting completed sessions with confirmation.
 
 4. Import:
-- Two modes: AI-assisted (paste plan text → server generates JSON) and manual (copy prompt → use own AI → paste JSON result).
+- Single AI-assisted flow: user can paste/describe text and optionally upload a PDF/photo, then server generates JSON.
 - Strict schema validation + conservative auto-repair.
 - Preview repair changes before import.
 - Merge policy in V1: always create new entries.

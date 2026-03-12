@@ -39,6 +39,7 @@ export const messages = {
     add: "Hinzufügen",
     addWorkout: "Workout hinzufügen",
     remove: "Entfernen",
+    optionalLabel: "optional",
     notes: "Notizen",
     targetReps: "Soll-Reps",
     targetWeight: "Soll-Gewicht",
@@ -67,7 +68,7 @@ export const messages = {
     actions: "Aktionen",
     importSuccess: "Import erfolgreich",
     invalidImport: "Import fehlgeschlagen",
-    createWorkout: "Neues Workout erstellen",
+    createWorkout: "Workout selbst erstellen",
     createWorkoutHint: "Starte mit einem leeren Workout und definiere Übungen und Sätze manuell",
     updateWorkout: "Workout aktualisieren",
     workoutCreated: "Workout erstellt",
@@ -215,15 +216,29 @@ export const messages = {
     exerciseInfoAiDisclaimerShort: "KI-generierte Infos",
     exerciseInfoAiDisclaimerWithMatch: "KI-generierte Infos für: {name}",
     aiImport: "KI-Import",
-    aiGenerate: "Workouts mit KI importieren",
+    aiGenerate: "Workouts mit KI erstellen oder importieren",
     aiImportGenerateButton: "Workouts mit KI erstellen",
+    aiImportGeneratingButton: "Workouts werden erstellt",
     aiImportTitle: "Nutze die Gymtracker-KI",
-    aiImportEntryHint: "Importiere deinen Trainingsplan mit KI aus einem Text oder einer Datei",
-    aiImportPlaceholder: "Beschreibe hier deinen Trainingsplan",
-    aiImportDescription: "Hier kannst du Text schreiben, einfügen oder diktieren. Die Gymtracker-KI wandelt diesen Text direkt in Workouts um. Für Dateien wie PDFs oder Fotos nutze oben \"Aus Datei erstellen\"",
-    aiImportPrivacy: "Dein Trainingsplan wird zur Verarbeitung kurz an eine KI-API gesendet",
+    aiImportEntryHint: "Importiere deinen Trainingsplan mit KI aus Text, Spracheingabe, PDF oder Foto",
+    aiImportPlaceholder:
+      "Beschreibe hier deinen Trainingsplan, füge ihn ein, diktiere ihn oder beschreibe frei, was für ein Workout erstellt werden soll. Du kannst zusätzlich auch eine Datei wie ein PDF oder Foto hochladen.",
+    aiImportFileTitle: "Foto oder Datei hinzufügen",
+    aiImportFileDescription:
+      "Lade einen bestehenden Trainingsplan als PDF oder Foto hoch, wenn du ihn nicht abtippen möchtest",
+    aiImportPrivacy:
+      "Dein eingegebener Text und hochgeladene Dateien werden an Google über die Gemini API gesendet. Google kann diese Inhalte zur Verarbeitung vorübergehend speichern. Trage keine sensiblen Daten ein",
+    aiImportPrivacyConsent:
+      "Ich habe den Datenschutzhinweis gelesen und bin damit einverstanden, dass mein eingegebener Text und hochgeladene Dateien zur Verarbeitung an Google über die Gemini API gesendet werden",
     aiImportReady: "Import-Vorschau bereit",
     aiImportFailed: "KI-Import fehlgeschlagen",
+    aiImportFailedDetailed:
+      "Die KI konnte gerade keinen nutzbaren Trainingsplan erzeugen. Bitte versuche es erneut oder formuliere den Plan klarer",
+    aiImportInvalidResult:
+      "Die KI-Antwort konnte nicht als gültiger Trainingsplan verarbeitet werden",
+    aiImportProviderNotConfigured: "Gemini API ist noch nicht konfiguriert",
+    aiImportUnsupportedFile: "Bitte lade nur PDF-, JPG-, PNG- oder WEBP-Dateien hoch",
+    aiImportFileTooLarge: "Die Datei ist zu groß. Bitte nutze eine kleinere PDF oder ein komprimiertes Foto",
     manualImport: "Manuell (JSON)",
     fileImport: "Datei hochladen",
     colorScheme: "Erscheinungsbild",
@@ -312,7 +327,7 @@ export const messages = {
     privacyDataStorageText: "Gymtracker speichert alle deine Daten ausschließlich lokal auf deinem Gerät. Es werden keine persönlichen Daten an externe Server übertragen.",
     privacyAiTitle: "KI-Funktionen",
     privacyAiText:
-      "Wenn du den KI-Import verwendest, wird dein eingegebener Trainingsplan zur Verarbeitung an eine KI-API gesendet. Wenn du Übungen in Workouts anlegst oder umbenennst, kann der Übungsname für das Matching ebenfalls an eine KI-API gesendet werden, falls kein sicherer lokaler Treffer gefunden wird. Trage keine persönlichen oder sensiblen Informationen ein.",
+      "Wenn du den KI-Import verwendest, werden dein eingegebener Text und optional hochgeladene Dateien an Google über die Gemini API gesendet. Google kann diese Inhalte zur Verarbeitung vorübergehend speichern. Trage keine persönlichen oder sensiblen Informationen ein.",
     privacyOpenSourceTitle: "Open Source",
     privacyOpenSourceText: "Gymtracker ist Open-Source-Software. Der Quellcode ist öffentlich einsehbar.",
     dismiss: "Ausblenden"
@@ -355,6 +370,7 @@ export const messages = {
     add: "Add",
     addWorkout: "Add workout",
     remove: "Remove",
+    optionalLabel: "optional",
     notes: "Notes",
     targetReps: "Target reps",
     targetWeight: "Target weight",
@@ -383,7 +399,7 @@ export const messages = {
     actions: "Actions",
     importSuccess: "Import successful",
     invalidImport: "Import failed",
-    createWorkout: "Create new workout",
+    createWorkout: "Create workout yourself",
     createWorkoutHint: "Start with an empty workout and define exercises and sets manually",
     updateWorkout: "Update workout",
     workoutCreated: "Workout created",
@@ -531,15 +547,29 @@ export const messages = {
     exerciseInfoAiDisclaimerShort: "AI-generated info",
     exerciseInfoAiDisclaimerWithMatch: "AI-generated info for: {name}",
     aiImport: "AI Import",
-    aiGenerate: "Import workouts with AI",
+    aiGenerate: "Create or import workouts with AI",
     aiImportGenerateButton: "Create workouts with AI",
+    aiImportGeneratingButton: "Creating workouts",
     aiImportTitle: "Use Gymtracker AI",
-    aiImportEntryHint: "Import your workout plan with AI assistance from text or a file",
-    aiImportPlaceholder: "Describe your training plan here",
-    aiImportDescription: "Here you can write, paste or dictate text. Gymtracker AI converts that text into workouts. For files like PDFs or photos, use \"Create from file\" above",
-    aiImportPrivacy: "Your plan is briefly sent to an AI API for processing",
+    aiImportEntryHint: "Import your workout plan with AI from text, dictation, PDF or photo",
+    aiImportPlaceholder:
+      "Describe your training plan here, paste it, dictate it, or describe what kind of workout should be created. You can also upload a file such as a PDF or photo.",
+    aiImportFileTitle: "Add a photo or file",
+    aiImportFileDescription:
+      "Upload an existing training plan as a PDF or photo if you do not want to type it in",
+    aiImportPrivacy:
+      "Your entered text and uploaded files are sent to Google through the Gemini API. Google may temporarily store that content for processing. Do not include sensitive information",
+    aiImportPrivacyConsent:
+      "I have read the privacy notice and agree that my entered text and uploaded files may be sent to Google through the Gemini API for processing",
     aiImportReady: "Import preview ready",
     aiImportFailed: "AI import failed",
+    aiImportFailedDetailed:
+      "The AI could not produce a usable workout plan right now. Please try again or make the plan clearer",
+    aiImportInvalidResult:
+      "The AI response could not be processed as a valid workout plan",
+    aiImportProviderNotConfigured: "Gemini API is not configured yet",
+    aiImportUnsupportedFile: "Please upload only PDF, JPG, PNG, or WEBP files",
+    aiImportFileTooLarge: "The file is too large. Please use a smaller PDF or a compressed photo",
     manualImport: "Manual (JSON)",
     fileImport: "Upload file",
     colorScheme: "Appearance",
@@ -628,7 +658,7 @@ export const messages = {
     privacyDataStorageText: "Gymtracker stores all your data exclusively on your device. No personal data is transmitted to external servers.",
     privacyAiTitle: "AI Features",
     privacyAiText:
-      "When you use the AI import feature, the workout plan text you enter is sent to an AI API for processing. When you add or rename exercises in workouts, the exercise name may also be sent to an AI API for matching if no reliable local match is found. Do not enter personal or sensitive information.",
+      "When you use the AI import feature, your entered text and any optional uploaded files are sent to Google through the Gemini API. Google may temporarily store that content for processing. Do not enter personal or sensitive information.",
     privacyOpenSourceTitle: "Open Source",
     privacyOpenSourceText: "Gymtracker is open-source software. The source code is publicly available.",
     dismiss: "Dismiss"

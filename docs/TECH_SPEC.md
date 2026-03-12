@@ -9,7 +9,7 @@
 6. zod validation for import schema.
 7. vite-plugin-pwa for installability/offline shell.
 8. zod validation for full-app backup import payload.
-9. AI helper endpoints in `api/` (`/api/ai-import`, `/api/exercise-info`) for server-side Groq-backed features (local dev via Vite middleware, production via server runtime).
+9. AI/helper endpoints in `api/`: `/api/ai-import` for server-side Gemini-backed workout import from text and optional PDF/photo uploads, and `/api/exercise-info` for exercise-catalog matching (local dev via Vite middleware, production via server runtime).
 10. Lucide React for icons (ISC license).
 
 ## App Architecture
@@ -106,9 +106,11 @@
 
 ## AI Endpoints
 1. Client can submit plain plan text to `/api/ai-import`.
-2. Workout editor can request exercise metadata enrichment via `/api/exercise-info`.
-3. Endpoints use deployment secret `GROQ_API_KEY` and model `llama-3.3-70b-versatile`.
-4. Frontend keeps local validation/preview behavior for import and has local fallback handling when AI endpoints are unavailable.
+2. Client may also attach a PDF or photo to `/api/ai-import`; the endpoint forwards the source to Gemini and requests schema-constrained JSON output.
+3. `/api/ai-import` uses deployment secret `GEMINI_API_KEY` or `GOOGLE_API_KEY` and defaults to model `gemini-2.5-flash`.
+4. Workout editor can request exercise metadata enrichment via `/api/exercise-info`.
+5. `/api/exercise-info` currently matches exercise names against the in-repo exercise catalog and returns `local-catalog` metadata, not Groq output.
+6. Frontend keeps local validation/preview behavior for import, and has local fallback handling when `/api/ai-import` or `/api/exercise-info` is unavailable.
 
 ## Conservative Auto-Repair Rules
 1. Allowed:

@@ -4,6 +4,19 @@
 
 ---
 
+## 1.4.0 - 2026-03-12
+
+### Changed
+1. Workout import now uses a single AI-assisted flow instead of separate text/manual tabs: users can write, paste, dictate, and optionally upload a PDF/photo in one place.
+2. The `/api/ai-import` endpoint was migrated from Groq to Gemini with schema-constrained JSON output and prompt rules for `x2Enabled`, bodyweight, and assisted/negative-weight exercises.
+3. Import repair/schema handling now also supports `negativeWeightEnabled` plus negative set weights for assisted exercises.
+4. Privacy copy and import UX text were updated to explain that AI-import content is sent to Google via the Gemini API.
+
+### Docs
+1. README, product/tech notes, and import schema documentation were updated to reflect the new Gemini-based single-flow import.
+
+---
+
 ## 1.3.5 - 2026-03-12
 
 ### Added

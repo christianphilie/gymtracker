@@ -6,7 +6,7 @@
 2. `npm run dev`
 3. `npm run build`
 4. Keep the `vercel.json` SPA rewrite so BrowserRouter routes resolve to `index.html`
-5. For direct AI import, configure `GROQ_API_KEY` for `/api/ai-import` (model: `llama-3.3-70b-versatile`)
+5. For direct AI import, configure `GEMINI_API_KEY` or `GOOGLE_API_KEY` for `/api/ai-import` (default model: `gemini-2.5-flash`)
 
 ## Versioning Policy (Must Keep)
 
@@ -30,7 +30,7 @@
 1. This app is a React SPA (`react-router-dom` + `BrowserRouter`), so web deployments require SPA rewrites (`vercel.json`); an iOS wrapper must preserve in-app route navigation semantics.
 2. Local persistence is Dexie/IndexedDB (`src/db/db.ts`) with schema migrations and versioned upgrade paths; preserve IndexedDB storage availability in the chosen WebView/container and do not replace it ad hoc without a data migration plan.
 3. Backup/import/export and update-safety snapshots are core data-safety features (repository API in `src/db/repository.ts` facade + domain modules) and should remain functional during migration/testing.
-4. AI-related flows currently depend on `/api/ai-import` and `/api/exercise-info` server endpoints (local dev via Vite middleware, production via server runtime); a pure on-device Xcode wrapper does not provide these routes by itself.
+4. Direct AI import currently depends on the `/api/ai-import` server endpoint (local dev via Vite middleware, production via server runtime) and accepts free text plus optional PDF/photo uploads for Gemini-based conversion. `/api/exercise-info` is no longer Groq-backed and can fall back to local in-app catalog matching if the endpoint is unavailable; a pure on-device Xcode wrapper still would not provide these routes by itself.
 5. Do not ship API keys inside the iOS app bundle/web assets; keep AI calls server-side or through a secure backend proxy.
 6. PWA/service-worker behavior is useful for web deployment, but an iOS WebView wrapper may not need the same install/update behavior; treat PWA features as web-specific unless explicitly ported.
 7. File import/export flows rely on browser file APIs (`<input type=\"file\">`, downloads); verify iOS WebView behavior for JSON backup import/export and provide native bridge fallbacks if needed.
