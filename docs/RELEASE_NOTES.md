@@ -4,6 +4,13 @@
 
 ---
 
+## 1.4.1 - 2026-03-12
+
+### Fixed
+1. Production AI import on Vercel now resolves its local API runtime reliably again by keeping the runtime logic inside `api/` and importing it with an explicit `.js` ESM path.
+
+---
+
 ## 1.4.0 - 2026-03-12
 
 ### Changed

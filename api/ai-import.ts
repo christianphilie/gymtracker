@@ -2,7 +2,7 @@ import {
   buildAiImportPrompt,
   repairImportPayload,
   trainingPlanImportResponseJsonSchema
-} from "../src/features/import/import-utils";
+} from "./ai-import-runtime.js";
 
 const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
