@@ -23,14 +23,14 @@
 - Dexie schema/types/repository.
 
 4. `src/features/`:
-- dashboard, workouts, sessions, history, import, settings, legal, privacy.
+- dashboard, workouts, sessions, history, statistics, import, settings, legal, privacy.
 
 5. `api/`:
 - Server-side handlers used in local dev (via Vite middleware) and production runtime (`/api/ai-import`, `/api/exercise-info`).
 
 ## Data Model (Dexie)
 1. `settings`: language, weightUnit, colorScheme, restTimerSeconds.
-2. `workouts`: workout container.
+2. `workouts`: workout container, including optional `scheduledDays` weekday planning metadata.
 3. `exercises`: workout template exercises (`isTemplate` marker).
 4. `exerciseTemplateSets`: planned sets.
 5. `sessions`: active/completed sessions.
@@ -57,6 +57,12 @@
 12. Rest timer starts after the first checked set and uses a configurable duration from settings (1/2/3/5 minutes), with a separate on/off toggle.
 13. Rest timer can be paused/resumed manually and resets when a newer set completion timestamp appears.
 14. Completed sessions are mutable via history tooling (edit values/check-state or delete whole session with confirmation).
+
+## Statistics And Recommendations
+1. Statistics live under `/statistics` and support week, month, year, and workout-specific modes in a shared route/header shell.
+2. Workout-specific statistics use a workout selector instead of period arrows and can deep-link to a concrete session via `#session-<id>`.
+3. Dashboard home recommendations prefer workouts planned for the current weekday; if none are planned and the user has not already trained today, the oldest inactive workout is recommended instead.
+4. Monthly calendar session markers intentionally use opaque stacked markers so overlapping sessions stay visually distinct.
 
 ## Starter Workout Provisioning
 1. The app does not seed a workout automatically on first launch.

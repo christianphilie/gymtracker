@@ -3,6 +3,8 @@ import type { CanonicalMuscleKey } from "../lib/muscle-taxonomy";
 export type AppLanguage = "de" | "en";
 export type WeightUnit = "kg" | "lb";
 export type ColorScheme = "light" | "dark" | "system";
+export const WORKOUT_SCHEDULE_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+export type WorkoutScheduleDay = (typeof WORKOUT_SCHEDULE_DAYS)[number];
 export type WorkoutIconKey =
   | "dumbbell"
   | "target"
@@ -48,6 +50,7 @@ export interface Workout {
   id?: number;
   name: string;
   icon?: WorkoutIconKey;
+  scheduledDays?: WorkoutScheduleDay[];
   createdAt: string;
   updatedAt: string;
   archivedAt?: string | null;

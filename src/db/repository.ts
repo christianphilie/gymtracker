@@ -9,6 +9,7 @@ import type {
   Workout,
   WorkoutWithRelations
 } from "@/db/types";
+import { normalizeWorkoutScheduledDays } from "@/lib/workout-schedule";
 import { normalizeSessionExerciseSet } from "@/lib/utils";
 
 export {
@@ -65,6 +66,7 @@ function normalizeTemplateExerciseRelation(
 interface WorkoutDraft {
   name: string;
   icon?: Workout["icon"];
+  scheduledDays?: Workout["scheduledDays"];
   exercises: Array<{
     id?: number;
     name: string;
@@ -167,6 +169,7 @@ async function createWorkoutRecord(draft: WorkoutDraft) {
   const workout: Workout = {
     name: draft.name.trim(),
     icon: draft.icon,
+    scheduledDays: normalizeWorkoutScheduledDays(draft.scheduledDays),
     createdAt: now,
     updatedAt: now,
     archivedAt: null
@@ -237,6 +240,7 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
       await db.workouts.update(workoutId, {
         name: draft.name.trim(),
         icon: draft.icon,
+        scheduledDays: normalizeWorkoutScheduledDays(draft.scheduledDays),
         updatedAt: timestamp
       });
 

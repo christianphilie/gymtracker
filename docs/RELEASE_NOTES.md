@@ -4,6 +4,28 @@
 
 ---
 
+## 1.5.0 - 2026-03-12
+
+### Added
+1. Workout editing now supports weekday-based planning with multi-select day chips, persisted `scheduledDays`, import/backup compatibility, and a dedicated migration for existing data.
+2. Statistics now include a dedicated "Workout Data" mode in the shared `/statistics` view, including a workout picker in the header and direct deep links to individual sessions.
+3. Yearly session stats now support a fourth metric for weekly moved weight volume.
+
+### Changed
+1. Dashboard recommendation logic now prefers all workouts planned for the current weekday and marks them as planned on the home screen before falling back to the oldest inactive workout.
+2. Workout-data history cards now use only `Today` / `Yesterday` as relative dates; older entries render with absolute dates and weekdays.
+3. Monthly calendar session markers were restyled to use the same emerald language as the yearly chart bars, with larger stacked markers and an opaque background-to-green gradient for cleaner overlap.
+4. Workout-data navigation from dashboard, weekly, monthly, and legacy history entry points now resolves to the same embedded statistics view and auto-expands/scrolls the targeted session.
+
+### Fixed
+1. The planning help tooltip in the workout editor now anchors directly to the icon without affecting the title spacing.
+2. Home-screen planned/recommended badges now use the intended static pill styling without unintended hover or border regressions.
+
+### Docs
+1. Technical specification was updated for workout planning, unified workout-data statistics routing, and dashboard recommendation behavior.
+
+---
+
 ## 1.4.1 - 2026-03-12
 
 ### Fixed

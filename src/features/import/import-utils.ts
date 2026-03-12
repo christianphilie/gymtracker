@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AppLanguage } from "../../db/types";
+import { WORKOUT_SCHEDULE_DAYS, type AppLanguage } from "../../db/types";
 import { WORKOUT_ICON_OPTIONS, normalizeWorkoutIconKey, type WorkoutIconKey } from "../../lib/workout-icons";
 
 const setSchema = z.object({
@@ -18,6 +18,7 @@ const exerciseSchema = z.object({
 const workoutSchema = z.object({
   name: z.string().min(1),
   icon: z.custom<WorkoutIconKey>((value) => normalizeWorkoutIconKey(value) !== undefined).optional(),
+  scheduledDays: z.array(z.enum(WORKOUT_SCHEDULE_DAYS)).optional(),
   exercises: z.array(exerciseSchema).min(1)
 });
 
@@ -57,6 +58,13 @@ export const trainingPlanImportResponseJsonSchema = {
           icon: {
             type: "string",
             enum: importIconEnumList
+          },
+          scheduledDays: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: [...WORKOUT_SCHEDULE_DAYS]
+            }
           },
           exercises: {
             type: "array",
@@ -114,6 +122,7 @@ export interface RepairResult {
   drafts: Array<{
     name: string;
     icon?: WorkoutIconKey;
+    scheduledDays?: Array<(typeof WORKOUT_SCHEDULE_DAYS)[number]>;
     exercises: Array<{
       name: string;
       notes?: string;
@@ -222,6 +231,10 @@ export function repairImportPayload(raw: unknown): RepairResult {
     const workoutName = typeof workoutSource.name === "string" ? workoutSource.name.trim() : "";
     const rawWorkoutIcon = workoutSource.icon;
     const workoutIcon = normalizeWorkoutIconKey(rawWorkoutIcon);
+    const rawScheduledDays = Array.isArray(workoutSource.scheduledDays) ? workoutSource.scheduledDays : undefined;
+    const scheduledDays = rawScheduledDays
+      ? WORKOUT_SCHEDULE_DAYS.filter((day) => rawScheduledDays.includes(day))
+      : undefined;
 
     if (!workoutName) {
       changes.push(`workout[${workoutIndex}] removed (missing name)`);
@@ -401,6 +414,7 @@ export function repairImportPayload(raw: unknown): RepairResult {
     repairedWorkouts.push({
       name: workoutName,
       ...(workoutIcon ? { icon: workoutIcon } : {}),
+      ...(scheduledDays && scheduledDays.length > 0 ? { scheduledDays } : {}),
       exercises: repairedExercises
     });
   });
@@ -433,6 +447,7 @@ export function repairImportPayload(raw: unknown): RepairResult {
   const drafts: RepairResult["drafts"] = validation.data.workouts.map((workout) => ({
     name: workout.name,
     icon: workout.icon,
+    scheduledDays: workout.scheduledDays,
     exercises: workout.exercises.map((exercise) => ({
       name: exercise.name,
       notes: exercise.notes,

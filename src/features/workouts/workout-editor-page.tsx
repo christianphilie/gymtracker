@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowUpDown, Check, ChevronDown, CircleQuestionMark, GripVertical, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { WorkoutIconGlyph } from "@/components/workouts/workout-name-label";
 import {
   createWorkout,
@@ -32,7 +33,7 @@ import {
   updateWorkout,
   type WorkoutDraft
 } from "@/db/repository";
-import type { ExerciseAiInfo } from "@/db/types";
+import { WORKOUT_SCHEDULE_DAYS, type ExerciseAiInfo } from "@/db/types";
 import { useSettings } from "@/app/settings-context";
 import { getCachedExerciseAiInfo, setCachedExerciseAiInfoBatch } from "@/lib/exercise-ai-info-cache";
 import {
@@ -41,7 +42,12 @@ import {
   matchExerciseCatalogEntry
 } from "@/lib/exercise-catalog";
 import { isCanonicalMuscleKey } from "@/lib/muscle-taxonomy";
+import {
+  formatWorkoutScheduleDayLabel,
+  normalizeWorkoutScheduledDays
+} from "@/lib/workout-schedule";
 import { WORKOUT_ICON_OPTIONS } from "@/lib/workout-icons";
+import { cn } from "@/lib/utils";
 
 interface WorkoutEditorPageProps {
   mode: "create" | "edit";
@@ -66,6 +72,7 @@ function createEmptyDraft(): WorkoutDraft {
   return {
     name: "",
     icon: undefined,
+    scheduledDays: [],
     exercises: [
       {
         name: "",
@@ -208,17 +215,21 @@ function mergeExerciseInfosByExerciseName(
   return next;
 }
 
-interface ExerciseToggleHelpButtonProps {
+interface InlineHelpButtonProps {
   buttonLabel: string;
-  x2Description: string;
-  negativeWeightDescription: string;
+  children: ReactNode;
+  buttonClassName?: string;
+  containerClassName?: string;
+  popupClassName?: string;
 }
 
-function ExerciseToggleHelpButton({
+function InlineHelpButton({
   buttonLabel,
-  x2Description,
-  negativeWeightDescription
-}: ExerciseToggleHelpButtonProps) {
+  children,
+  buttonClassName,
+  containerClassName,
+  popupClassName
+}: InlineHelpButtonProps) {
   const [open, setOpen] = useState(false);
   const [supportsHover, setSupportsHover] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -266,7 +277,7 @@ function ExerciseToggleHelpButton({
   return (
     <div
       ref={containerRef}
-      className="static inline-flex items-center self-center"
+      className={cn("relative inline-flex items-center self-center", containerClassName)}
       onMouseEnter={() => {
         if (supportsHover) {
           setOpen(true);
@@ -286,7 +297,10 @@ function ExerciseToggleHelpButton({
     >
       <button
         type="button"
-        className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:bg-secondary hover:text-foreground"
+        className={cn(
+          "inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:bg-secondary hover:text-foreground",
+          buttonClassName
+        )}
         aria-label={buttonLabel}
         aria-expanded={open}
         onClick={() => setOpen((prev) => !prev)}
@@ -295,24 +309,47 @@ function ExerciseToggleHelpButton({
         <CircleQuestionMark className="h-4 w-4" />
       </button>
       {open && (
-        <div className="absolute inset-x-0 bottom-full z-20 mb-2 rounded-xl border border-border/80 bg-background p-3 shadow-xl">
-          <div className="flex flex-col gap-2.5">
-            <div className="flex items-start gap-2">
-              <span className="inline-flex min-w-8 items-center justify-center rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-                2×
-              </span>
-              <p className="pt-px text-[11px] leading-snug text-muted-foreground">{x2Description}</p>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="inline-flex min-w-8 items-center justify-center rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-                −
-              </span>
-              <p className="pt-px text-[11px] leading-snug text-muted-foreground">{negativeWeightDescription}</p>
-            </div>
-          </div>
+        <div
+          className={cn(
+            "absolute bottom-full right-0 z-20 mb-2 w-64 rounded-xl border border-border/80 bg-background p-3 shadow-xl",
+            popupClassName
+          )}
+        >
+          {children}
         </div>
       )}
     </div>
+  );
+}
+
+interface ExerciseToggleHelpButtonProps {
+  buttonLabel: string;
+  x2Description: string;
+  negativeWeightDescription: string;
+}
+
+function ExerciseToggleHelpButton({
+  buttonLabel,
+  x2Description,
+  negativeWeightDescription
+}: ExerciseToggleHelpButtonProps) {
+  return (
+    <InlineHelpButton buttonLabel={buttonLabel} popupClassName="right-0 w-72">
+      <div className="flex flex-col gap-2.5">
+        <div className="flex items-start gap-2">
+          <span className="inline-flex min-w-8 items-center justify-center rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+            2×
+          </span>
+          <p className="pt-px text-[11px] leading-snug text-muted-foreground">{x2Description}</p>
+        </div>
+        <div className="flex items-start gap-2">
+          <span className="inline-flex min-w-8 items-center justify-center rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+            −
+          </span>
+          <p className="pt-px text-[11px] leading-snug text-muted-foreground">{negativeWeightDescription}</p>
+        </div>
+      </div>
+    </InlineHelpButton>
   );
 }
 
@@ -404,6 +441,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
       setDraft({
         name: existing.workout.name,
         icon: existing.workout.icon,
+        scheduledDays: existing.workout.scheduledDays ?? [],
         exercises: existing.exercises.map((item) => ({
           id: item.exercise.id,
           name: item.exercise.name,
@@ -438,6 +476,14 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         exercise.sets.every((set) => set.targetReps > 0 && (exercise.negativeWeightEnabled ? set.targetWeight <= 0 : set.targetWeight >= 0))
     );
   }, [draft]);
+  const workoutScheduleOptions = useMemo(
+    () =>
+      WORKOUT_SCHEDULE_DAYS.map((day) => ({
+        value: day,
+        label: formatWorkoutScheduleDayLabel(day, language)
+      })),
+    [language]
+  );
 
   const handleGenerateExerciseInfo = useCallback(async (options: GenerateExerciseInfoOptions = {}) => {
     const forceRefresh = options.forceRefresh === true;
@@ -980,6 +1026,47 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
               className="min-w-0 flex-1"
             />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="flex flex-col gap-3 pt-4">
+          <div className="relative">
+            <p className="pr-7 text-xs text-muted-foreground">{t("workoutScheduleDays")}</p>
+            <InlineHelpButton
+              buttonLabel={t("workoutScheduleDaysHelp")}
+              containerClassName="absolute right-0 top-1/2 -translate-y-1/2"
+              buttonClassName="h-5 w-5"
+              popupClassName="top-full right-0 bottom-auto mt-2 mb-0 w-56"
+            >
+              <p className="text-[11px] leading-snug text-muted-foreground">{t("workoutScheduleDaysHelpDescription")}</p>
+            </InlineHelpButton>
+          </div>
+          <ToggleGroup
+            type="multiple"
+            variant="outline"
+            size="sm"
+            value={draft.scheduledDays ?? []}
+            onValueChange={(value) =>
+              setDraft((prev) => ({
+                ...prev,
+                scheduledDays: normalizeWorkoutScheduledDays(value)
+              }))
+            }
+            className="grid grid-cols-7 gap-1"
+            aria-label={t("workoutScheduleDays")}
+          >
+            {workoutScheduleOptions.map((day) => (
+              <ToggleGroupItem
+                key={day.value}
+                value={day.value}
+                className="min-w-0 border-border px-0 text-sm data-[state=on]:border-foreground data-[state=on]:bg-foreground data-[state=on]:text-background"
+                aria-label={day.label}
+              >
+                {day.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
         </CardContent>
       </Card>
 

@@ -1,5 +1,6 @@
 import Dexie, { type Table } from "dexie";
 import { isWorkoutIconKey } from "@/lib/workout-icons";
+import { normalizeWorkoutScheduledDays } from "@/lib/workout-schedule";
 import type {
   Exercise,
   ExerciseTemplateSet,
@@ -306,6 +307,25 @@ class GymTrackerDB extends Dexie {
           if (set.negativeWeightEnabled === undefined) {
             set.negativeWeightEnabled = false;
           }
+        });
+      });
+
+    this.version(14)
+      .stores({
+        settings: "id, language, weightUnit",
+        workouts: "++id, name, createdAt, updatedAt",
+        exercises: "++id, workoutId, name, order, isTemplate, x2Enabled, negativeWeightEnabled",
+        exerciseTemplateSets: "++id, exerciseId, order",
+        sessions: "++id, workoutId, status, startedAt, finishedAt",
+        sessionExerciseSets:
+          "++id, sessionId, templateExerciseId, sessionExerciseKey, isTemplateExercise, completed, x2Enabled",
+        updateSafetySnapshots: "++id, createdAt, appVersion, previousAppVersion"
+      })
+      .upgrade(async (tx) => {
+        await tx.table("workouts").toCollection().modify((workout: Record<string, unknown>) => {
+          workout.scheduledDays = normalizeWorkoutScheduledDays(
+            Array.isArray(workout.scheduledDays) ? workout.scheduledDays : []
+          );
         });
       });
 

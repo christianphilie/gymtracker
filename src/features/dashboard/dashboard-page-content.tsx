@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronDown,
   Clock3,
@@ -36,6 +36,7 @@ import {
 import { discardSession, ensureDefaultWorkout, startSession } from "@/db/repository";
 import { useSettings } from "@/app/settings-context";
 import { getSessionDurationMinutes } from "@/lib/calorie-estimation";
+import { getCurrentWorkoutScheduleDay } from "@/lib/workout-schedule";
 import { formatDurationLabel, formatNumber } from "@/lib/utils";
 import {
   WeeklyGoalCard,
@@ -47,9 +48,11 @@ import {
   useEarliestCompletedPeriodStart,
   useStatisticsPeriodData
 } from "@/features/dashboard/use-dashboard-page-data";
+import { WorkoutHistoryContent } from "@/features/history/workout-history-page";
 import {
   clearLegacyStatisticsWeekParam,
   buildRoundedRadarPath,
+  buildWorkoutDataRoute,
   EMPTY_WEEKLY_STATS,
   formatDurationShort,
   formatMuscleMetricValue,
@@ -65,6 +68,7 @@ import {
   STATS_MUSCLE_METRIC_SEARCH_PARAM,
   STATS_OFFSET_SEARCH_PARAM,
   STATS_PERIOD_SEARCH_PARAM,
+  STATS_WORKOUT_ID_SEARCH_PARAM,
   STATS_YEARLY_SESSIONS_METRIC_SEARCH_PARAM,
   type StatisticsPeriod,
   type MuscleMetricMode,
@@ -83,6 +87,15 @@ const STATS_SUMMARY_CARD_CLASS =
   "rounded-lg border border-emerald-300/50 bg-emerald-100/50 px-3 py-2 dark:border-emerald-800/50 dark:bg-emerald-900/25";
 const STATS_SUMMARY_LABEL_CLASS = "inline-flex items-center gap-1 text-xs text-emerald-800/80 dark:text-emerald-300/75";
 const STATS_SUMMARY_VALUE_CLASS = "text-base font-semibold text-emerald-950/90 dark:text-emerald-100";
+const MONTHLY_SESSION_MARKER_SIZE_PX = 24;
+const MONTHLY_SESSION_MARKER_OFFSET_PX = 9;
+const MONTHLY_SESSION_MARKER_FILL_GRADIENT =
+  "linear-gradient(to top, hsl(var(--secondary)) 0%, rgb(209 250 229) 40%, rgb(16 185 129) 130%)";
+const MONTHLY_SESSION_MARKER_STYLE: CSSProperties = {
+  backgroundImage: MONTHLY_SESSION_MARKER_FILL_GRADIENT,
+  backgroundOrigin: "border-box",
+  backgroundClip: "padding-box"
+};
 
 function formatLocalDateKey(date: Date) {
   const year = date.getFullYear();
@@ -133,6 +146,7 @@ function useAnimatedNumber(targetValue: number, durationMs = STATS_CHART_TRANSIT
 
 export function DashboardPageContent({ section }: { section: DashboardPageSection }) {
   const { t, language, weightUnit, restTimerEnabled, restTimerSeconds } = useSettings();
+  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [clockTick, setClockTick] = useState(() => Date.now());
@@ -148,8 +162,15 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       ),
     [searchParams]
   );
-  const statisticsPeriod: StatisticsPeriod = section === "statistics" ? selectedStatisticsPeriod : "week";
-  const statisticsOffset = section === "statistics" ? selectedStatisticsOffset : 0;
+  const selectedStatisticsWorkoutId = useMemo(() => {
+    const raw = searchParams.get(STATS_WORKOUT_ID_SEARCH_PARAM);
+    const parsed = Number(raw);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }, [searchParams]);
+  const statisticsMode: StatisticsPeriod = section === "statistics" ? selectedStatisticsPeriod : "week";
+  const isWorkoutDataMode = section === "statistics" && statisticsMode === "workout";
+  const statisticsPeriod: StatisticsPeriod = isWorkoutDataMode ? "week" : statisticsMode;
+  const statisticsOffset = section === "statistics" && !isWorkoutDataMode ? selectedStatisticsOffset : 0;
   const currentPeriodStart = useMemo(
     () => getStatisticsPeriodStart(new Date(clockTick), statisticsPeriod),
     [clockTick, statisticsPeriod]
@@ -302,6 +323,8 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
   const hasWorkouts = useMemo(() => (workouts?.length ?? 0) > 0, [workouts]);
   const showWorkoutsSection = section === "workouts";
   const showStatsSection = section === "statistics";
+  const showWorkoutDataSection = showStatsSection && isWorkoutDataMode;
+  const showStatisticsOverviewSection = showStatsSection && !isWorkoutDataMode;
   const hasCompletedWorkoutsForPeriod = (weeklyStats?.completedWorkouts.length ?? 0) > 0;
   const hasActiveWorkout = activeWorkouts.length > 0;
   const hasTrackedWorkoutToday = useMemo(() => {
@@ -315,10 +338,44 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     });
   }, [clockTick, weeklyStats?.completedWorkouts]);
 
-  const recommendedWorkoutId = useMemo(() => {
-    if (hasActiveWorkout || hasTrackedWorkoutToday) return null;
-    return inactiveWorkouts[0]?.id ?? null;
-  }, [hasActiveWorkout, hasTrackedWorkoutToday, inactiveWorkouts]);
+  const recommendedWorkouts = useMemo(() => {
+    const todayScheduleDay = getCurrentWorkoutScheduleDay(new Date(clockTick));
+    const scheduledWorkoutIds = inactiveWorkouts.flatMap((workout) =>
+      workout.id !== undefined && workout.scheduledDays?.includes(todayScheduleDay) ? [workout.id] : []
+    );
+
+    if (scheduledWorkoutIds.length > 0) {
+      return new Map(scheduledWorkoutIds.map((workoutId) => [workoutId, "scheduled" as const]));
+    }
+
+    if (hasActiveWorkout || hasTrackedWorkoutToday) {
+      return new Map<number, "scheduled" | "stale">();
+    }
+
+    const fallbackWorkoutId = inactiveWorkouts[0]?.id;
+    if (fallbackWorkoutId === undefined) {
+      return new Map<number, "scheduled" | "stale">();
+    }
+
+    return new Map([[fallbackWorkoutId, "stale" as const]]);
+  }, [clockTick, hasActiveWorkout, hasTrackedWorkoutToday, inactiveWorkouts]);
+  const workoutDataOptions = useMemo(
+    () => (workouts ?? []).filter((workout): workout is typeof workout & { id: number } => workout.id !== undefined),
+    [workouts]
+  );
+  const selectedWorkoutDataId = useMemo(() => {
+    if (workoutDataOptions.length === 0) {
+      return null;
+    }
+
+    return workoutDataOptions.some((workout) => workout.id === selectedStatisticsWorkoutId)
+      ? selectedStatisticsWorkoutId
+      : workoutDataOptions[0].id;
+  }, [selectedStatisticsWorkoutId, workoutDataOptions]);
+  const selectedWorkoutData = useMemo(
+    () => workoutDataOptions.find((workout) => workout.id === selectedWorkoutDataId) ?? null,
+    [selectedWorkoutDataId, workoutDataOptions]
+  );
   const weeklyGoalItems = useMemo(() => {
     if (!weeklyStats) {
       return [];
@@ -389,7 +446,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
 
     return items;
   }, [weeklyStats, t, weightUnit, language]);
-  const showStatsGoalsSection = showStatsSection && statisticsPeriod === "week" && weeklyGoalItems.length > 0;
+  const showStatsGoalsSection = showStatisticsOverviewSection && statisticsPeriod === "week" && weeklyGoalItems.length > 0;
 
   const selectedHomeWeeklyGoal = useMemo(
     () => weeklyGoalItems.find((item) => item.key === homeWeeklyGoalKey) ?? null,
@@ -418,10 +475,10 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     const totalValue = items.reduce((sum, item) => sum + item.value, 0);
     return { items, maxValue, totalValue };
   }, [weeklyStats?.muscleGroupMetrics, t, muscleMetricMode]);
-  const showStatsSessionsSection = showStatsSection && statisticsPeriod === "week" && hasCompletedWorkoutsForPeriod;
-  const showStatsMonthCalendarSection = showStatsSection && statisticsPeriod === "month" && hasCompletedWorkoutsForPeriod;
-  const showStatsYearSessionsSection = showStatsSection && statisticsPeriod === "year" && hasCompletedWorkoutsForPeriod;
-  const showStatsMuscleGroupsSection = showStatsSection && weeklyMuscleChart.totalValue > 0;
+  const showStatsSessionsSection = showStatisticsOverviewSection && statisticsPeriod === "week" && hasCompletedWorkoutsForPeriod;
+  const showStatsMonthCalendarSection = showStatisticsOverviewSection && statisticsPeriod === "month" && hasCompletedWorkoutsForPeriod;
+  const showStatsYearSessionsSection = showStatisticsOverviewSection && statisticsPeriod === "year" && hasCompletedWorkoutsForPeriod;
+  const showStatsMuscleGroupsSection = showStatisticsOverviewSection && weeklyMuscleChart.totalValue > 0;
   const showStatsContentDivider =
     showStatsMonthCalendarSection || showStatsYearSessionsSection || showStatsSessionsSection || showStatsGoalsSection || showStatsMuscleGroupsSection;
 
@@ -575,39 +632,41 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     lastYearDay.setDate(lastYearDay.getDate() - 1);
     const chartEndExclusive = getStatisticsPeriodEndExclusive(getStatisticsPeriodStart(lastYearDay, "week"), "week");
 
-    const durationByWeekKey = new Map<string, number>();
+    const metricByWeekKey = new Map<string, number>();
     for (const workout of weeklyStats?.completedWorkouts ?? []) {
       const completedAt = new Date(workout.finishedAt ?? workout.startedAt);
       const weekStart = getStatisticsPeriodStart(completedAt, "week");
       const weekKey = formatLocalDateKey(weekStart);
-      const current = durationByWeekKey.get(weekKey) ?? 0;
+      const current = metricByWeekKey.get(weekKey) ?? 0;
       const nextValue =
         yearlySessionsMetricMode === "workouts"
           ? current + 1
+          : yearlySessionsMetricMode === "weight"
+            ? current + workout.totalWeight
           : yearlySessionsMetricMode === "sets"
             ? current + workout.setCount
             : current + workout.durationMinutes;
-      durationByWeekKey.set(weekKey, nextValue);
+      metricByWeekKey.set(weekKey, nextValue);
     }
 
     const bars: Array<{
       index: number;
       key: string;
-      durationMinutes: number;
+      metricValue: number;
       heightPercent: number;
       title: string;
       monthLabel: string;
       monthIndex: number;
     }> = [];
-    let maxDurationMinutes = 0;
+    let maxMetricValue = 0;
     const monthFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", { month: "short" });
 
     let barIndex = 0;
     for (const cursor = new Date(chartStart); cursor < chartEndExclusive; cursor.setDate(cursor.getDate() + 7)) {
       const weekStart = new Date(cursor);
       const weekKey = formatLocalDateKey(weekStart);
-      const durationMinutes = durationByWeekKey.get(weekKey) ?? 0;
-      maxDurationMinutes = Math.max(maxDurationMinutes, durationMinutes);
+      const metricValue = metricByWeekKey.get(weekKey) ?? 0;
+      maxMetricValue = Math.max(maxMetricValue, metricValue);
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
       const representativeDate = new Date(Math.max(weekStart.getTime(), yearStart.getTime()));
@@ -615,7 +674,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       bars.push({
         index: barIndex,
         key: weekKey,
-        durationMinutes,
+        metricValue,
         heightPercent: 0,
         monthLabel: monthFormatter.format(representativeDate).replace(/\.$/, ""),
         monthIndex,
@@ -623,21 +682,23 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
           language === "de" ? "de-DE" : "en-US"
         )}: ${
           yearlySessionsMetricMode === "workouts"
-            ? `${durationMinutes} ${t("workouts")}`
+            ? `${formatNumber(metricValue, 0)} ${t("workouts")}`
+            : yearlySessionsMetricMode === "weight"
+              ? `${formatNumber(metricValue, 0)} ${weightUnit}`
             : yearlySessionsMetricMode === "sets"
-              ? `${durationMinutes} ${t("sets")}`
-              : formatDurationShort(durationMinutes, language)
+              ? `${formatNumber(metricValue, 0)} ${t("sets")}`
+              : formatDurationShort(metricValue, language)
         }`
       });
       barIndex += 1;
     }
 
-    const maxValue = Math.max(maxDurationMinutes, 1);
+    const maxValue = Math.max(maxMetricValue, 1);
     return bars.map((bar) => ({
       ...bar,
-      heightPercent: bar.durationMinutes > 0 ? Math.max(10, (bar.durationMinutes / maxValue) * 100) : 0
+      heightPercent: bar.metricValue > 0 ? Math.max(10, (bar.metricValue / maxValue) * 100) : 0
     }));
-  }, [language, periodStart, statisticsPeriod, t, weeklyStats?.completedWorkouts, yearlySessionsMetricMode]);
+  }, [language, periodStart, statisticsPeriod, t, weightUnit, weeklyStats?.completedWorkouts, yearlySessionsMetricMode]);
 
   const yearlySessionsMonthAxis = useMemo(() => {
     if (!yearlySessionsChart || yearlySessionsChart.length === 0) {
@@ -837,10 +898,10 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
               key={workout.id}
               workout={workout}
               hasActiveWorkout={hasActiveWorkout}
-              recommendedWorkoutId={recommendedWorkoutId}
+              recommendedWorkouts={recommendedWorkouts}
               language={language}
               t={t}
-              onOpenHistory={(workoutId) => navigate(`/workouts/${workoutId}/history`)}
+              onOpenHistory={(workoutId) => navigate(buildWorkoutDataRoute(workoutId))}
               onEditWorkout={(workoutId) => navigate(`/workouts/${workoutId}/edit`)}
               onDiscardActiveSession={(sessionId) => setDiscardConfirmSessionId(sessionId)}
               onStartOrResume={handleStartSession}
@@ -861,10 +922,10 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
               key={workout.id}
               workout={workout}
               hasActiveWorkout={hasActiveWorkout}
-              recommendedWorkoutId={recommendedWorkoutId}
+              recommendedWorkouts={recommendedWorkouts}
               language={language}
               t={t}
-              onOpenHistory={(workoutId) => navigate(`/workouts/${workoutId}/history`)}
+              onOpenHistory={(workoutId) => navigate(buildWorkoutDataRoute(workoutId))}
               onEditWorkout={(workoutId) => navigate(`/workouts/${workoutId}/edit`)}
               onDiscardActiveSession={(sessionId) => setDiscardConfirmSessionId(sessionId)}
               onStartOrResume={handleStartSession}
@@ -911,7 +972,22 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
         </>
       )}
 
-      {showStatsSection && (
+      {showWorkoutDataSection && selectedWorkoutData && (
+        <WorkoutHistoryContent
+          workoutId={selectedWorkoutData.id}
+          sessionHash={location.hash}
+          sessionPathKey={`${location.pathname}${location.search}`}
+          showWorkoutTitle={false}
+        />
+      )}
+
+      {showWorkoutDataSection && !selectedWorkoutData && (
+        <Card>
+          <CardContent className="pt-4 text-sm text-muted-foreground">{t("noWorkouts")}</CardContent>
+        </Card>
+      )}
+
+      {showStatisticsOverviewSection && (
         <section className="space-y-3">
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
             <div className={STATS_SUMMARY_CARD_CLASS}>
@@ -1024,20 +1100,25 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                             {day.sessionCount > 0 ? (
                               <div className="mt-0.5 inline-flex items-center justify-center gap-1">
                                 <div
-                                  className="relative h-5"
+                                  className="relative"
                                   style={{
-                                    width: `${16 + Math.max(0, Math.min(day.sessionCount, 3) - 1) * 6}px`
+                                    width: `${
+                                      MONTHLY_SESSION_MARKER_SIZE_PX +
+                                      Math.max(0, Math.min(day.sessionCount, 3) - 1) * MONTHLY_SESSION_MARKER_OFFSET_PX
+                                    }px`,
+                                    height: `${MONTHLY_SESSION_MARKER_SIZE_PX}px`
                                   }}
                                 >
                                   {day.sessions.slice(0, 3).map((session, sessionIndex) => (
                                     <Link
                                       key={`month-session-${session.sessionId}`}
-                                      to={`/workouts/${session.workoutId}/history#session-${session.sessionId}`}
+                                      to={buildWorkoutDataRoute(session.workoutId, session.sessionId)}
                                       title={session.workoutName}
                                       aria-label={session.workoutName}
-                                      className="absolute top-1/2 inline-flex h-4 w-4 -translate-y-1/2 rounded-full border border-emerald-500/70 bg-emerald-300/70 transition-colors hover:bg-emerald-300/90 dark:border-emerald-400/60 dark:bg-emerald-500/20 dark:hover:bg-emerald-500/30"
+                                      className="absolute top-1/2 inline-flex h-5 w-7 -translate-y-1/2 rounded-full border border-emerald-500/100 transition-[filter,transform] duration-200 ease-out hover:brightness-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/35 focus-visible:ring-offset-1"
                                       style={{
-                                        left: `${sessionIndex * 6}px`,
+                                        ...MONTHLY_SESSION_MARKER_STYLE,
+                                        left: `${sessionIndex * MONTHLY_SESSION_MARKER_OFFSET_PX}px`,
                                         zIndex: 3 - sessionIndex
                                       }}
                                     />
@@ -1045,7 +1126,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                                 </div>
                                 {day.sessionCount > 3 ? (
                                   <span
-                                    className="inline-flex h-5 items-center justify-center px-0.5 text-[11px] font-semibold leading-none text-muted-foreground/80"
+                                    className="inline-flex h-6 items-center justify-center px-0.5 text-[11px] font-semibold leading-none text-muted-foreground/80"
                                     aria-label={`${day.sessionCount} ${t("sessions")}`}
                                   >
                                     +
@@ -1074,7 +1155,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                     {t("sessions")}
                   </p>
                   <div className={STATS_SEGMENTED_CONTROL_CLASS}>
-                    {(["workouts", "duration", "sets"] as const).map((mode) => (
+                    {(["workouts", "duration", "sets", "weight"] as const).map((mode) => (
                       <button
                         key={mode}
                         type="button"
@@ -1086,7 +1167,13 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                         }`}
                         aria-pressed={yearlySessionsMetricMode === mode}
                       >
-                        {mode === "workouts" ? t("workouts") : mode === "duration" ? t("duration") : t("sets")}
+                        {mode === "workouts"
+                          ? t("workouts")
+                          : mode === "duration"
+                            ? t("duration")
+                            : mode === "sets"
+                              ? t("sets")
+                              : t("totalWeight")}
                       </button>
                     ))}
                   </div>
@@ -1097,7 +1184,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                       <div key={bar.index} className="flex h-full min-w-0 flex-1 items-end justify-center">
                         <div
                           className={`w-full min-w-[5px] rounded-t-[6px] border border-b-0 border-emerald-500/65 bg-gradient-to-t from-emerald-500/0 via-emerald-500/25 to-emerald-500/85 transition-[height] duration-[360ms] ease-out ${
-                            bar.durationMinutes === 0 ? "border-emerald-500/20 from-transparent via-transparent to-transparent opacity-45" : ""
+                            bar.metricValue === 0 ? "border-emerald-500/20 from-transparent via-transparent to-transparent opacity-45" : ""
                           }`}
                           style={{ height: `${bar.heightPercent}%` }}
                           title={bar.title}
@@ -1166,7 +1253,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                     {weeklySessionsTimeline.items.map((item) => (
                       <Link
                         key={item.sessionId}
-                        to={`/workouts/${item.workoutId}/history#session-${item.sessionId}`}
+                        to={buildWorkoutDataRoute(item.workoutId, item.sessionId)}
                         title={item.title}
                         className="group absolute bottom-4"
                         style={{

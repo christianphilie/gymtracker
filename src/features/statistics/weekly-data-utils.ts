@@ -13,11 +13,12 @@ export interface WeeklyStatsWorkoutEntry {
   finishedAt: string | null;
   durationMinutes: number;
   setCount: number;
+  totalWeight: number;
 }
 
-export type StatisticsPeriod = "week" | "month" | "year";
+export type StatisticsPeriod = "week" | "month" | "year" | "workout";
 export type MuscleMetricMode = "reps" | "sets" | "weight";
-export type YearlySessionsMetricMode = "workouts" | "duration" | "sets";
+export type YearlySessionsMetricMode = "workouts" | "duration" | "sets" | "weight";
 export type MuscleGroupKey = "back" | "shoulders" | "core" | "arms" | "chest" | "legs";
 
 interface MuscleMetricAggregate {
@@ -54,6 +55,7 @@ export const STATS_PERIOD_SEARCH_PARAM = "period";
 export const STATS_OFFSET_SEARCH_PARAM = "offset";
 export const STATS_MUSCLE_METRIC_SEARCH_PARAM = "muscleMetric";
 export const STATS_YEARLY_SESSIONS_METRIC_SEARCH_PARAM = "sessionsMetric";
+export const STATS_WORKOUT_ID_SEARCH_PARAM = "workoutId";
 const LEGACY_STATS_WEEK_SEARCH_PARAM = "week";
 
 export function createEmptyMuscleGroupMetrics(): WeeklyMuscleGroupMetrics {
@@ -174,7 +176,7 @@ export function getStatisticsPeriodOffset(currentStart: Date, targetStart: Date,
 }
 
 export function parseStatisticsPeriod(value: string | null): StatisticsPeriod {
-  if (value === "month" || value === "year") {
+  if (value === "month" || value === "year" || value === "workout") {
     return value;
   }
 
@@ -204,7 +206,7 @@ export function parseMuscleMetricMode(value: string | null): MuscleMetricMode {
 }
 
 export function parseYearlySessionsMetricMode(value: string | null): YearlySessionsMetricMode {
-  if (value === "workouts" || value === "sets") {
+  if (value === "workouts" || value === "sets" || value === "weight") {
     return value;
   }
 
@@ -249,6 +251,10 @@ export function formatStatisticsPeriodLabel(
 }
 
 export function getStatisticsPeriodTitleKey(period: StatisticsPeriod) {
+  if (period === "workout") {
+    return "workoutData" as const;
+  }
+
   if (period === "month") {
     return "monthlyData" as const;
   }
@@ -286,6 +292,14 @@ export function getNextStatisticsPeriodLabelKey(period: StatisticsPeriod) {
 
 export function clearLegacyStatisticsWeekParam(searchParams: URLSearchParams) {
   searchParams.delete(LEGACY_STATS_WEEK_SEARCH_PARAM);
+}
+
+export function buildWorkoutDataRoute(workoutId: number, sessionId?: number | null) {
+  const searchParams = new URLSearchParams();
+  searchParams.set(STATS_PERIOD_SEARCH_PARAM, "workout");
+  searchParams.set(STATS_WORKOUT_ID_SEARCH_PARAM, String(workoutId));
+  const hash = sessionId ? `#session-${sessionId}` : "";
+  return `/statistics?${searchParams.toString()}${hash}`;
 }
 
 export function normalizeWeeklyGoal(value: unknown) {

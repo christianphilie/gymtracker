@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { Navigate, useLocation, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Check, ChevronDown, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -46,6 +46,7 @@ import {
   getSetWeightValue,
   normalizeSessionExerciseSet
 } from "@/lib/utils";
+import { buildWorkoutDataRoute } from "@/features/statistics/weekly-data-utils";
 import {
   Area as RechartsArea,
   AreaChart as RechartsAreaChart,
@@ -137,6 +138,17 @@ function formatHistoryAbsoluteDate(value: Date | string, language: "de" | "en") 
   }).format(date);
 }
 
+function formatHistoryAbsoluteDateWithWeekday(value: Date | string, language: "de" | "en") {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const locale = language === "de" ? "de-DE" : "en-US";
+  const weekdayLabel = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date).replace(/\.$/, "");
+  return `${weekdayLabel}, ${formatHistoryAbsoluteDate(date, language)}`;
+}
+
 function formatSessionDayOnly(value: Date | string, language: "de" | "en") {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -150,19 +162,13 @@ function formatSessionDayOnly(value: Date | string, language: "de" | "en") {
   const dayDiff = Math.round((startOfToday.getTime() - startOfDate.getTime()) / 86_400_000);
 
   if (dayDiff < 0) {
-    return new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    }).format(date);
+    return formatHistoryAbsoluteDateWithWeekday(date, language);
   }
 
   if (dayDiff === 0) return language === "de" ? "Heute" : "Today";
   if (dayDiff === 1) return language === "de" ? "Gestern" : "Yesterday";
-  if (dayDiff === 2) return language === "de" ? "Vorgestern" : "Day before yesterday";
-  if (dayDiff === 3) return language === "de" ? "Vor 3 Tagen" : "3 days ago";
 
-  return formatHistoryAbsoluteDate(date, language);
+  return formatHistoryAbsoluteDateWithWeekday(date, language);
 }
 
 function formatHistorySessionDateTime(value: Date | string, language: "de" | "en") {
@@ -180,10 +186,8 @@ function formatHistorySessionDateTime(value: Date | string, language: "de" | "en
 
   if (dayDiff === 0) return `${language === "de" ? "Heute" : "Today"}, ${timeLabel}`;
   if (dayDiff === 1) return `${language === "de" ? "Gestern" : "Yesterday"}, ${timeLabel}`;
-  if (dayDiff === 2) return `${language === "de" ? "Vorgestern" : "Day before yesterday"}, ${timeLabel}`;
-  if (dayDiff === 3) return language === "de" ? `Vor 3 Tagen, ${timeLabel}` : `3 days ago, ${timeLabel}`;
 
-  return `${formatHistoryAbsoluteDate(date, language)}, ${timeLabel}`;
+  return `${formatHistoryAbsoluteDateWithWeekday(date, language)}, ${timeLabel}`;
 }
 
 function formatHistoryWeekRange(
@@ -231,11 +235,20 @@ function fromDateTimeLocalValue(value: string) {
   return date.toISOString();
 }
 
-export function WorkoutHistoryPage() {
-  const location = useLocation();
-  const { workoutId } = useParams();
+export function WorkoutHistoryContent({
+  workoutId,
+  sessionHash = "",
+  sessionPathKey = "",
+  showWorkoutTitle = true,
+  headerContent
+}: {
+  workoutId: number;
+  sessionHash?: string;
+  sessionPathKey?: string;
+  showWorkoutTitle?: boolean;
+  headerContent?: ReactNode;
+}) {
   const { t, weightUnit, language } = useSettings();
-  const numericWorkoutId = Number(workoutId);
   const [deleteSessionId, setDeleteSessionId] = useState<number | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
   const [editingSets, setEditingSets] = useState<EditableSessionSet[]>([]);
@@ -251,17 +264,17 @@ export function WorkoutHistoryPage() {
   const autoFocusedSessionHashRef = useRef<string | null>(null);
 
   const payload = useLiveQuery(async () => {
-    if (Number.isNaN(numericWorkoutId)) {
+    if (Number.isNaN(workoutId)) {
       return null;
     }
 
     const [workout, history] = await Promise.all([
-      getWorkoutById(numericWorkoutId),
-      getWorkoutSessionHistory(numericWorkoutId)
+      getWorkoutById(workoutId),
+      getWorkoutSessionHistory(workoutId)
     ]);
 
     return { workout, history };
-  }, [numericWorkoutId]);
+  }, [workoutId]);
   const settings = useLiveQuery(async () => db.settings.get(1), []);
   const templateExerciseMetaById = useMemo(() => {
     return new Map(
@@ -466,12 +479,12 @@ export function WorkoutHistoryPage() {
   }, [groupedHistory]);
 
   useEffect(() => {
-    if (!location.hash.startsWith("#session-")) {
+    if (!sessionHash.startsWith("#session-")) {
       autoFocusedSessionHashRef.current = null;
       return;
     }
 
-    const targetSessionId = Number(location.hash.replace("#session-", ""));
+    const targetSessionId = Number(sessionHash.replace("#session-", ""));
     if (Number.isNaN(targetSessionId)) {
       return;
     }
@@ -481,7 +494,7 @@ export function WorkoutHistoryPage() {
       return;
     }
 
-    const currentTargetHash = `${location.pathname}${location.hash}`;
+    const currentTargetHash = `${sessionPathKey}${sessionHash}`;
     if (autoFocusedSessionHashRef.current === currentTargetHash) {
       return;
     }
@@ -501,7 +514,7 @@ export function WorkoutHistoryPage() {
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [groupedHistory, location.hash, location.pathname]);
+  }, [groupedHistory, sessionHash, sessionPathKey]);
 
   const closeEditDialog = () => {
     setEditingSessionId(null);
@@ -662,11 +675,16 @@ export function WorkoutHistoryPage() {
 
   return (
     <section className="space-y-4">
-      <div className="space-y-0.5">
-        <p className="text-base font-semibold leading-tight text-foreground/75">
-          <WorkoutNameLabel name={payload.workout.workout.name} icon={payload.workout.workout.icon} />
-        </p>
-      </div>
+      {(showWorkoutTitle || headerContent) && (
+        <div className="space-y-0.5">
+          {showWorkoutTitle && (
+            <p className="text-base font-semibold leading-tight text-foreground/75">
+              <WorkoutNameLabel name={payload.workout.workout.name} icon={payload.workout.workout.icon} />
+            </p>
+          )}
+          {headerContent}
+        </div>
+      )}
 
       {groupedHistory.length > 0 && (
         <Card className="overflow-hidden border-0 bg-transparent shadow-none">
@@ -1091,4 +1109,16 @@ export function WorkoutHistoryPage() {
       </Dialog>
     </section>
   );
+}
+
+export function WorkoutHistoryPage() {
+  const location = useLocation();
+  const { workoutId } = useParams();
+  const numericWorkoutId = Number(workoutId);
+
+  if (Number.isNaN(numericWorkoutId)) {
+    return <Navigate to="/statistics?period=workout" replace />;
+  }
+
+  return <Navigate to={buildWorkoutDataRoute(numericWorkoutId) + location.hash} replace />;
 }

@@ -356,7 +356,8 @@ export function useStatisticsPeriodData(params: {
         startedAt: session.startedAt,
         finishedAt: session.finishedAt ?? null,
         durationMinutes,
-        setCount: weightedCompletedSetCount
+        setCount: weightedCompletedSetCount,
+        totalWeight: sessionTotalWeight
       };
     });
 
