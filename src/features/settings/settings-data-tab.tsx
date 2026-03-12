@@ -78,7 +78,7 @@ export function SettingsDataTab({
           <p className="border-t pt-3 text-sm text-muted-foreground">{t("dataImportHint")}</p>
           <div className="space-y-2">
             <Input type="file" accept="application/json,.json,text/plain" onChange={onBackupFileUpload} />
-            <p className="text-xs text-muted-foreground">{pendingImportFileName ?? t("noFileLoaded")}</p>
+            {pendingImportFileName && <p className="text-xs text-muted-foreground">{pendingImportFileName}</p>}
             {pendingImport && (
               <div className="space-y-1 rounded-md border p-2 text-xs text-muted-foreground">
                 <p>{t("backupFileReady")}</p>

@@ -1,6 +1,6 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/db/db";
-import type { ExerciseAiInfo, SessionExerciseSet, WeightUnit } from "@/db/types";
+import type { ExerciseAiInfo, SessionExerciseSet, WeightUnit, Workout } from "@/db/types";
 import {
   estimateStrengthTrainingCalories,
   getSessionDurationMinutes,
@@ -226,9 +226,11 @@ export function useStatisticsPeriodData(params: {
     }
 
     const workoutNameById = new Map<number, string>();
+    const workoutIconById = new Map<number, Workout["icon"]>();
     for (const workout of workoutsForStats) {
       if (workout.id !== undefined) {
         workoutNameById.set(workout.id, workout.name);
+        workoutIconById.set(workout.id, workout.icon);
       }
     }
     const sessionWorkoutIdBySessionId = new Map<number, number>();
@@ -295,9 +297,12 @@ export function useStatisticsPeriodData(params: {
         sessionId,
         workoutId: session.workoutId,
         workoutName: workoutNameById.get(session.workoutId) ?? "-",
+        workoutIcon: workoutIconById.get(session.workoutId),
         weekdayLabel: weekdayFormatter.format(completedAt),
         startedAt: session.startedAt,
-        finishedAt: session.finishedAt ?? null
+        finishedAt: session.finishedAt ?? null,
+        durationMinutes,
+        setCount: weightedCompletedSetCount
       };
     });
 

@@ -81,9 +81,11 @@ export function WeeklyGoalCard({ goal, compact = false }: WeeklyGoalCardProps) {
       </div>
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
         <div
-          className={`h-full rounded-full transition-all ${compact
-            ? (goal.isComplete ? "bg-foreground" : "bg-foreground/75")
-            : (goal.isComplete ? "bg-emerald-600 dark:bg-emerald-500" : "bg-emerald-400 dark:bg-emerald-700")}`}
+          className={`h-full rounded-full transition-all ${
+            goal.isComplete
+              ? "bg-emerald-500 dark:bg-emerald-400"
+              : "bg-emerald-400/60 dark:bg-emerald-400/45"
+          }`}
           style={{ width: `${goal.progressPercent}%` }}
         />
       </div>

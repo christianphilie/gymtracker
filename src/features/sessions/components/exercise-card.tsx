@@ -130,7 +130,7 @@ export function ExerciseCard({
 
       <div className={`grid transition-all duration-200 ${isCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}>
         <div className="overflow-hidden">
-          <CardContent className="space-y-2">
+          <CardContent className={`space-y-2 ${exercise.x2Enabled ? "pt-1" : ""}`}>
             {exercise.sets.map((set) => (
               <SetRow
                 key={set.id}
@@ -148,55 +148,64 @@ export function ExerciseCard({
               />
             ))}
 
-            {lastSessionSetSummary && lastSessionSetSummary.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                <History className="h-3.5 w-3.5 text-muted-foreground/70" aria-label={t("lastSession")} />
-                {lastSessionSetSummary.map((summary, index) => (
-                  <span
-                    key={`${summary}-${index}`}
-                    className="inline-flex rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70"
-                  >
-                    {summary}
-                  </span>
-                ))}
-              </div>
-            )}
-
             {(exercise.exerciseNotes || (lastSessionSetSummary && lastSessionSetSummary.length > 0) || !sessionIsCompleted) && (
-              <div className="flex items-center gap-2 border-t pt-2">
-                {exercise.exerciseNotes && (
-                  <div className="min-w-0 flex-1">
+              <div className="border-t pt-2">
+                <div className="flex items-center gap-2">
+                  {lastSessionSetSummary && lastSessionSetSummary.length > 0 ? (
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <History className="h-3.5 w-3.5 text-muted-foreground/70" aria-label={t("lastSession")} />
+                        {lastSessionSetSummary.map((summary, index) => (
+                          <span
+                            key={`${summary}-${index}`}
+                            className="inline-flex rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70"
+                          >
+                            {summary}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : exercise.exerciseNotes ? (
+                    <div className="min-w-0 flex-1">
+                      <ExerciseNoteTag note={exercise.exerciseNotes} className="align-middle" />
+                    </div>
+                  ) : (
+                    <div className="min-w-0 flex-1" />
+                  )}
+                  {!sessionIsCompleted && (
+                    <div className="ml-auto flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
+                        aria-label={t("removeExercise")}
+                        onClick={async () => {
+                          const sorted = [...exercise.sets].sort((a, b) => b.templateSetOrder - a.templateSetOrder);
+                          if (sorted.length > 1) {
+                            await removeSessionSet(sorted[0].id!);
+                            return;
+                          }
+                          onRequestDeleteExercise(exercise.sessionExerciseKey);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="rounded-md text-lg leading-none"
+                        onClick={async () => {
+                          await addSessionSet(sessionId, exercise.sessionExerciseKey);
+                        }}
+                        aria-label={t("addSet")}
+                      >
+                        +
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {lastSessionSetSummary && lastSessionSetSummary.length > 0 && exercise.exerciseNotes && (
+                  <div className="pt-1.5">
                     <ExerciseNoteTag note={exercise.exerciseNotes} className="align-middle" />
-                  </div>
-                )}
-                {!sessionIsCompleted && (
-                  <div className="ml-auto flex shrink-0 items-center gap-2">
-                    <button
-                      type="button"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
-                      aria-label={t("removeExercise")}
-                      onClick={async () => {
-                        const sorted = [...exercise.sets].sort((a, b) => b.templateSetOrder - a.templateSetOrder);
-                        if (sorted.length > 1) {
-                          await removeSessionSet(sorted[0].id!);
-                          return;
-                        }
-                        onRequestDeleteExercise(exercise.sessionExerciseKey);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="rounded-md text-lg leading-none"
-                      onClick={async () => {
-                        await addSessionSet(sessionId, exercise.sessionExerciseKey);
-                      }}
-                      aria-label={t("addSet")}
-                    >
-                      +
-                    </Button>
                   </div>
                 )}
               </div>

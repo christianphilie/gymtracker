@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, Pencil, PersonStanding, Plus, Save, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Pencil, PersonStanding, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
@@ -139,6 +139,7 @@ function fromDateTimeLocalValue(value: string) {
 
 
 export function WorkoutHistoryPage() {
+  const location = useLocation();
   const { workoutId } = useParams();
   const { t, weightUnit, language } = useSettings();
   const numericWorkoutId = Number(workoutId);
@@ -149,7 +150,9 @@ export function WorkoutHistoryPage() {
   const [editingSessionFinishedAtDraft, setEditingSessionFinishedAtDraft] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [focusedWeightSetId, setFocusedWeightSetId] = useState<number | null>(null);
+  const [collapsedSessions, setCollapsedSessions] = useState<Record<number, boolean>>({});
   const nextEditingDraftSetIdRef = useRef(-1);
+  const autoFocusedSessionHashRef = useRef<string | null>(null);
 
   const payload = useLiveQuery(async () => {
     if (Number.isNaN(numericWorkoutId)) {
@@ -246,6 +249,54 @@ export function WorkoutHistoryPage() {
       return date >= weekStart;
     }).length;
   }, [payload?.history]);
+
+  useEffect(() => {
+    setCollapsedSessions((prev) => {
+      const next: Record<number, boolean> = {};
+      for (const entry of groupedHistory) {
+        next[entry.session.id] = prev[entry.session.id] ?? true;
+      }
+      return next;
+    });
+  }, [groupedHistory]);
+
+  useEffect(() => {
+    if (!location.hash.startsWith("#session-")) {
+      autoFocusedSessionHashRef.current = null;
+      return;
+    }
+
+    const targetSessionId = Number(location.hash.replace("#session-", ""));
+    if (Number.isNaN(targetSessionId)) {
+      return;
+    }
+
+    const targetExists = groupedHistory.some((entry) => entry.session.id === targetSessionId);
+    if (!targetExists) {
+      return;
+    }
+
+    const currentTargetHash = `${location.pathname}${location.hash}`;
+    if (autoFocusedSessionHashRef.current === currentTargetHash) {
+      return;
+    }
+    autoFocusedSessionHashRef.current = currentTargetHash;
+
+    setCollapsedSessions(() =>
+      Object.fromEntries(
+        groupedHistory.map((entry) => [entry.session.id, entry.session.id !== targetSessionId])
+      )
+    );
+
+    const frameId = window.requestAnimationFrame(() => {
+      document.getElementById(`session-${targetSessionId}`)?.scrollIntoView({
+        block: "start",
+        behavior: "smooth"
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [groupedHistory, location.hash, location.pathname]);
 
   const closeEditDialog = () => {
     setEditingSessionId(null);
@@ -418,21 +469,41 @@ export function WorkoutHistoryPage() {
         </Card>
       )}
 
-      {groupedHistory.map((entry) => (
+      {groupedHistory.map((entry) => {
+        const isCollapsed = collapsedSessions[entry.session.id] ?? true;
+        return (
         <Card key={entry.session.id} id={`session-${entry.session.id}`} className="scroll-mt-20">
           <CardHeader className="space-y-2">
             <div className="flex items-start justify-between gap-2">
-              <div className="space-y-1">
-                <CardTitle className="text-sm">
-                  {entry.session.finishedAt
-                    ? formatSessionDayOnly(entry.session.finishedAt, language)
-                    : formatSessionDateLabel(entry.session.startedAt, language)}
-                </CardTitle>
+              <div className="flex min-w-0 items-start gap-2">
+                <button
+                  type="button"
+                  aria-label={isCollapsed ? t("expandSession") : t("collapseSession")}
+                  aria-expanded={!isCollapsed}
+                  onClick={() =>
+                    setCollapsedSessions((prev) => ({
+                      ...prev,
+                      [entry.session.id]: !isCollapsed
+                    }))
+                  }
+                  className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                >
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${isCollapsed ? "-rotate-90" : "rotate-0"}`}
+                  />
+                </button>
+                <div className="space-y-1">
+                  <CardTitle className="text-sm">
+                    {entry.session.finishedAt
+                      ? formatSessionDayOnly(entry.session.finishedAt, language)
+                      : formatSessionDateLabel(entry.session.startedAt, language)}
+                  </CardTitle>
                 {entry.session.finishedAt && (
                   <p className="text-xs text-muted-foreground">
                     {formatClock(entry.session.startedAt, language)} - {formatClock(entry.session.finishedAt, language)}
                   </p>
                 )}
+              </div>
               </div>
               <div className="flex items-center gap-1">
                 <Button variant="outline" size="icon" aria-label={t("editSession")} onClick={() => startEditSession(entry)}>
@@ -449,6 +520,8 @@ export function WorkoutHistoryPage() {
               </div>
             </div>
           </CardHeader>
+          <div className={`grid transition-all duration-200 ${isCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}>
+          <div className="overflow-hidden">
           <CardContent className="space-y-3">
             {entry.exercises.map((sets) => {
               const firstSet = sets[0];
@@ -529,8 +602,10 @@ export function WorkoutHistoryPage() {
               </div>
             </div>
           </CardContent>
+          </div>
+          </div>
         </Card>
-      ))}
+      )})}
 
       <Dialog open={editingSessionId !== null} onOpenChange={(nextOpen) => !nextOpen && closeEditDialog()}>
         <DialogContent hideClose className="max-h-[80vh] overflow-y-auto">

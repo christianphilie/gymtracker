@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronDown,
@@ -58,21 +58,68 @@ import {
   getStatisticsPeriodStart,
   getStatisticsPeriodEndExclusive,
   MUSCLE_GROUP_ORDER,
+  parseMuscleMetricMode,
   parseStatisticsOffset,
   parseStatisticsPeriod,
+  parseYearlySessionsMetricMode,
+  STATS_MUSCLE_METRIC_SEARCH_PARAM,
   STATS_OFFSET_SEARCH_PARAM,
   STATS_PERIOD_SEARCH_PARAM,
+  STATS_YEARLY_SESSIONS_METRIC_SEARCH_PARAM,
   type StatisticsPeriod,
-  type MuscleMetricMode
+  type MuscleMetricMode,
+  type WeeklyStatsWorkoutEntry,
+  type YearlySessionsMetricMode
 } from "@/features/statistics/weekly-data-utils";
 
 export type DashboardPageSection = "workouts" | "statistics";
+const STATS_CHART_TRANSITION_MS = 360;
 
 function formatLocalDateKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function interpolateNumber(start: number, end: number, progress: number) {
+  return start + (end - start) * progress;
+}
+
+function useAnimatedNumber(targetValue: number, durationMs = STATS_CHART_TRANSITION_MS) {
+  const [value, setValue] = useState(targetValue);
+  const valueRef = useRef(targetValue);
+
+  useEffect(() => {
+    const safeTarget = Number.isFinite(targetValue) ? targetValue : 0;
+    const startValue = valueRef.current;
+
+    if (Math.abs(startValue - safeTarget) < 0.001) {
+      valueRef.current = safeTarget;
+      setValue(safeTarget);
+      return;
+    }
+
+    const startTime = performance.now();
+    let frameId = 0;
+
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startTime) / durationMs);
+      const eased = 1 - (1 - progress) ** 3;
+      const nextValue = interpolateNumber(startValue, safeTarget, eased);
+      valueRef.current = nextValue;
+      setValue(nextValue);
+
+      if (progress < 1) {
+        frameId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [durationMs, targetValue]);
+
+  return value;
 }
 
 export function DashboardPageContent({ section }: { section: DashboardPageSection }) {
@@ -115,9 +162,21 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
   }, [currentPeriodStart, statisticsOffset, statisticsPeriod]);
   const [discardConfirmSessionId, setDiscardConfirmSessionId] = useState<number | null>(null);
   const [isCreatingStarterWorkout, setIsCreatingStarterWorkout] = useState(false);
-  const [muscleMetricMode, setMuscleMetricMode] = useState<MuscleMetricMode>("reps");
   const [homeWeeklyGoalKey, setHomeWeeklyGoalKey] = useState<"workouts" | "duration" | "calories" | "weight" | null>(null);
+  const [animatedMusclePoints, setAnimatedMusclePoints] = useState<Array<{ x: number; y: number }>>([]);
+  const animatedMusclePointsRef = useRef<Array<{ x: number; y: number }>>([]);
   const earliestCompletedPeriodStart = useEarliestCompletedPeriodStart(statisticsPeriod);
+  const selectedMuscleMetricMode = useMemo(
+    () => parseMuscleMetricMode(searchParams.get(STATS_MUSCLE_METRIC_SEARCH_PARAM)),
+    [searchParams]
+  );
+  const selectedYearlySessionsMetricMode = useMemo(
+    () => parseYearlySessionsMetricMode(searchParams.get(STATS_YEARLY_SESSIONS_METRIC_SEARCH_PARAM)),
+    [searchParams]
+  );
+  const muscleMetricMode: MuscleMetricMode = section === "statistics" ? selectedMuscleMetricMode : "reps";
+  const yearlySessionsMetricMode: YearlySessionsMetricMode =
+    section === "statistics" ? selectedYearlySessionsMetricMode : "duration";
 
   const updateStatisticsRouteState = useCallback(
     (nextOffset: number) => {
@@ -140,6 +199,37 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       setSearchParams(nextSearchParams, { replace: true });
     },
     [searchParams, setSearchParams, statisticsPeriod]
+  );
+
+  const updateStatisticsFilterState = useCallback(
+    (
+      nextFilters: Partial<{
+        muscleMetricMode: MuscleMetricMode;
+        yearlySessionsMetricMode: YearlySessionsMetricMode;
+      }>
+    ) => {
+      const nextSearchParams = new URLSearchParams(searchParams);
+
+      if (nextFilters.muscleMetricMode) {
+        if (nextFilters.muscleMetricMode === "reps") {
+          nextSearchParams.delete(STATS_MUSCLE_METRIC_SEARCH_PARAM);
+        } else {
+          nextSearchParams.set(STATS_MUSCLE_METRIC_SEARCH_PARAM, nextFilters.muscleMetricMode);
+        }
+      }
+
+      if (nextFilters.yearlySessionsMetricMode) {
+        if (nextFilters.yearlySessionsMetricMode === "duration") {
+          nextSearchParams.delete(STATS_YEARLY_SESSIONS_METRIC_SEARCH_PARAM);
+        } else {
+          nextSearchParams.set(STATS_YEARLY_SESSIONS_METRIC_SEARCH_PARAM, nextFilters.yearlySessionsMetricMode);
+        }
+      }
+
+      clearLegacyStatisticsWeekParam(nextSearchParams);
+      setSearchParams(nextSearchParams, { replace: true });
+    },
+    [searchParams, setSearchParams]
   );
 
   useEffect(() => {
@@ -176,6 +266,12 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
 
   const workouts = useDashboardWorkoutsData({ restTimerEnabled, restTimerSeconds });
   const weeklyStats = useStatisticsPeriodData({ language, weightUnit, period: statisticsPeriod, periodStart });
+  const animatedWorkoutCount = useAnimatedNumber(weeklyStats?.workoutCount ?? 0);
+  const animatedDurationMinutesTotal = useAnimatedNumber(weeklyStats?.durationMinutesTotal ?? 0);
+  const animatedSetCount = useAnimatedNumber(weeklyStats?.setCount ?? 0);
+  const animatedRepsTotal = useAnimatedNumber(weeklyStats?.repsTotal ?? 0);
+  const animatedTotalWeight = useAnimatedNumber(weeklyStats?.totalWeight ?? 0);
+  const animatedCaloriesTotal = useAnimatedNumber(weeklyStats?.caloriesTotal ?? 0);
 
   const { activeWorkouts, inactiveWorkouts } = useMemo(() => {
     const active = (workouts ?? [])
@@ -197,9 +293,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
   const hasWorkouts = useMemo(() => (workouts?.length ?? 0) > 0, [workouts]);
   const showWorkoutsSection = section === "workouts";
   const showStatsSection = section === "statistics";
-  const showStatsSessionsSection = showStatsSection && statisticsPeriod === "week";
-  const showStatsMonthCalendarSection = showStatsSection && statisticsPeriod === "month";
-  const showStatsYearSessionsSection = showStatsSection && statisticsPeriod === "year";
+  const hasCompletedWorkoutsForPeriod = (weeklyStats?.completedWorkouts.length ?? 0) > 0;
   const hasActiveWorkout = activeWorkouts.length > 0;
   const hasTrackedWorkoutToday = useMemo(() => {
     const dayStart = new Date(clockTick);
@@ -315,15 +409,23 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     const totalValue = items.reduce((sum, item) => sum + item.value, 0);
     return { items, maxValue, totalValue };
   }, [weeklyStats?.muscleGroupMetrics, t, muscleMetricMode]);
+  const showStatsSessionsSection = showStatsSection && statisticsPeriod === "week" && hasCompletedWorkoutsForPeriod;
+  const showStatsMonthCalendarSection = showStatsSection && statisticsPeriod === "month" && hasCompletedWorkoutsForPeriod;
+  const showStatsYearSessionsSection = showStatsSection && statisticsPeriod === "year" && hasCompletedWorkoutsForPeriod;
+  const showStatsMuscleGroupsSection = showStatsSection && weeklyMuscleChart.totalValue > 0;
+  const showStatsContentDivider =
+    showStatsMonthCalendarSection || showStatsYearSessionsSection || showStatsSessionsSection || showStatsGoalsSection || showStatsMuscleGroupsSection;
 
   const weeklySessionsTimeline = useMemo(() => {
     if (statisticsPeriod !== "week") {
-      return { dayLabels: [], ticks: [], items: [], nowTick: { leftPercent: 0 } };
+      return { dayLabels: [], ticks: [], items: [], nowTick: null };
     }
 
     const weekStartMs = periodStart.getTime();
     const weekEndMs = getStatisticsPeriodEndExclusive(periodStart, "week").getTime();
     const totalSpanMs = Math.max(1, weekEndMs - weekStartMs);
+    const currentWeekStartMs = getStatisticsPeriodStart(new Date(clockTick), "week").getTime();
+    const showNowTick = currentWeekStartMs === weekStartMs;
     const nowMs = Math.max(weekStartMs, Math.min(weekEndMs, clockTick));
     const weekdayFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", { weekday: "short" });
     const timeFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
@@ -347,9 +449,11 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       isDayBoundary: tickIndex % 4 === 0
     }));
 
-    const nowTick = {
-      leftPercent: ((nowMs - weekStartMs) / totalSpanMs) * 100
-    };
+    const nowTick = showNowTick
+      ? {
+          leftPercent: ((nowMs - weekStartMs) / totalSpanMs) * 100
+        }
+      : null;
 
     const items = (weeklyStats?.completedWorkouts ?? []).map((item) => {
       const endMs = new Date(item.finishedAt ?? item.startedAt).getTime();
@@ -387,11 +491,26 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     const gridStart = getStatisticsPeriodStart(monthStart, "week");
     const gridEndExclusive = getStatisticsPeriodEndExclusive(getStatisticsPeriodStart(lastMonthDay, "week"), "week");
 
-    const sessionCountByDay = new Map<string, number>();
+    const sessionsByDay = new Map<
+      string,
+      Array<{
+        sessionId: number;
+        workoutId: number;
+        workoutName: string;
+        workoutIcon?: WeeklyStatsWorkoutEntry["workoutIcon"];
+      }>
+    >();
     for (const workout of weeklyStats?.completedWorkouts ?? []) {
       const completedAt = new Date(workout.finishedAt ?? workout.startedAt);
       const key = formatLocalDateKey(completedAt);
-      sessionCountByDay.set(key, (sessionCountByDay.get(key) ?? 0) + 1);
+      const current = sessionsByDay.get(key) ?? [];
+      current.push({
+        sessionId: workout.sessionId,
+        workoutId: workout.workoutId,
+        workoutName: workout.workoutName,
+        workoutIcon: workout.workoutIcon
+      });
+      sessionsByDay.set(key, current);
     }
 
     const weekdayLabels = Array.from({ length: 7 }, (_, index) => {
@@ -406,6 +525,12 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       dayNumber: number;
       isCurrentMonth: boolean;
       isToday: boolean;
+      sessions: Array<{
+        sessionId: number;
+        workoutId: number;
+        workoutName: string;
+        workoutIcon?: WeeklyStatsWorkoutEntry["workoutIcon"];
+      }>;
       sessionCount: number;
     }> = [];
 
@@ -421,7 +546,8 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
         dayNumber: day.getDate(),
         isCurrentMonth: day.getMonth() === monthStart.getMonth() && day.getFullYear() === monthStart.getFullYear(),
         isToday: day.getTime() === today.getTime(),
-        sessionCount: sessionCountByDay.get(key) ?? 0
+        sessions: sessionsByDay.get(key) ?? [],
+        sessionCount: (sessionsByDay.get(key) ?? []).length
       });
     }
 
@@ -445,18 +571,29 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       const completedAt = new Date(workout.finishedAt ?? workout.startedAt);
       const weekStart = getStatisticsPeriodStart(completedAt, "week");
       const weekKey = formatLocalDateKey(weekStart);
-      const durationMinutes = getSessionDurationMinutes(workout.startedAt, workout.finishedAt ?? workout.startedAt);
-      durationByWeekKey.set(weekKey, (durationByWeekKey.get(weekKey) ?? 0) + durationMinutes);
+      const current = durationByWeekKey.get(weekKey) ?? 0;
+      const nextValue =
+        yearlySessionsMetricMode === "workouts"
+          ? current + 1
+          : yearlySessionsMetricMode === "sets"
+            ? current + workout.setCount
+            : current + workout.durationMinutes;
+      durationByWeekKey.set(weekKey, nextValue);
     }
 
     const bars: Array<{
+      index: number;
       key: string;
       durationMinutes: number;
       heightPercent: number;
       title: string;
+      monthLabel: string;
+      monthIndex: number;
     }> = [];
     let maxDurationMinutes = 0;
+    const monthFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", { month: "short" });
 
+    let barIndex = 0;
     for (const cursor = new Date(chartStart); cursor < chartEndExclusive; cursor.setDate(cursor.getDate() + 7)) {
       const weekStart = new Date(cursor);
       const weekKey = formatLocalDateKey(weekStart);
@@ -464,14 +601,26 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       maxDurationMinutes = Math.max(maxDurationMinutes, durationMinutes);
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
+      const representativeDate = new Date(Math.max(weekStart.getTime(), yearStart.getTime()));
+      const monthIndex = representativeDate.getMonth();
       bars.push({
+        index: barIndex,
         key: weekKey,
         durationMinutes,
         heightPercent: 0,
+        monthLabel: monthFormatter.format(representativeDate).replace(/\.$/, ""),
+        monthIndex,
         title: `${weekStart.toLocaleDateString(language === "de" ? "de-DE" : "en-US")} – ${weekEnd.toLocaleDateString(
           language === "de" ? "de-DE" : "en-US"
-        )}: ${formatDurationShort(durationMinutes, language)}`
+        )}: ${
+          yearlySessionsMetricMode === "workouts"
+            ? `${durationMinutes} ${t("workouts")}`
+            : yearlySessionsMetricMode === "sets"
+              ? `${durationMinutes} ${t("sets")}`
+              : formatDurationShort(durationMinutes, language)
+        }`
       });
+      barIndex += 1;
     }
 
     const maxValue = Math.max(maxDurationMinutes, 1);
@@ -479,7 +628,86 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       ...bar,
       heightPercent: bar.durationMinutes > 0 ? Math.max(10, (bar.durationMinutes / maxValue) * 100) : 0
     }));
-  }, [language, periodStart, statisticsPeriod, weeklyStats?.completedWorkouts]);
+  }, [language, periodStart, statisticsPeriod, t, weeklyStats?.completedWorkouts, yearlySessionsMetricMode]);
+
+  const yearlySessionsMonthAxis = useMemo(() => {
+    if (!yearlySessionsChart || yearlySessionsChart.length === 0) {
+      return [];
+    }
+
+    const segments: Array<{ key: string; label: string; startIndex: number; span: number }> = [];
+    let currentSegment: { key: string; label: string; startIndex: number; span: number } | null = null;
+
+    for (const bar of yearlySessionsChart) {
+      const segmentKey = `${bar.monthIndex}-${bar.monthLabel}`;
+      if (!currentSegment || currentSegment.key !== segmentKey) {
+        if (currentSegment) {
+          segments.push(currentSegment);
+        }
+        currentSegment = {
+          key: segmentKey,
+          label: bar.monthLabel,
+          startIndex: bar.index,
+          span: 1
+        };
+      } else {
+        currentSegment.span += 1;
+      }
+    }
+
+    if (currentSegment) {
+      segments.push(currentSegment);
+    }
+
+    return segments;
+  }, [yearlySessionsChart]);
+
+  const muscleChartTargetPoints = useMemo(() => {
+    return weeklyMuscleChart.items.map((item, index) => {
+      const angle = (-120 + index * 60) * (Math.PI / 180);
+      const ratio = weeklyMuscleChart.maxValue > 0 ? item.value / weeklyMuscleChart.maxValue : 0;
+      const radius = 28 + ratio * 88;
+      const x = 180 + Math.cos(angle) * radius;
+      const y = 180 + Math.sin(angle) * radius;
+      return { x, y };
+    });
+  }, [weeklyMuscleChart]);
+
+  useEffect(() => {
+    if (muscleChartTargetPoints.length === 0) {
+      setAnimatedMusclePoints([]);
+      animatedMusclePointsRef.current = [];
+      return;
+    }
+
+    const startPoints =
+      animatedMusclePointsRef.current.length === muscleChartTargetPoints.length
+        ? animatedMusclePointsRef.current
+        : muscleChartTargetPoints;
+    const startTime = performance.now();
+    let frameId = 0;
+
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startTime) / STATS_CHART_TRANSITION_MS);
+      const eased = 1 - (1 - progress) ** 3;
+      const nextPoints = muscleChartTargetPoints.map((targetPoint, index) => {
+        const sourcePoint = startPoints[index] ?? targetPoint;
+        return {
+          x: interpolateNumber(sourcePoint.x, targetPoint.x, eased),
+          y: interpolateNumber(sourcePoint.y, targetPoint.y, eased)
+        };
+      });
+      animatedMusclePointsRef.current = nextPoints;
+      setAnimatedMusclePoints(nextPoints);
+
+      if (progress < 1) {
+        frameId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [muscleChartTargetPoints]);
 
   const handleStartSession = async (workoutId: number) => {
     try {
@@ -638,9 +866,11 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
 
       {showWorkoutsSection && selectedHomeWeeklyGoal && (
         <>
-          <div className="py-1.5">
-            <div className="h-px bg-border" />
-          </div>
+          {showStatsContentDivider && (
+            <div className="py-1.5">
+              <div className="h-px bg-border" />
+            </div>
+          )}
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-base font-semibold leading-tight text-foreground/75">{t("myWeeklyGoal")}</p>
@@ -680,28 +910,28 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                 <Dumbbell className="h-3.5 w-3.5" />
                 {t("workoutsThisWeek")}
               </p>
-              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{weeklyStats?.workoutCount ?? 0}</p>
+              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{Math.round(animatedWorkoutCount)}</p>
             </div>
             <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
               <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
                 <Clock3 className="h-3.5 w-3.5" />
                 {t("duration")}
               </p>
-              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{formatDurationLabel(weeklyStats?.durationMinutesTotal ?? 0, language)}</p>
+              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{formatDurationLabel(animatedDurationMinutesTotal, language)}</p>
             </div>
             <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
               <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
                 <ListChecks className="h-3.5 w-3.5" />
                 {t("sets")}
               </p>
-              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{weeklyStats?.setCount ?? 0}</p>
+              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{Math.round(animatedSetCount)}</p>
             </div>
             <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
               <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
                 <Repeat className="h-3.5 w-3.5" />
                 {t("repsTotal")}
               </p>
-              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{weeklyStats?.repsTotal ?? 0}</p>
+              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{Math.round(animatedRepsTotal)}</p>
             </div>
             <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
               <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
@@ -709,7 +939,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                 {t("totalWeight")}
               </p>
               <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">
-                {formatNumber(weeklyStats?.totalWeight ?? 0, 0)} {weightUnit}
+                {formatNumber(animatedTotalWeight, 0)} {weightUnit}
               </p>
             </div>
             <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
@@ -727,14 +957,16 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                 )}
               </div>
               <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">
-                ~{formatNumber(weeklyStats?.caloriesTotal ?? 0, 0)} kcal
+                ~{formatNumber(animatedCaloriesTotal, 0)} kcal
               </p>
             </div>
           </div>
 
-          <div className="py-1.5">
-            <div className="h-px bg-border" />
-          </div>
+          {showStatsContentDivider && (
+            <div className="py-1.5">
+              <div className="h-px bg-border" />
+            </div>
+          )}
 
           {showStatsMonthCalendarSection && monthlyCalendar && (
             <>
@@ -756,28 +988,65 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                   {monthlyCalendar.days.map((day, index) => {
                     const isLastColumn = index % 7 === 6;
                     const isLastRow = index >= monthlyCalendar.days.length - 7;
+                    const isFirstColumn = index % 7 === 0;
+                    const isFirstRow = index < 7;
+                    const nextDay = isLastColumn ? null : monthlyCalendar.days[index + 1] ?? null;
+                    const nextRowDay = isLastRow ? null : monthlyCalendar.days[index + 7] ?? null;
+                    const showLeftBorder = !isFirstColumn;
+                    const showTopBorder = !isFirstRow;
+                    const showRightBorder = !isLastColumn && !nextDay?.isCurrentMonth;
+                    const showBottomBorder = !isLastRow && !nextRowDay?.isCurrentMonth;
                     return (
-                    <div
-                      key={day.key}
-                      className={`flex h-8 items-center justify-center ${
-                        isLastColumn ? "" : "border-r border-border/90"
-                      } ${isLastRow ? "" : "border-b border-border/90"}`}
-                    >
-                      {day.isCurrentMonth && day.sessionCount > 0 ? (
-                        <span
-                          className={`inline-flex items-center justify-center rounded-full bg-emerald-500 font-semibold text-white dark:bg-emerald-400 dark:text-emerald-950 ${
-                            day.sessionCount > 1 ? "h-5 min-w-5 px-1 text-[10px]" : "h-3.5 w-3.5"
-                          }`}
-                          aria-label={
-                            day.sessionCount > 1
-                              ? `${day.sessionCount} ${t("sessions")}`
-                              : t("monthlyCalendarSingleSession")
-                          }
-                        >
-                          {day.sessionCount > 1 ? day.sessionCount : null}
-                        </span>
-                      ) : null}
-                    </div>
+                      <div
+                        key={day.key}
+                        className="relative flex h-8 items-center justify-center"
+                      >
+                        {day.isCurrentMonth ? (
+                          <>
+                            <div
+                              className={`pointer-events-none absolute inset-0 ${showTopBorder ? "border-t" : ""} ${
+                                showLeftBorder ? "border-l" : ""
+                              } ${showRightBorder ? "border-r" : ""} ${showBottomBorder ? "border-b" : ""} border-border/90`}
+                              aria-hidden="true"
+                            />
+                            <span className="pointer-events-none absolute left-1 top-1 text-[9px] font-medium leading-none text-muted-foreground/70">
+                              {day.dayNumber}
+                            </span>
+                            {day.sessionCount > 0 ? (
+                              <div className="mt-0.5 inline-flex items-center justify-center gap-1">
+                                <div
+                                  className="relative h-5"
+                                  style={{
+                                    width: `${16 + Math.max(0, Math.min(day.sessionCount, 3) - 1) * 6}px`
+                                  }}
+                                >
+                                  {day.sessions.slice(0, 3).map((session, sessionIndex) => (
+                                    <Link
+                                      key={`month-session-${session.sessionId}`}
+                                      to={`/workouts/${session.workoutId}/history#session-${session.sessionId}`}
+                                      title={session.workoutName}
+                                      aria-label={session.workoutName}
+                                      className="absolute top-1/2 inline-flex h-4 w-4 -translate-y-1/2 rounded-full border border-emerald-500/70 bg-emerald-300/70 transition-colors hover:bg-emerald-300/90 dark:border-emerald-400/60 dark:bg-emerald-500/20 dark:hover:bg-emerald-500/30"
+                                      style={{
+                                        left: `${sessionIndex * 6}px`,
+                                        zIndex: 3 - sessionIndex
+                                      }}
+                                    />
+                                  ))}
+                                </div>
+                                {day.sessionCount > 3 ? (
+                                  <span
+                                    className="inline-flex h-5 items-center justify-center px-0.5 text-[11px] font-semibold leading-none text-muted-foreground/80"
+                                    aria-label={`${day.sessionCount} ${t("sessions")}`}
+                                  >
+                                    +
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </div>
                     );
                   })}
                 </div>
@@ -795,19 +1064,52 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                   <p className="inline-flex items-center gap-2 text-base font-semibold leading-tight text-foreground/75">
                     {t("sessions")}
                   </p>
+                  <div className="inline-flex items-center rounded-lg border bg-background p-0.5">
+                    {(["workouts", "duration", "sets"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => updateStatisticsFilterState({ yearlySessionsMetricMode: mode })}
+                        className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                          yearlySessionsMetricMode === mode
+                            ? "bg-secondary text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                        aria-pressed={yearlySessionsMetricMode === mode}
+                      >
+                        {mode === "workouts" ? t("workouts") : mode === "duration" ? t("duration") : t("sets")}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <div className="flex h-36 items-end gap-1 border-b border-border/90 pb-0.5">
+                  <div className="flex h-36 items-end gap-0.5 border-b border-border/90 pb-0.5">
                     {yearlySessionsChart.map((bar) => (
-                      <div key={bar.key} className="flex min-w-0 flex-1 items-end justify-center">
+                      <div key={bar.index} className="flex h-full min-w-0 flex-1 items-end justify-center">
                         <div
-                          className={`w-full rounded-t-[6px] border border-b-0 border-emerald-500/65 bg-gradient-to-t from-emerald-500/0 via-emerald-500/25 to-emerald-500/85 ${
+                          className={`w-full min-w-[5px] rounded-t-[6px] border border-b-0 border-emerald-500/65 bg-gradient-to-t from-emerald-500/0 via-emerald-500/25 to-emerald-500/85 transition-[height] duration-[360ms] ease-out ${
                             bar.durationMinutes === 0 ? "border-emerald-500/20 from-transparent via-transparent to-transparent opacity-45" : ""
                           }`}
                           style={{ height: `${bar.heightPercent}%` }}
                           title={bar.title}
                           aria-label={bar.title}
                         />
+                      </div>
+                    ))}
+                  </div>
+                  <div
+                    className="grid items-start"
+                    style={{ gridTemplateColumns: `repeat(${yearlySessionsChart.length}, minmax(0, 1fr))` }}
+                  >
+                    {yearlySessionsMonthAxis.map((segment) => (
+                      <div
+                        key={segment.key}
+                        className="flex justify-center"
+                        style={{ gridColumn: `${segment.startIndex + 1} / span ${segment.span}` }}
+                      >
+                        <span className="text-[10px] font-medium leading-none text-muted-foreground/55">
+                          {segment.label}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -827,22 +1129,22 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                     {t("sessions")}
                   </p>
                 </div>
-                {(weeklyStats?.completedWorkouts.length ?? 0) > 0 ? (
-                  <div className="relative h-34 px-1 pt-4">
-                    <div className="relative h-28">
-                      <div className="absolute inset-x-0 bottom-3 h-px bg-border" />
+                <div className="relative h-34 px-1 pt-4">
+                  <div className="relative h-28">
+                    <div className="absolute inset-x-0 bottom-3 h-px bg-border" />
 
-                      {weeklySessionsTimeline.ticks.map((tick) => (
-                        <div
-                          key={`session-tick-${tick.key}`}
-                          className="absolute bottom-3 -translate-x-1/2"
-                          style={{ left: `${tick.leftPercent}%` }}
-                          aria-hidden="true"
-                        >
-                          <div className={`w-px bg-border ${tick.isDayBoundary ? "h-3.5" : "h-[7px] opacity-80"}`} />
-                        </div>
-                      ))}
+                    {weeklySessionsTimeline.ticks.map((tick) => (
+                      <div
+                        key={`session-tick-${tick.key}`}
+                        className="absolute bottom-3 -translate-x-1/2"
+                        style={{ left: `${tick.leftPercent}%` }}
+                        aria-hidden="true"
+                      >
+                        <div className={`w-px bg-border ${tick.isDayBoundary ? "h-3.5" : "h-[7px] opacity-80"}`} />
+                      </div>
+                    ))}
 
+                    {weeklySessionsTimeline.nowTick && (
                       <div
                         className="absolute bottom-3 -translate-x-1/2"
                         style={{ left: `${weeklySessionsTimeline.nowTick.leftPercent}%` }}
@@ -850,46 +1152,42 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                       >
                         <div className="w-[2px] h-5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
                       </div>
+                    )}
 
-                      {weeklySessionsTimeline.items.map((item) => (
-                        <Link
-                          key={item.sessionId}
-                          to={`/workouts/${item.workoutId}/history#session-${item.sessionId}`}
-                          title={item.title}
-                          className="group absolute bottom-4"
-                          style={{
-                            left: `${item.leftPercent}%`,
-                            transform: item.anchor === "left" ? "translateX(0)" : "translateX(-100%)"
-                          }}
-                        >
-                          <div className="relative inline-flex h-[6rem] w-[2rem] items-center justify-center rounded-md border bg-card px-3 py-3 shadow-sm transition-colors group-hover:bg-secondary">
-                            <div className="absolute left-1/2 top-1/2 w-[5rem] -translate-x-1/2 -translate-y-1/2 -rotate-90 overflow-hidden">
-                              <span className="block truncate text-center font-sans text-[12px] font-medium leading-none text-foreground">
-                                {item.shortLabel}
-                              </span>
-                            </div>
+                    {weeklySessionsTimeline.items.map((item) => (
+                      <Link
+                        key={item.sessionId}
+                        to={`/workouts/${item.workoutId}/history#session-${item.sessionId}`}
+                        title={item.title}
+                        className="group absolute bottom-4"
+                        style={{
+                          left: `${item.leftPercent}%`,
+                          transform: item.anchor === "left" ? "translateX(0)" : "translateX(-100%)"
+                        }}
+                      >
+                        <div className="relative inline-flex h-[6rem] w-[2rem] items-center justify-center rounded-md border bg-card px-3 py-3 shadow-sm transition-colors group-hover:bg-secondary">
+                          <div className="absolute left-1/2 top-1/2 w-[5rem] -translate-x-1/2 -translate-y-1/2 -rotate-90 overflow-hidden">
+                            <span className="block truncate text-center font-sans text-[12px] font-medium leading-none text-foreground">
+                              {item.shortLabel}
+                            </span>
                           </div>
-                        </Link>
-                      ))}
-                    </div>
-
-                    <div className="relative -mt-1 h-3">
-                      {weeklySessionsTimeline.dayLabels.map((day) => (
-                        <div
-                          key={`session-day-${day.key}`}
-                          className="absolute top-0 -translate-x-1/2 text-[10px] font-medium leading-none text-muted-foreground"
-                          style={{ left: `${day.leftPercent}%` }}
-                        >
-                          {day.label}
                         </div>
-                      ))}
-                    </div>
+                      </Link>
+                    ))}
                   </div>
-                ) : (
-                  <div className="px-1 py-1">
-                    <p className="text-sm text-muted-foreground">{t("noWorkoutsThisWeek")}</p>
+
+                  <div className="relative -mt-1 h-3">
+                    {weeklySessionsTimeline.dayLabels.map((day) => (
+                      <div
+                        key={`session-day-${day.key}`}
+                        className="absolute top-0 -translate-x-1/2 text-[10px] font-medium leading-none text-muted-foreground"
+                        style={{ left: `${day.leftPercent}%` }}
+                      >
+                        {day.label}
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
               </section>
               <div className="py-1.5">
                 <div className="h-px bg-border" />
@@ -923,7 +1221,8 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
             </>
           )}
 
-          <section className="space-y-3">
+          {showStatsMuscleGroupsSection && (
+            <section className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <p className="inline-flex items-center gap-2 text-base font-semibold leading-tight text-foreground/75">
                 {t("muscleGroupsThisWeek")}
@@ -933,7 +1232,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                   <button
                     key={mode}
                     type="button"
-                    onClick={() => setMuscleMetricMode(mode)}
+                    onClick={() => updateStatisticsFilterState({ muscleMetricMode: mode })}
                     className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                       muscleMetricMode === mode
                         ? "bg-secondary text-foreground"
@@ -949,9 +1248,8 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
 
             <Card>
               <CardContent className="space-y-0 px-4 py-0">
-                {weeklyMuscleChart.totalValue > 0 ? (
-                  <div className="mx-auto w-full max-w-[420px]">
-                    <svg viewBox="0 0 360 360" className="block h-auto w-full" role="img" aria-label={t("muscleGroupsThisWeek")}>
+                <div className="mx-auto w-full max-w-[420px]">
+                  <svg viewBox="0 0 360 360" className="block h-auto w-full" role="img" aria-label={t("muscleGroupsThisWeek")}>
                         {Array.from({ length: 5 }).map((_, ringIndex) => {
                           const radius = 28 + ringIndex * 22;
                           return (
@@ -1010,14 +1308,9 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                         })}
 
                         {(() => {
-                          const points: Array<{ x: number; y: number }> = weeklyMuscleChart.items.map((item, index) => {
-                            const angle = (-120 + index * 60) * (Math.PI / 180);
-                            const ratio = weeklyMuscleChart.maxValue > 0 ? item.value / weeklyMuscleChart.maxValue : 0;
-                            const radius = 28 + ratio * 88;
-                            const x = 180 + Math.cos(angle) * radius;
-                            const y = 180 + Math.sin(angle) * radius;
-                            return { x, y };
-                          });
+                          const points = animatedMusclePoints.length === weeklyMuscleChart.items.length
+                            ? animatedMusclePoints
+                            : muscleChartTargetPoints;
                           const path = buildRoundedRadarPath(points, 2.5);
 
                           return (
@@ -1038,14 +1331,12 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                             </>
                           );
                         })()}
-                    </svg>
-                  </div>
-                ) : (
-                  <p className="px-3 py-3 text-center text-sm text-muted-foreground">{t("noMuscleDataThisWeekHint")}</p>
-                )}
+                  </svg>
+                </div>
               </CardContent>
             </Card>
-          </section>
+            </section>
+          )}
         </section>
       )}
 

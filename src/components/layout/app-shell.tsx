@@ -1,5 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { Link, Outlet, useLocation, useSearchParams } from "react-router-dom";
+import { Link, Outlet, useLocation, useSearchParams, type To } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   ChartNoAxesCombined,
@@ -99,13 +99,15 @@ interface StatisticsPeriodSelectProps {
 }
 
 interface BottomNavItemProps {
-  to: string;
+  to: To;
   isActive: boolean;
   label: string;
   icon: ReactNode;
   activeClassName?: string;
   inactiveClassName?: string;
 }
+
+const LAST_STATISTICS_ROUTE_STORAGE_KEY = "gymtracker:last-statistics-route";
 
 function BottomNavItem({
   to,
@@ -188,7 +190,7 @@ function StatisticsWeekHeaderControls({
       >
         <ChevronLeft className="h-4 w-4" />
       </Button>
-      <p className="min-w-[8.5rem] max-w-[8.5rem] truncate whitespace-nowrap px-1 text-center text-[11px] font-semibold tabular-nums leading-none text-foreground/80 sm:min-w-[9.5rem] sm:max-w-[9.5rem] sm:text-xs">
+      <p className="w-[6.75rem] truncate whitespace-nowrap px-1 text-center text-[11px] font-semibold tabular-nums leading-none text-foreground/80 sm:min-w-[9.5rem] sm:max-w-[9.5rem] sm:text-xs">
         {weekLabel}
       </p>
       <Button
@@ -244,6 +246,7 @@ export function AppShell() {
   const { t, lockerNoteEnabled, language } = useSettings();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [savedStatisticsSearch, setSavedStatisticsSearch] = useState("");
   const pathname = location.pathname;
   const sessionMatch = location.pathname.match(/^\/sessions\/(\d+)$/);
   const workoutEditMatch = location.pathname.match(/^\/workouts\/(\d+)\/edit$/);
@@ -308,6 +311,13 @@ export function AppShell() {
   const canNavigateToPreviousStatisticsPeriod =
     showStatisticsPeriodHeader && earliestStatisticsOffset !== null && statisticsOffset > earliestStatisticsOffset;
   const canNavigateToNextStatisticsPeriod = showStatisticsPeriodHeader && statisticsOffset < 0;
+  const statisticsNavTo = useMemo<To>(() => {
+    if (!savedStatisticsSearch) {
+      return "/statistics";
+    }
+
+    return { pathname: "/statistics", search: savedStatisticsSearch };
+  }, [savedStatisticsSearch]);
 
   const pageHeader = useMemo(() => {
     let title = t("appName");
@@ -493,6 +503,23 @@ export function AppShell() {
   );
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    setSavedStatisticsSearch(window.localStorage.getItem(LAST_STATISTICS_ROUTE_STORAGE_KEY) ?? "");
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || pathname !== "/statistics") {
+      return;
+    }
+
+    window.localStorage.setItem(LAST_STATISTICS_ROUTE_STORAGE_KEY, location.search);
+    setSavedStatisticsSearch(location.search);
+  }, [location.search, pathname]);
+
+  useEffect(() => {
     if (!showStatisticsPeriodHeader || earliestStatisticsOffset === null) {
       return;
     }
@@ -659,7 +686,7 @@ export function AppShell() {
                 />
               )}
               <BottomNavItem
-                to="/statistics"
+                to={statisticsNavTo}
                 isActive={isStatisticsTabRoute}
                 label={t("statistics")}
                 icon={<ChartNoAxesCombined className="h-[23px] w-[23px]" />}

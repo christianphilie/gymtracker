@@ -1,4 +1,4 @@
-import type { ExerciseAiInfo, SessionExerciseSet } from "@/db/types";
+import type { ExerciseAiInfo, SessionExerciseSet, WorkoutIconKey } from "@/db/types";
 import { buildExerciseAiInfoForCatalogMatch, matchExerciseCatalogEntry } from "@/lib/exercise-catalog";
 import { getCanonicalMuscleGroup, isCanonicalMuscleKey } from "@/lib/muscle-taxonomy";
 import { formatNumber, getSetStatsMultiplier } from "@/lib/utils";
@@ -7,13 +7,17 @@ export interface WeeklyStatsWorkoutEntry {
   sessionId: number;
   workoutId: number;
   workoutName: string;
+  workoutIcon?: WorkoutIconKey;
   weekdayLabel: string;
   startedAt: string;
   finishedAt: string | null;
+  durationMinutes: number;
+  setCount: number;
 }
 
 export type StatisticsPeriod = "week" | "month" | "year";
 export type MuscleMetricMode = "reps" | "sets" | "weight";
+export type YearlySessionsMetricMode = "workouts" | "duration" | "sets";
 export type MuscleGroupKey = "back" | "shoulders" | "core" | "arms" | "chest" | "legs";
 
 interface MuscleMetricAggregate {
@@ -48,6 +52,8 @@ export interface WeeklyDashboardStats {
 export const MUSCLE_GROUP_ORDER: MuscleGroupKey[] = ["back", "shoulders", "core", "arms", "chest", "legs"];
 export const STATS_PERIOD_SEARCH_PARAM = "period";
 export const STATS_OFFSET_SEARCH_PARAM = "offset";
+export const STATS_MUSCLE_METRIC_SEARCH_PARAM = "muscleMetric";
+export const STATS_YEARLY_SESSIONS_METRIC_SEARCH_PARAM = "sessionsMetric";
 const LEGACY_STATS_WEEK_SEARCH_PARAM = "week";
 
 export function createEmptyMuscleGroupMetrics(): WeeklyMuscleGroupMetrics {
@@ -189,6 +195,22 @@ export function parseStatisticsOffset(value: string | null, legacyWeekValue?: st
   return parsed;
 }
 
+export function parseMuscleMetricMode(value: string | null): MuscleMetricMode {
+  if (value === "sets" || value === "weight") {
+    return value;
+  }
+
+  return "reps";
+}
+
+export function parseYearlySessionsMetricMode(value: string | null): YearlySessionsMetricMode {
+  if (value === "workouts" || value === "sets") {
+    return value;
+  }
+
+  return "duration";
+}
+
 export function formatStatisticsPeriodLabel(
   periodStart: Date,
   period: StatisticsPeriod,
@@ -220,7 +242,7 @@ export function formatStatisticsPeriodLabel(
   const endFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
     day: "2-digit",
     month: "2-digit",
-    year: "numeric"
+    year: "2-digit"
   });
 
   return `${startFormatter.format(start)} – ${endFormatter.format(end)}`;
