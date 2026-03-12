@@ -4,6 +4,24 @@
 
 ---
 
+## 1.3.5 - 2026-03-12
+
+### Added
+1. Workout history now includes an inline progress chart with session/week aggregation and set/reps/weight metric switching, plus a shared chart UI primitive built on `recharts`.
+
+### Changed
+1. The workout-history route is now presented as "Workout Data" in the shell/dashboard entry points, and weekly/dashboard summary cards plus segmented controls were visually refined for a cleaner emerald data style.
+2. Weight and set displays across active session, workout editor, session history, last-session pills, completion stats, and compact set cards now use shared display/input components so bodyweight and assisted values render consistently.
+
+### Fixed
+1. Negative/bodyweight/assisted exercise handling is now normalized across active sessions, workout editing, completed-session editing, history summaries, dashboard totals, and muscle-group statistics, including legacy data where assisted exercises were only identifiable via name or AI match metadata.
+2. Previous-template hints and adopted previous exercises now preserve bodyweight and assisted-weight semantics instead of falling back to raw stored values in some older sessions.
+
+### Docs
+1. Project status backlog now explicitly tracks test coverage for legacy assisted/bodyweight normalization across history and statistics paths.
+
+---
+
 ## 1.3.3 - 2026-03-05
 
 ### Changed

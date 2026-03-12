@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ChartNoAxesCombined, PenSquare, X } from "lucide-react";
+import { ChartNoAxesColumn, PenSquare, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { WorkoutNameLabel } from "@/components/workouts/workout-name-label";
@@ -157,7 +157,7 @@ export function WorkoutListCard({
             aria-label={t("sessionHistory")}
             onClick={() => workout.id !== undefined && onOpenHistory(workout.id)}
           >
-            <ChartNoAxesCombined className="h-4 w-4" />
+            <ChartNoAxesColumn className="h-4 w-4" />
           </Button>
           {!isActive && (
             <Button

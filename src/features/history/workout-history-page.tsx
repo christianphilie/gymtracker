@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, ChevronDown, Pencil, PersonStanding, Plus, Save, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
+import { WeightInput } from "@/components/weights/weight-input";
+import { SetValueDisplay } from "@/components/weights/weight-display";
 import { WorkoutNameLabel } from "@/components/workouts/workout-name-label";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
 import { InfoHint } from "@/components/ui/info-hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +31,7 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { db } from "@/db/db";
-import type { ExerciseAiInfo } from "@/db/types";
+import type { ExerciseAiInfo, SessionExerciseSet } from "@/db/types";
 import {
   estimateStrengthTrainingCalories,
   getSessionDurationMinutes,
@@ -37,11 +40,38 @@ import {
 import {
   formatDurationLabel,
   formatNumber,
-  formatSessionDateLabel,
-  formatWeightValue,
-  getEffectiveSetWeight,
-  getSetStatsMultiplier
+  getSetRepsValue,
+  getSetStatsMultiplier,
+  getSetTotalWeight,
+  getSetWeightValue,
+  normalizeSessionExerciseSet
 } from "@/lib/utils";
+import {
+  Area as RechartsArea,
+  AreaChart as RechartsAreaChart,
+  CartesianGrid as RechartsCartesianGrid,
+  XAxis as RechartsXAxis
+} from "recharts";
+
+type HistoryProgressMetricMode = "sets" | "reps" | "weight";
+type HistoryProgressAggregationMode = "sessions" | "weeks";
+const HISTORY_CHART_TRANSITION_MS = 360;
+const HISTORY_SEGMENTED_CONTROL_CLASS = "inline-flex items-center rounded-lg border bg-background p-0.5";
+const HISTORY_SEGMENTED_ITEM_CLASS =
+  "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+const HISTORY_SEGMENTED_ITEM_ACTIVE_CLASS = "bg-foreground text-background";
+const HISTORY_SEGMENTED_ITEM_INACTIVE_CLASS = "text-muted-foreground hover:text-foreground";
+const HISTORY_STATS_CARD_CLASS =
+  "rounded-md border border-emerald-300/50 bg-emerald-100/50 px-2 py-1.5 dark:border-emerald-800/50 dark:bg-emerald-900/25";
+const HISTORY_STATS_LABEL_CLASS = "text-[10px] text-emerald-800/80 dark:text-emerald-300/75";
+const HISTORY_STATS_VALUE_CLASS = "text-xs font-semibold text-emerald-950/90 dark:text-emerald-100";
+
+interface HistoryChartDatum {
+  index: number;
+  axisLabel: string;
+  fullLabel: string;
+  value: number;
+}
 
 interface EditableSessionSet {
   id?: number;
@@ -54,9 +84,35 @@ interface EditableSessionSet {
   isTemplateExercise: boolean;
   templateSetOrder: number;
   x2Enabled: boolean;
+  negativeWeightEnabled: boolean;
   actualReps: number;
   actualWeight: number;
   completed: boolean;
+}
+
+interface TemplateExerciseMeta {
+  aiInfo?: ExerciseAiInfo;
+  negativeWeightEnabled: boolean;
+}
+
+function normalizeExerciseNameKey(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function getTemplateExerciseMetaForSet(
+  set: Pick<SessionExerciseSet, "templateExerciseId" | "exerciseName">,
+  templateExerciseMetaById: Map<number, TemplateExerciseMeta>,
+  templateExerciseMetaByName: Map<string, TemplateExerciseMeta>
+) {
+  if (set.templateExerciseId !== undefined) {
+    const byId = templateExerciseMetaById.get(set.templateExerciseId);
+    if (byId) {
+      return byId;
+    }
+  }
+
+  const nameKey = normalizeExerciseNameKey(set.exerciseName);
+  return nameKey ? templateExerciseMetaByName.get(nameKey) : undefined;
 }
 
 function getWeekStart(date: Date) {
@@ -66,6 +122,19 @@ function getWeekStart(date: Date) {
   target.setHours(0, 0, 0, 0);
   target.setDate(target.getDate() + diff);
   return target;
+}
+
+function formatHistoryAbsoluteDate(value: Date | string, language: "de" | "en") {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(date);
 }
 
 function formatSessionDayOnly(value: Date | string, language: "de" | "en") {
@@ -91,13 +160,38 @@ function formatSessionDayOnly(value: Date | string, language: "de" | "en") {
   if (dayDiff === 0) return language === "de" ? "Heute" : "Today";
   if (dayDiff === 1) return language === "de" ? "Gestern" : "Yesterday";
   if (dayDiff === 2) return language === "de" ? "Vorgestern" : "Day before yesterday";
-  if (dayDiff < 14) return language === "de" ? `Vor ${dayDiff} Tagen` : `${dayDiff} days ago`;
+  if (dayDiff === 3) return language === "de" ? "Vor 3 Tagen" : "3 days ago";
 
-  return new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(date);
+  return formatHistoryAbsoluteDate(date, language);
+}
+
+function formatHistorySessionDateTime(value: Date | string, language: "de" | "en") {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfDate = new Date(date);
+  startOfDate.setHours(0, 0, 0, 0);
+  const dayDiff = Math.round((startOfToday.getTime() - startOfDate.getTime()) / 86_400_000);
+  const timeLabel = formatClock(date, language);
+
+  if (dayDiff === 0) return `${language === "de" ? "Heute" : "Today"}, ${timeLabel}`;
+  if (dayDiff === 1) return `${language === "de" ? "Gestern" : "Yesterday"}, ${timeLabel}`;
+  if (dayDiff === 2) return `${language === "de" ? "Vorgestern" : "Day before yesterday"}, ${timeLabel}`;
+  if (dayDiff === 3) return language === "de" ? `Vor 3 Tagen, ${timeLabel}` : `3 days ago, ${timeLabel}`;
+
+  return `${formatHistoryAbsoluteDate(date, language)}, ${timeLabel}`;
+}
+
+function formatHistoryWeekRange(
+  weekStart: Date,
+  weekEnd: Date,
+  language: "de" | "en"
+) {
+  return `${formatHistoryAbsoluteDate(weekStart, language)} - ${formatHistoryAbsoluteDate(weekEnd, language)}`;
 }
 
 function formatClock(value: Date | string, language: "de" | "en") {
@@ -137,7 +231,6 @@ function fromDateTimeLocalValue(value: string) {
   return date.toISOString();
 }
 
-
 export function WorkoutHistoryPage() {
   const location = useLocation();
   const { workoutId } = useParams();
@@ -151,6 +244,9 @@ export function WorkoutHistoryPage() {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [focusedWeightSetId, setFocusedWeightSetId] = useState<number | null>(null);
   const [collapsedSessions, setCollapsedSessions] = useState<Record<number, boolean>>({});
+  const [historyProgressMetricMode, setHistoryProgressMetricMode] = useState<HistoryProgressMetricMode>("sets");
+  const [historyProgressAggregationMode, setHistoryProgressAggregationMode] =
+    useState<HistoryProgressAggregationMode>("sessions");
   const nextEditingDraftSetIdRef = useRef(-1);
   const autoFocusedSessionHashRef = useRef<string | null>(null);
 
@@ -167,30 +263,42 @@ export function WorkoutHistoryPage() {
     return { workout, history };
   }, [numericWorkoutId]);
   const settings = useLiveQuery(async () => db.settings.get(1), []);
-  const templateExerciseInfoMap = useLiveQuery(async () => {
-    const templateIds = Array.from(
-      new Set(
-        (payload?.history ?? [])
-          .flatMap((entry) => entry.sets)
-          .map((set) => set.templateExerciseId)
-          .filter((id): id is number => id !== undefined)
-      )
-    );
-    if (templateIds.length === 0) {
-      return new Map<number, ExerciseAiInfo>();
-    }
-    const exercises = await db.exercises.where("id").anyOf(templateIds).toArray();
+  const templateExerciseMetaById = useMemo(() => {
     return new Map(
-      exercises
-        .filter((exercise): exercise is typeof exercise & { id: number } => exercise.id !== undefined && !!exercise.aiInfo)
-        .map((exercise) => [exercise.id, exercise.aiInfo!])
+      (payload?.workout?.exercises ?? [])
+        .filter((entry): entry is typeof entry & { exercise: typeof entry.exercise & { id: number } } => entry.exercise.id !== undefined)
+        .map((entry) => [
+          entry.exercise.id,
+          {
+            aiInfo: entry.exercise.aiInfo,
+            negativeWeightEnabled: entry.exercise.negativeWeightEnabled ?? false
+          }
+        ])
     );
-  }, [payload?.history]);
+  }, [payload?.workout]);
+
+  const templateExerciseMetaByName = useMemo(() => {
+    return new Map(
+      (payload?.workout?.exercises ?? []).map((entry) => [
+        normalizeExerciseNameKey(entry.exercise.name),
+        {
+          aiInfo: entry.exercise.aiInfo,
+          negativeWeightEnabled: entry.exercise.negativeWeightEnabled ?? false
+        }
+      ])
+    );
+  }, [payload?.workout]);
 
   const groupedHistory = useMemo(() => {
     return (payload?.history ?? []).map((entry) => {
-      const completedSets = entry.sets.filter((set) => set.completed);
-      const grouped = new Map<string, typeof entry.sets>();
+      const normalizedSets = entry.sets.map((set) =>
+        normalizeSessionExerciseSet(
+          set,
+          getTemplateExerciseMetaForSet(set, templateExerciseMetaById, templateExerciseMetaByName)
+        )
+      );
+      const completedSets = normalizedSets.filter((set) => set.completed);
+      const grouped = new Map<string, SessionExerciseSet[]>();
       for (const set of completedSets) {
         const list = grouped.get(set.sessionExerciseKey) ?? [];
         list.push(set);
@@ -201,23 +309,13 @@ export function WorkoutHistoryPage() {
         .map((sets) => sets.sort((a, b) => a.templateSetOrder - b.templateSetOrder))
         .sort((a, b) => a[0].exerciseOrder - b[0].exerciseOrder);
 
-      const setsForExerciseCount = completedSets.length > 0 ? completedSets : entry.sets;
+      const setsForExerciseCount = completedSets.length > 0 ? completedSets : normalizedSets;
       const exerciseCount = new Set(setsForExerciseCount.map((set) => set.sessionExerciseKey)).size;
       const setCount = completedSets.reduce((sum, set) => sum + getSetStatsMultiplier(set), 0);
-      const repsTotal = completedSets.reduce(
-        (sum, set) => sum + (set.actualReps ?? set.targetReps) * getSetStatsMultiplier(set),
-        0
-      );
+      const repsTotal = completedSets.reduce((sum, set) => sum + getSetRepsValue(set) * getSetStatsMultiplier(set), 0);
       const durationMinutes = getSessionDurationMinutes(entry.session.startedAt, entry.session.finishedAt);
       const { bodyWeightKg, usesDefaultBodyWeight } = resolveCaloriesBodyWeightKg(settings?.bodyWeight, weightUnit);
-      const totalWeight = completedSets.reduce(
-        (sum, set) =>
-          sum +
-          getEffectiveSetWeight(set.actualWeight ?? set.targetWeight, bodyWeightKg) *
-            (set.actualReps ?? set.targetReps) *
-            getSetStatsMultiplier(set),
-        0
-      );
+      const totalWeight = completedSets.reduce((sum, set) => sum + getSetTotalWeight(set, bodyWeightKg), 0);
       const calories = estimateStrengthTrainingCalories({
         durationMinutes,
         bodyWeightKg,
@@ -227,6 +325,7 @@ export function WorkoutHistoryPage() {
 
       return {
         ...entry,
+        sets: normalizedSets,
         exercises,
         stats: {
           exerciseCount,
@@ -240,15 +339,121 @@ export function WorkoutHistoryPage() {
         }
       };
     });
-  }, [payload?.history, settings?.bodyWeight, weightUnit]);
+  }, [payload?.history, settings?.bodyWeight, templateExerciseMetaById, templateExerciseMetaByName, weightUnit]);
 
-  const completedThisWeek = useMemo(() => {
-    const weekStart = getWeekStart(new Date());
-    return (payload?.history ?? []).filter((entry) => {
-      const date = new Date(entry.session.finishedAt ?? entry.session.startedAt);
-      return date >= weekStart;
-    }).length;
-  }, [payload?.history]);
+  const progressMetricMeta = useMemo(() => {
+    if (historyProgressMetricMode === "reps") {
+      return {
+        key: "reps" as const,
+        label: t("muscleMetricReps"),
+        formatValue: (value: number) => formatNumber(value, 0),
+        tooltipUnit: t("repsTotal")
+      };
+    }
+
+    if (historyProgressMetricMode === "weight") {
+      return {
+        key: "weight" as const,
+        label: t("totalWeight"),
+        formatValue: (value: number) => `${formatNumber(value, 0)} ${weightUnit}`,
+        tooltipUnit: weightUnit
+      };
+    }
+
+    return {
+      key: "sets" as const,
+      label: t("sets"),
+      formatValue: (value: number) => formatNumber(value, 0),
+      tooltipUnit: t("sets")
+    };
+  }, [historyProgressMetricMode, t, weightUnit]);
+
+  const sessionProgressChartData = useMemo<HistoryChartDatum[]>(() => {
+    const locale = language === "de" ? "de-DE" : "en-US";
+    const dayFormatter = new Intl.DateTimeFormat(locale, { month: "2-digit", day: "2-digit" });
+    const metricKey = progressMetricMeta.key;
+
+    if (historyProgressAggregationMode === "weeks") {
+      const groupedByWeek = new Map<
+        string,
+        {
+          weekStart: Date;
+          weekEnd: Date;
+          sets: number;
+          reps: number;
+          weight: number;
+        }
+      >();
+
+      for (const entry of groupedHistory) {
+        const completedAt = new Date(entry.session.finishedAt ?? entry.session.startedAt);
+        const weekStart = getWeekStart(completedAt);
+        const weekKey = weekStart.toISOString();
+        const current = groupedByWeek.get(weekKey) ?? {
+          weekStart,
+          weekEnd: new Date(weekStart.getTime() + 6 * 86_400_000),
+          sets: 0,
+          reps: 0,
+          weight: 0
+        };
+
+        current.sets += entry.stats.setCount;
+        current.reps += entry.stats.repsTotal;
+        current.weight += entry.stats.totalWeight;
+        groupedByWeek.set(weekKey, current);
+      }
+
+      return [...groupedByWeek.values()]
+        .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime())
+        .slice(-12)
+        .map((entry, index) => ({
+          index,
+          axisLabel: dayFormatter.format(entry.weekStart),
+          fullLabel: formatHistoryWeekRange(entry.weekStart, entry.weekEnd, language),
+          value:
+            metricKey === "sets"
+              ? entry.sets
+              : metricKey === "reps"
+                ? entry.reps
+                : Math.round(entry.weight)
+        }));
+    }
+
+    return groupedHistory
+      .slice(0, 12)
+      .reverse()
+      .map((entry, index) => {
+        const completedAt = new Date(entry.session.finishedAt ?? entry.session.startedAt);
+
+        return {
+          index,
+          axisLabel: dayFormatter.format(completedAt),
+          fullLabel: formatHistorySessionDateTime(completedAt, language),
+          value:
+            metricKey === "sets"
+              ? entry.stats.setCount
+              : metricKey === "reps"
+                ? entry.stats.repsTotal
+                : Math.round(entry.stats.totalWeight)
+        };
+      });
+  }, [groupedHistory, historyProgressAggregationMode, language, progressMetricMeta.key]);
+
+  const sessionProgressChartTicks = useMemo(
+    () => sessionProgressChartData.map((entry) => entry.index),
+    [sessionProgressChartData]
+  );
+
+  const sessionProgressConfig = useMemo(
+    () =>
+      ({
+        metric: {
+          label: progressMetricMeta.label,
+          color: "#10b981"
+        }
+      }) satisfies ChartConfig,
+    [progressMetricMeta.label]
+  );
 
   useEffect(() => {
     setCollapsedSessions((prev) => {
@@ -315,23 +520,25 @@ export function WorkoutHistoryPage() {
         if (a.exerciseOrder !== b.exerciseOrder) return a.exerciseOrder - b.exerciseOrder;
         return a.templateSetOrder - b.templateSetOrder;
       })
-      .map((set) => ({
-        id: set.id,
-        templateExerciseId: set.templateExerciseId,
-        sessionExerciseKey: set.sessionExerciseKey,
-        exerciseName: set.exerciseName,
-        exerciseNotes: set.exerciseNotes,
-        exerciseAiInfo:
-          set.exerciseAiInfo ??
-          (set.templateExerciseId !== undefined ? templateExerciseInfoMap?.get(set.templateExerciseId) : undefined),
-        exerciseOrder: set.exerciseOrder,
-        isTemplateExercise: set.isTemplateExercise,
-        templateSetOrder: set.templateSetOrder,
-        x2Enabled: set.x2Enabled ?? false,
-        actualReps: set.actualReps ?? set.targetReps,
-        actualWeight: set.actualWeight ?? set.targetWeight,
-        completed: set.completed
-      }));
+      .map((set) => {
+        const templateMeta = getTemplateExerciseMetaForSet(set, templateExerciseMetaById, templateExerciseMetaByName);
+        return {
+          id: set.id,
+          templateExerciseId: set.templateExerciseId,
+          sessionExerciseKey: set.sessionExerciseKey,
+          exerciseName: set.exerciseName,
+          exerciseNotes: set.exerciseNotes,
+          exerciseAiInfo: set.exerciseAiInfo ?? templateMeta?.aiInfo,
+          exerciseOrder: set.exerciseOrder,
+          isTemplateExercise: set.isTemplateExercise,
+          templateSetOrder: set.templateSetOrder,
+          x2Enabled: set.x2Enabled ?? false,
+          negativeWeightEnabled: set.negativeWeightEnabled ?? templateMeta?.negativeWeightEnabled ?? false,
+          actualReps: set.actualReps ?? set.targetReps,
+          actualWeight: set.actualWeight ?? set.targetWeight,
+          completed: set.completed
+        };
+      });
 
     setEditingSessionId(entry.session.id);
     setEditingSets(editable);
@@ -432,6 +639,7 @@ export function WorkoutHistoryPage() {
           exerciseOrder: set.exerciseOrder,
           isTemplateExercise: set.isTemplateExercise,
           x2Enabled: set.x2Enabled,
+          negativeWeightEnabled: set.negativeWeightEnabled,
           templateSetOrder: set.templateSetOrder,
           actualReps: set.actualReps,
           actualWeight: set.actualWeight,
@@ -458,10 +666,114 @@ export function WorkoutHistoryPage() {
         <p className="text-base font-semibold leading-tight text-foreground/75">
           <WorkoutNameLabel name={payload.workout.workout.name} icon={payload.workout.workout.icon} />
         </p>
-        <p className="text-xs text-muted-foreground">
-          {t("completedThisWeek")}: {completedThisWeek} {t("sessions")}
-        </p>
       </div>
+
+      {groupedHistory.length > 0 && (
+        <Card className="overflow-hidden border-0 bg-transparent shadow-none">
+          <CardHeader className="px-0 py-0 pb-1">
+            <div className="flex items-start justify-between gap-3">
+              <div className={HISTORY_SEGMENTED_CONTROL_CLASS}>
+                {(["weeks", "sessions"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setHistoryProgressAggregationMode(mode)}
+                    className={`${HISTORY_SEGMENTED_ITEM_CLASS} ${
+                      historyProgressAggregationMode === mode
+                        ? HISTORY_SEGMENTED_ITEM_ACTIVE_CLASS
+                        : HISTORY_SEGMENTED_ITEM_INACTIVE_CLASS
+                    }`}
+                    aria-pressed={historyProgressAggregationMode === mode}
+                  >
+                    {mode === "sessions" ? t("sessions") : t("weeks")}
+                  </button>
+                ))}
+              </div>
+              <div className={HISTORY_SEGMENTED_CONTROL_CLASS}>
+                {(["sets", "reps", "weight"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setHistoryProgressMetricMode(mode)}
+                    className={`${HISTORY_SEGMENTED_ITEM_CLASS} ${
+                      historyProgressMetricMode === mode
+                        ? HISTORY_SEGMENTED_ITEM_ACTIVE_CLASS
+                        : HISTORY_SEGMENTED_ITEM_INACTIVE_CLASS
+                    }`}
+                    aria-pressed={historyProgressMetricMode === mode}
+                  >
+                    {mode === "sets" ? t("sets") : mode === "reps" ? t("muscleMetricReps") : t("totalWeight")}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0 pt-0">
+            <ChartContainer
+              config={sessionProgressConfig}
+              className="h-52 w-full min-w-0 aspect-auto [&_.recharts-cartesian-grid-horizontal_line]:stroke-border/40"
+            >
+              <RechartsAreaChart
+                accessibilityLayer
+                data={sessionProgressChartData}
+                margin={{ top: 12, right: 0, left: 0, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="session-progress-fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-metric)" stopOpacity={0.38} />
+                    <stop offset="95%" stopColor="var(--color-metric)" stopOpacity={0.04} />
+                  </linearGradient>
+                </defs>
+                <RechartsCartesianGrid vertical={false} />
+                <RechartsXAxis
+                  type="number"
+                  dataKey="index"
+                  domain={sessionProgressChartData.length > 1 ? [0, sessionProgressChartData.length - 1] : [0, 0]}
+                  ticks={sessionProgressChartTicks}
+                  padding={{ left: 0, right: 0 }}
+                  hide
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={({ active, payload }) => {
+                    const item = payload?.[0];
+                    if (!active || !item?.payload) {
+                      return null;
+                    }
+
+                    return (
+                      <div className="grid min-w-[8rem] items-center justify-items-center gap-0.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-center text-xs shadow-xl">
+                        <div className="font-medium leading-tight">{item.payload.fullLabel}</div>
+                        <div className="font-medium leading-tight text-foreground">
+                          {`${formatNumber(Number(item.value), 0)} ${progressMetricMeta.tooltipUnit}`}
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <RechartsArea
+                  type="monotone"
+                  dataKey="value"
+                  name={progressMetricMeta.label}
+                  stroke="var(--color-metric)"
+                  strokeWidth={2.5}
+                  fill="url(#session-progress-fill)"
+                  isAnimationActive
+                  animationDuration={HISTORY_CHART_TRANSITION_MS}
+                  animationEasing="ease-out"
+                  dot={{
+                    r: 3.5,
+                    strokeWidth: 2,
+                    stroke: "var(--color-metric)",
+                    fill: "hsl(var(--background))"
+                  }}
+                  activeDot={{ r: 4, fill: "var(--color-metric)" }}
+                />
+              </RechartsAreaChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {groupedHistory.length === 0 && (
         <Card>
@@ -496,7 +808,7 @@ export function WorkoutHistoryPage() {
                   <CardTitle className="text-sm">
                     {entry.session.finishedAt
                       ? formatSessionDayOnly(entry.session.finishedAt, language)
-                      : formatSessionDateLabel(entry.session.startedAt, language)}
+                      : formatHistorySessionDateTime(entry.session.startedAt, language)}
                   </CardTitle>
                 {entry.session.finishedAt && (
                   <p className="text-xs text-muted-foreground">
@@ -535,9 +847,11 @@ export function WorkoutHistoryPage() {
                           exerciseName={firstSet.exerciseName}
                           aiInfo={
                             firstSet.exerciseAiInfo ??
-                            (firstSet.templateExerciseId !== undefined
-                              ? templateExerciseInfoMap?.get(firstSet.templateExerciseId)
-                              : undefined)
+                            getTemplateExerciseMetaForSet(
+                              firstSet,
+                              templateExerciseMetaById,
+                              templateExerciseMetaByName
+                            )?.aiInfo
                           }
                           className="h-[1.25em] w-[1.25em] shrink-0 text-inherit"
                         />
@@ -550,13 +864,17 @@ export function WorkoutHistoryPage() {
                     </div>
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {sets.map((set, index) => {
-                        const w = set.actualWeight ?? set.targetWeight;
                         return (
                           <span
                             key={set.id ?? `${firstSet.sessionExerciseKey}-${index}`}
                             className="inline-flex rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70"
                           >
-                            {`${set.actualReps ?? set.targetReps} × ${formatWeightValue(w)} ${weightUnit}`}
+                            <SetValueDisplay
+                              reps={getSetRepsValue(set)}
+                              weight={getSetWeightValue(set)}
+                              weightUnitLabel={weightUnit}
+                              iconClassName="text-muted-foreground/70"
+                            />
                           </span>
                         );
                       })}
@@ -567,25 +885,25 @@ export function WorkoutHistoryPage() {
             })}
 
             <div className="grid grid-cols-2 gap-1.5 border-t pt-2.5 sm:grid-cols-3">
-              <div className="rounded-md border border-emerald-300/80 bg-emerald-100/75 px-2 py-1.5 dark:border-emerald-900/70 dark:bg-emerald-950/40">
-                <p className="text-[10px] text-emerald-700/90 dark:text-emerald-300/75">{t("exercises")}</p>
-                <p className="text-xs font-semibold text-emerald-950 dark:text-emerald-100">{entry.stats.exerciseCount}</p>
+              <div className={HISTORY_STATS_CARD_CLASS}>
+                <p className={HISTORY_STATS_LABEL_CLASS}>{t("exercises")}</p>
+                <p className={HISTORY_STATS_VALUE_CLASS}>{entry.stats.exerciseCount}</p>
               </div>
-              <div className="rounded-md border border-emerald-300/80 bg-emerald-100/75 px-2 py-1.5 dark:border-emerald-900/70 dark:bg-emerald-950/40">
-                <p className="text-[10px] text-emerald-700/90 dark:text-emerald-300/75">{t("sets")}</p>
-                <p className="text-xs font-semibold text-emerald-950 dark:text-emerald-100">{entry.stats.setCount}</p>
+              <div className={HISTORY_STATS_CARD_CLASS}>
+                <p className={HISTORY_STATS_LABEL_CLASS}>{t("sets")}</p>
+                <p className={HISTORY_STATS_VALUE_CLASS}>{entry.stats.setCount}</p>
               </div>
-              <div className="rounded-md border border-emerald-300/80 bg-emerald-100/75 px-2 py-1.5 dark:border-emerald-900/70 dark:bg-emerald-950/40">
-                <p className="text-[10px] text-emerald-700/90 dark:text-emerald-300/75">{t("repsTotal")}</p>
-                <p className="text-xs font-semibold text-emerald-950 dark:text-emerald-100">{entry.stats.repsTotal}</p>
+              <div className={HISTORY_STATS_CARD_CLASS}>
+                <p className={HISTORY_STATS_LABEL_CLASS}>{t("repsTotal")}</p>
+                <p className={HISTORY_STATS_VALUE_CLASS}>{entry.stats.repsTotal}</p>
               </div>
-              <div className="rounded-md border border-emerald-300/80 bg-emerald-100/75 px-2 py-1.5 dark:border-emerald-900/70 dark:bg-emerald-950/40">
-                <p className="text-[10px] text-emerald-700/90 dark:text-emerald-300/75">{t("totalWeight")}</p>
-                <p className="text-xs font-semibold text-emerald-950 dark:text-emerald-100">{formatNumber(entry.stats.totalWeight, 0)} {weightUnit}</p>
+              <div className={HISTORY_STATS_CARD_CLASS}>
+                <p className={HISTORY_STATS_LABEL_CLASS}>{t("totalWeight")}</p>
+                <p className={HISTORY_STATS_VALUE_CLASS}>{formatNumber(entry.stats.totalWeight, 0)} {weightUnit}</p>
               </div>
-              <div className="rounded-md border border-emerald-300/80 bg-emerald-100/75 px-2 py-1.5 dark:border-emerald-900/70 dark:bg-emerald-950/40">
+              <div className={HISTORY_STATS_CARD_CLASS}>
                 <div className="flex items-center justify-between gap-1">
-                  <p className="text-[10px] text-emerald-700/90 dark:text-emerald-300/75">{t("calories")}</p>
+                  <p className={HISTORY_STATS_LABEL_CLASS}>{t("calories")}</p>
                   {entry.stats.usesDefaultBodyWeightForCalories && (
                     <InfoHint
                       ariaLabel={t("calories")}
@@ -594,11 +912,11 @@ export function WorkoutHistoryPage() {
                     />
                   )}
                 </div>
-                <p className="text-xs font-semibold text-emerald-950 dark:text-emerald-100">~{formatNumber(entry.stats.calories, 0)} kcal</p>
+                <p className={HISTORY_STATS_VALUE_CLASS}>~{formatNumber(entry.stats.calories, 0)} kcal</p>
               </div>
-              <div className="rounded-md border border-emerald-300/80 bg-emerald-100/75 px-2 py-1.5 dark:border-emerald-900/70 dark:bg-emerald-950/40">
-                <p className="text-[10px] text-emerald-700/90 dark:text-emerald-300/75">{t("duration")}</p>
-                <p className="text-xs font-semibold text-emerald-950 dark:text-emerald-100">{formatDurationLabel(entry.stats.durationMinutes, language)}</p>
+              <div className={HISTORY_STATS_CARD_CLASS}>
+                <p className={HISTORY_STATS_LABEL_CLASS}>{t("duration")}</p>
+                <p className={HISTORY_STATS_VALUE_CLASS}>{formatDurationLabel(entry.stats.durationMinutes, language)}</p>
               </div>
             </div>
           </CardContent>
@@ -681,37 +999,19 @@ export function WorkoutHistoryPage() {
                             </span>
                           )}
                           <div className="relative">
-                            {(() => {
-                              const isBwSet = set.actualWeight === 0;
-                              const isNegativeSet = set.actualWeight < 0;
-                              const showBwOverlay = (isBwSet || isNegativeSet) && focusedWeightSetId !== set.id;
-                              return (
-                                <>
-                                  <DecimalInput
-                                    value={set.actualWeight}
-                                    min={-999}
-                                    step={0.5}
-                                    className={`pr-10 ${showBwOverlay ? "text-transparent" : ""}`}
-                                    onFocus={() => setFocusedWeightSetId(set.id ?? null)}
-                                    onBlur={() => setFocusedWeightSetId(null)}
-                                    onCommit={(value) => {
-                                      setEditingSets((prev) =>
-                                        prev.map((item) => (item.id === set.id ? { ...item, actualWeight: value } : item))
-                                      );
-                                    }}
-                                  />
-                                  {showBwOverlay && (
-                                    <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center gap-1 text-base">
-                                      <PersonStanding className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                      {isNegativeSet && (
-                                        <span className="text-sm text-foreground">{set.actualWeight}</span>
-                                      )}
-                                    </div>
-                                  )}
-                                </>
-                              );
-                            })()}
-                            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">{weightUnit}</span>
+                            <WeightInput
+                              value={set.actualWeight}
+                              negativeWeightEnabled={set.negativeWeightEnabled}
+                              weightUnitLabel={weightUnit}
+                              focusedSetId={focusedWeightSetId}
+                              setId={set.id}
+                              onFocusChange={(id) => setFocusedWeightSetId(typeof id === "number" ? id : null)}
+                              onCommit={(value) => {
+                                setEditingSets((prev) =>
+                                  prev.map((item) => (item.id === set.id ? { ...item, actualWeight: value } : item))
+                                );
+                              }}
+                            />
                           </div>
                         </div>
                         <Button

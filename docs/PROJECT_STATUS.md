@@ -19,11 +19,12 @@ Consolidated status and backlog document replacing the older split between imple
 2. Add tests for destructive flows (`deleteWorkout`, `clearAllData`) and confirm-dialog behavior
 3. Add tests for backup export/import integrity across all IndexedDB tables
 4. Add tests for automatic update safety snapshots (create, retain latest 3, restore)
-5. Add tests for weight-unit conversion behavior across template and session values
+5. Add tests for legacy bodyweight/assisted-weight normalization across active session, history, dashboard, and muscle-statistics paths
 6. Add tests for `/api/ai-import` and `/api/exercise-info`, plus fallback UX when backend env is missing
 7. Add tests for history session edit/delete actions (including DB integrity after remove)
 8. Add tests for rest-timer behavior (starts on first completed set, configurable 1/2/3/5 minute threshold)
 9. Add tests for top-bar timer pause/resume interactions and reset-on-new-check behavior
+10. Add tests for weight-unit conversion behavior across template and session values
 
 ## Completed Milestones
 

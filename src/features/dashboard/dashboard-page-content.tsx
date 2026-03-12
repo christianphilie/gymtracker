@@ -74,6 +74,15 @@ import {
 
 export type DashboardPageSection = "workouts" | "statistics";
 const STATS_CHART_TRANSITION_MS = 360;
+const STATS_SEGMENTED_CONTROL_CLASS = "inline-flex items-center rounded-lg border bg-background p-0.5";
+const STATS_SEGMENTED_ITEM_CLASS =
+  "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+const STATS_SEGMENTED_ITEM_ACTIVE_CLASS = "bg-foreground text-background";
+const STATS_SEGMENTED_ITEM_INACTIVE_CLASS = "text-muted-foreground hover:text-foreground";
+const STATS_SUMMARY_CARD_CLASS =
+  "rounded-lg border border-emerald-300/50 bg-emerald-100/50 px-3 py-2 dark:border-emerald-800/50 dark:bg-emerald-900/25";
+const STATS_SUMMARY_LABEL_CLASS = "inline-flex items-center gap-1 text-xs text-emerald-800/80 dark:text-emerald-300/75";
+const STATS_SUMMARY_VALUE_CLASS = "text-base font-semibold text-emerald-950/90 dark:text-emerald-100";
 
 function formatLocalDateKey(date: Date) {
   const year = date.getFullYear();
@@ -905,46 +914,46 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       {showStatsSection && (
         <section className="space-y-3">
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
-            <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
-              <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
+            <div className={STATS_SUMMARY_CARD_CLASS}>
+              <p className={STATS_SUMMARY_LABEL_CLASS}>
                 <Dumbbell className="h-3.5 w-3.5" />
                 {t("workoutsThisWeek")}
               </p>
-              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{Math.round(animatedWorkoutCount)}</p>
+              <p className={STATS_SUMMARY_VALUE_CLASS}>{Math.round(animatedWorkoutCount)}</p>
             </div>
-            <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
-              <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
+            <div className={STATS_SUMMARY_CARD_CLASS}>
+              <p className={STATS_SUMMARY_LABEL_CLASS}>
                 <Clock3 className="h-3.5 w-3.5" />
                 {t("duration")}
               </p>
-              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{formatDurationLabel(animatedDurationMinutesTotal, language)}</p>
+              <p className={STATS_SUMMARY_VALUE_CLASS}>{formatDurationLabel(animatedDurationMinutesTotal, language)}</p>
             </div>
-            <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
-              <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
+            <div className={STATS_SUMMARY_CARD_CLASS}>
+              <p className={STATS_SUMMARY_LABEL_CLASS}>
                 <ListChecks className="h-3.5 w-3.5" />
                 {t("sets")}
               </p>
-              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{Math.round(animatedSetCount)}</p>
+              <p className={STATS_SUMMARY_VALUE_CLASS}>{Math.round(animatedSetCount)}</p>
             </div>
-            <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
-              <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
+            <div className={STATS_SUMMARY_CARD_CLASS}>
+              <p className={STATS_SUMMARY_LABEL_CLASS}>
                 <Repeat className="h-3.5 w-3.5" />
                 {t("repsTotal")}
               </p>
-              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">{Math.round(animatedRepsTotal)}</p>
+              <p className={STATS_SUMMARY_VALUE_CLASS}>{Math.round(animatedRepsTotal)}</p>
             </div>
-            <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
-              <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
+            <div className={STATS_SUMMARY_CARD_CLASS}>
+              <p className={STATS_SUMMARY_LABEL_CLASS}>
                 <Weight className="h-3.5 w-3.5" />
                 {t("totalWeight")}
               </p>
-              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">
+              <p className={STATS_SUMMARY_VALUE_CLASS}>
                 {formatNumber(animatedTotalWeight, 0)} {weightUnit}
               </p>
             </div>
-            <div className="rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40">
+            <div className={STATS_SUMMARY_CARD_CLASS}>
               <div className="flex items-center justify-between gap-1">
-                <p className="inline-flex items-center gap-1 text-xs text-emerald-700/90 dark:text-emerald-300/75">
+                <p className={STATS_SUMMARY_LABEL_CLASS}>
                   <Flame className="h-3.5 w-3.5" />
                   {t("calories")}
                 </p>
@@ -956,7 +965,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                   />
                 )}
               </div>
-              <p className="text-base font-semibold text-emerald-950 dark:text-emerald-100">
+              <p className={STATS_SUMMARY_VALUE_CLASS}>
                 ~{formatNumber(animatedCaloriesTotal, 0)} kcal
               </p>
             </div>
@@ -1064,16 +1073,16 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                   <p className="inline-flex items-center gap-2 text-base font-semibold leading-tight text-foreground/75">
                     {t("sessions")}
                   </p>
-                  <div className="inline-flex items-center rounded-lg border bg-background p-0.5">
+                  <div className={STATS_SEGMENTED_CONTROL_CLASS}>
                     {(["workouts", "duration", "sets"] as const).map((mode) => (
                       <button
                         key={mode}
                         type="button"
                         onClick={() => updateStatisticsFilterState({ yearlySessionsMetricMode: mode })}
-                        className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                        className={`${STATS_SEGMENTED_ITEM_CLASS} ${
                           yearlySessionsMetricMode === mode
-                            ? "bg-secondary text-foreground"
-                            : "text-muted-foreground hover:text-foreground"
+                            ? STATS_SEGMENTED_ITEM_ACTIVE_CLASS
+                            : STATS_SEGMENTED_ITEM_INACTIVE_CLASS
                         }`}
                         aria-pressed={yearlySessionsMetricMode === mode}
                       >
@@ -1227,16 +1236,16 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
               <p className="inline-flex items-center gap-2 text-base font-semibold leading-tight text-foreground/75">
                 {t("muscleGroupsThisWeek")}
               </p>
-              <div className="inline-flex items-center rounded-lg border bg-background p-0.5">
+              <div className={STATS_SEGMENTED_CONTROL_CLASS}>
                 {(["sets", "reps", "weight"] as const).map((mode) => (
                   <button
                     key={mode}
                     type="button"
                     onClick={() => updateStatisticsFilterState({ muscleMetricMode: mode })}
-                    className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                    className={`${STATS_SEGMENTED_ITEM_CLASS} ${
                       muscleMetricMode === mode
-                        ? "bg-secondary text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? STATS_SEGMENTED_ITEM_ACTIVE_CLASS
+                        : STATS_SEGMENTED_ITEM_INACTIVE_CLASS
                     }`}
                     aria-pressed={muscleMetricMode === mode}
                   >

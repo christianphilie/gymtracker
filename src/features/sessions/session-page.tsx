@@ -7,6 +7,7 @@ import { ArrowUpDown, Check, Flag, History, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { Button } from "@/components/ui/button";
+import { SetValueDisplay } from "@/components/weights/weight-display";
 import { WorkoutNameLabel } from "@/components/workouts/workout-name-label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,7 +29,15 @@ import {
   getSessionDurationMinutes,
   resolveCaloriesBodyWeightKg
 } from "@/lib/calorie-estimation";
-import { formatDurationLabel, formatSessionDateLabel, getEffectiveSetWeight, getSetStatsMultiplier } from "@/lib/utils";
+import {
+  formatDurationLabel,
+  formatSessionDateLabel,
+  normalizeSessionExerciseSet,
+  getSetRepsValue,
+  getSetStatsMultiplier,
+  getSetTotalWeight,
+  getSetWeightValue
+} from "@/lib/utils";
 import type { SessionExercise } from "./components/exercise-card";
 import { ExerciseCard } from "./components/exercise-card";
 import type { UpNextMode, RestTimerPanelState } from "./components/up-next-panel";
@@ -53,6 +62,11 @@ const LAST_SESSION_SUMMARY_PILL_CLASS =
   "inline-flex rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70";
 const EXTRA_PREVIOUS_EXERCISE_ADD_BUTTON_CLASS =
   "h-8 w-8 shrink-0 self-center rounded-full p-0 text-foreground/55 hover:text-foreground/70";
+
+interface TemplateExerciseMeta {
+  aiInfo?: ExerciseAiInfo;
+  negativeWeightEnabled: boolean;
+}
 
 type ExerciseCompletionFeedbackState = "pending-badge" | "show-badge";
 
@@ -146,16 +160,22 @@ export function SessionPage() {
     return { ...sessionPayload, previousSummary };
   }, [numericSessionId]);
 
-  const templateExerciseInfoMap = useLiveQuery(async () => {
+  const templateExerciseMetaMap = useLiveQuery(async () => {
     const templateIds = Array.from(
       new Set((payload?.sets ?? []).map((s) => s.templateExerciseId).filter((id): id is number => id !== undefined))
     );
-    if (templateIds.length === 0) return new Map<number, ExerciseAiInfo>();
+    if (templateIds.length === 0) return new Map<number, TemplateExerciseMeta>();
     const exercises = await db.exercises.where("id").anyOf(templateIds).toArray();
     return new Map(
       exercises
-        .filter((e): e is typeof e & { id: number } => e.id !== undefined && !!e.aiInfo)
-        .map((e) => [e.id, e.aiInfo!])
+        .filter((e): e is typeof e & { id: number } => e.id !== undefined)
+        .map((e) => [
+          e.id,
+          {
+            aiInfo: e.aiInfo,
+            negativeWeightEnabled: e.negativeWeightEnabled ?? false
+          }
+        ])
     );
   }, [payload?.sets]);
 
@@ -180,23 +200,30 @@ export function SessionPage() {
     return [...groupedSets.entries()]
       .map(([sessionExerciseKey, sets]) => {
         const first = sets[0];
+        const templateMeta =
+          first.templateExerciseId !== undefined ? templateExerciseMetaMap?.get(first.templateExerciseId) : undefined;
+        const negativeWeightEnabled =
+          (templateMeta?.negativeWeightEnabled ?? false) ||
+          first.negativeWeightEnabled === true ||
+          sets.some((set) => (set.actualWeight ?? set.targetWeight) < 0 || set.targetWeight < 0);
+        const normalizedSets = sets.map((set) =>
+          normalizeSessionExerciseSet(set, { negativeWeightEnabled })
+        );
         return {
           sessionExerciseKey,
-          sets,
+          sets: normalizedSets,
           exerciseName: first.exerciseName,
           exerciseNotes: first.exerciseNotes,
           exerciseOrder: first.exerciseOrder,
           isTemplateExercise: first.isTemplateExercise,
           templateExerciseId: first.templateExerciseId,
           x2Enabled: first.x2Enabled ?? false,
-          negativeWeightEnabled: first.negativeWeightEnabled ?? false,
-          exerciseAiInfo:
-            first.exerciseAiInfo ??
-            (first.templateExerciseId !== undefined ? templateExerciseInfoMap?.get(first.templateExerciseId) : undefined)
+          negativeWeightEnabled,
+          exerciseAiInfo: first.exerciseAiInfo ?? templateMeta?.aiInfo
         };
       })
       .sort((a, b) => a.exerciseOrder - b.exerciseOrder);
-  }, [groupedSets, templateExerciseInfoMap]);
+  }, [groupedSets, templateExerciseMetaMap]);
 
   const lockedExerciseKeys = useMemo(() => {
     const locked = new Set<string>();
@@ -331,15 +358,11 @@ export function SessionPage() {
     const setsForCount = completedSets.length > 0 ? completedSets : orderedSets;
     const exerciseCount = new Set(setsForCount.map((s) => s.sessionExerciseKey)).size;
     const setCount = completedSets.reduce((sum, s) => sum + getSetStatsMultiplier(s), 0);
-    const repsTotal = completedSets.reduce((sum, s) => sum + (s.actualReps ?? s.targetReps) * getSetStatsMultiplier(s), 0);
+    const repsTotal = completedSets.reduce((sum, set) => sum + getSetRepsValue(set) * getSetStatsMultiplier(set), 0);
     const finishedAt = payload.session.finishedAt ?? latestCompletedSet?.completedAt ?? new Date(liveNowMs).toISOString();
     const durationMinutes = getSessionDurationMinutes(payload.session.startedAt, finishedAt);
     const { bodyWeightKg, usesDefaultBodyWeight } = resolveCaloriesBodyWeightKg(settings?.bodyWeight, weightUnit);
-    const totalWeight = completedSets.reduce(
-      (sum, s) =>
-        sum + getEffectiveSetWeight(s.actualWeight ?? s.targetWeight, bodyWeightKg) * (s.actualReps ?? s.targetReps) * getSetStatsMultiplier(s),
-      0
-    );
+    const totalWeight = completedSets.reduce((sum, set) => sum + getSetTotalWeight(set, bodyWeightKg), 0);
     const calories = estimateStrengthTrainingCalories({ durationMinutes, bodyWeightKg, completedSetCount: setCount, repsTotal });
     return { durationMinutes, exerciseCount, setCount, repsTotal, totalWeight, calories, usesDefaultBodyWeightForCalories: usesDefaultBodyWeight };
   }, [latestCompletedSet?.completedAt, liveNowMs, orderedSets, payload, settings?.bodyWeight, weightUnit]);
@@ -1061,7 +1084,7 @@ export function SessionPage() {
               exercise.templateExerciseId !== undefined
                 ? payload.previousSummary?.templateExerciseSets[exercise.templateExerciseId]
                 : undefined;
-            const lastSessionSetSummary = (() => {
+            const lastSessionSets = (() => {
               if (!lastTemplateSets || lastTemplateSets.length === 0) return undefined;
               const sortedPrev = [...lastTemplateSets].sort((a, b) => a.templateSetOrder - b.templateSetOrder);
               const currentSets = exercise.sets; // already sorted by templateSetOrder
@@ -1070,15 +1093,16 @@ export function SessionPage() {
                 sortedPrev.some((prevSet, i) => {
                   const currSet = currentSets[i];
                   if (!currSet) return true;
-                  const prevReps = prevSet.actualReps ?? prevSet.targetReps;
-                  const prevWeight = prevSet.actualWeight ?? prevSet.targetWeight;
-                  const currentReps = currSet.actualReps ?? currSet.targetReps;
-                  const currentWeight = currSet.actualWeight ?? currSet.targetWeight;
+                  const prevReps = getSetRepsValue(prevSet);
+                  const prevWeight = getSetWeightValue(prevSet);
+                  const currentReps = getSetRepsValue(currSet);
+                  const currentWeight = getSetWeightValue(currSet);
                   return prevReps !== currentReps || prevWeight !== currentWeight;
                 });
               if (!hasDeviation) return undefined;
-              return sortedPrev
-                .map((s) => `${s.actualReps ?? s.targetReps} × ${s.actualWeight ?? s.targetWeight} ${weightUnitLabel}`);
+              return sortedPrev.map((set) =>
+                normalizeSessionExerciseSet(set, { negativeWeightEnabled: exercise.negativeWeightEnabled })
+              );
             })();
 
             return (
@@ -1096,7 +1120,7 @@ export function SessionPage() {
                     isCollapsed={isCollapsed}
                     showDoneBadge={showDoneBadge}
                     sessionIsCompleted={isCompleted}
-                    lastSessionSetSummary={lastSessionSetSummary}
+                    lastSessionSets={lastSessionSets}
                     weightUnitLabel={weightUnitLabel}
                     focusedWeightSetId={focusedWeightSetId}
                     badgeRef={(node) => { exerciseDoneBadgeRefs.current[exercise.sessionExerciseKey] = node; }}
@@ -1169,7 +1193,12 @@ export function SessionPage() {
                           key={`${item.name}-${sourceIndex}-${setIndex}`}
                           className={LAST_SESSION_SUMMARY_PILL_CLASS}
                         >
-                          {`${set.actualReps ?? set.targetReps} × ${set.actualWeight ?? set.targetWeight} ${weightUnitLabel}`}
+                          <SetValueDisplay
+                            reps={getSetRepsValue(set)}
+                            weight={getSetWeightValue(set)}
+                            weightUnitLabel={weightUnitLabel}
+                            iconClassName="text-muted-foreground/70"
+                          />
                         </span>
                       ))}
                     </div>

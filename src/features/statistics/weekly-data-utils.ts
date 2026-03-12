@@ -1,7 +1,7 @@
 import type { ExerciseAiInfo, SessionExerciseSet, WorkoutIconKey } from "@/db/types";
 import { buildExerciseAiInfoForCatalogMatch, matchExerciseCatalogEntry } from "@/lib/exercise-catalog";
 import { getCanonicalMuscleGroup, isCanonicalMuscleKey } from "@/lib/muscle-taxonomy";
-import { formatNumber, getSetStatsMultiplier } from "@/lib/utils";
+import { formatNumber, getSetRepsValue, getSetStatsMultiplier, getSetTotalWeight } from "@/lib/utils";
 
 export interface WeeklyStatsWorkoutEntry {
   sessionId: number;
@@ -366,7 +366,8 @@ export function addMuscleContributionFromSet(
   metrics: WeeklyMuscleGroupMetrics,
   templateAiInfoById: Map<number, ExerciseAiInfo>,
   templateAiInfoByWorkoutAndName: Map<string, ExerciseAiInfo>,
-  sessionWorkoutIdBySessionId: Map<number, number>
+  sessionWorkoutIdBySessionId: Map<number, number>,
+  bodyWeightKg: number
 ) {
   const aiInfo = getSetAiInfo(set, templateAiInfoById, templateAiInfoByWorkoutAndName, sessionWorkoutIdBySessionId);
   if (!aiInfo?.targetMuscles?.length) {
@@ -388,8 +389,8 @@ export function addMuscleContributionFromSet(
   }
 
   const setMultiplier = getSetStatsMultiplier(set);
-  const repsBase = (set.actualReps ?? set.targetReps) * setMultiplier;
-  const weightBase = (set.actualWeight ?? set.targetWeight) * (set.actualReps ?? set.targetReps) * setMultiplier;
+  const repsBase = getSetRepsValue(set) * setMultiplier;
+  const weightBase = getSetTotalWeight(set, bodyWeightKg);
 
   for (const [group, percent] of groupPercentByKey.entries()) {
     const factor = percent / totalPercent;

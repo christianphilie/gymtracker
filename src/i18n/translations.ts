@@ -149,8 +149,10 @@ export const messages = {
     restTimerDescription:
       "Dauer der Pause nach Abschließen eines Satzes. Wird auch für die Schätzung der Workout-Dauer verwendet.",
     sessionHistory: "Session-Verlauf",
+    workoutData: "Workout-Daten",
     noSessionHistory: "Noch keine abgeschlossenen Sessions für dieses Workout",
     completedThisWeek: "Diese Woche",
+    weeks: "Wochen",
     repsTotal: "Wiederholungen",
     totalWeight: "Gewicht",
     editSession: "Session bearbeiten",
@@ -463,8 +465,10 @@ export const messages = {
     restTimerDescription:
       "Duration of the pause after completing a set. Also used for estimated workout duration.",
     sessionHistory: "Session history",
+    workoutData: "Workout Data",
     noSessionHistory: "No completed sessions for this workout yet",
     completedThisWeek: "This week",
+    weeks: "Weeks",
     repsTotal: "Repetitions",
     totalWeight: "Weight",
     editSession: "Edit session",

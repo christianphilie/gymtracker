@@ -9,6 +9,7 @@ import type {
   Workout,
   WorkoutWithRelations
 } from "@/db/types";
+import { normalizeSessionExerciseSet } from "@/lib/utils";
 
 export {
   ensureDefaultSettings,
@@ -30,6 +31,36 @@ export {
   importAllDataSnapshot,
   restoreUpdateSafetySnapshot
 } from "@/db/repository-backup";
+
+function normalizeExerciseWeightValue(weight: number, negativeWeightEnabled?: boolean) {
+  if (weight === 0) {
+    return 0;
+  }
+  return negativeWeightEnabled ? -Math.abs(weight) : weight;
+}
+
+function normalizeTemplateExerciseRelation(
+  exercise: Exercise,
+  sets: ExerciseTemplateSet[]
+): { exercise: Exercise; sets: ExerciseTemplateSet[] } {
+  const negativeWeightEnabled =
+    exercise.negativeWeightEnabled === true || sets.some((set) => set.targetWeight < 0);
+
+  if (!negativeWeightEnabled) {
+    return { exercise, sets };
+  }
+
+  return {
+    exercise: {
+      ...exercise,
+      negativeWeightEnabled: true
+    },
+    sets: sets.map((set) => ({
+      ...set,
+      targetWeight: normalizeExerciseWeightValue(set.targetWeight, true)
+    }))
+  };
+}
 
 interface WorkoutDraft {
   name: string;
@@ -122,10 +153,12 @@ export async function getWorkoutById(workoutId: number): Promise<WorkoutWithRela
 
   return {
     workout,
-    exercises: exercises.map((exercise) => ({
-      exercise,
-      sets: exercise.id ? (exerciseMap.get(exercise.id) ?? []) : []
-    }))
+    exercises: exercises.map((exercise) =>
+      normalizeTemplateExerciseRelation(
+        exercise,
+        exercise.id ? (exerciseMap.get(exercise.id) ?? []) : []
+      )
+    )
   };
 }
 
@@ -165,7 +198,10 @@ async function createWorkoutRecord(draft: WorkoutDraft) {
         exerciseId,
         order: setIndex,
         targetReps: setDraft.targetReps,
-        targetWeight: setDraft.targetWeight
+        targetWeight: normalizeExerciseWeightValue(
+          setDraft.targetWeight,
+          exerciseDraft.negativeWeightEnabled
+        )
       });
     }
   }
@@ -262,7 +298,10 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
             exerciseId,
             order: setIndex,
             targetReps: setDraft.targetReps,
-            targetWeight: setDraft.targetWeight
+            targetWeight: normalizeExerciseWeightValue(
+              setDraft.targetWeight,
+              exerciseDraft.negativeWeightEnabled
+            )
           });
         }
       }
@@ -466,6 +505,10 @@ export async function startSession(workoutId: number) {
         }
 
         for (const set of exerciseBlock.sets) {
+          const normalizedWeight = normalizeExerciseWeightValue(
+            set.targetWeight,
+            exerciseBlock.exercise.negativeWeightEnabled
+          );
           await db.sessionExerciseSets.add({
             sessionId: createdSessionId,
             templateExerciseId,
@@ -479,9 +522,9 @@ export async function startSession(workoutId: number) {
             negativeWeightEnabled: exerciseBlock.exercise.negativeWeightEnabled ?? false,
             templateSetOrder: set.order,
             targetReps: set.targetReps,
-            targetWeight: set.targetWeight,
+            targetWeight: normalizedWeight,
             actualReps: set.targetReps,
-            actualWeight: set.targetWeight,
+            actualWeight: normalizedWeight,
             completed: false
           });
         }
@@ -529,9 +572,24 @@ export async function updateSessionSet(
       : patch.completed
         ? nowIso()
         : undefined;
+  const negativeWeightEnabled =
+    current.negativeWeightEnabled === true ||
+    (current.actualWeight ?? current.targetWeight) < 0 ||
+    current.targetWeight < 0 ||
+    (current.templateExerciseId !== undefined
+      ? ((await db.exercises.get(current.templateExerciseId))?.negativeWeightEnabled ?? false)
+      : false) ||
+    false;
+  const normalizedPatch = patch.actualWeight === undefined
+    ? patch
+    : {
+        ...patch,
+        actualWeight: normalizeExerciseWeightValue(patch.actualWeight, negativeWeightEnabled)
+      };
 
   await db.sessionExerciseSets.update(setId, {
-    ...patch,
+    ...normalizedPatch,
+    negativeWeightEnabled,
     completedAt: nextCompletedAt
   });
 }
@@ -593,7 +651,10 @@ export async function addSessionSet(sessionId: number, sessionExerciseKey: strin
   const lastSet = sortedSets[sortedSets.length - 1];
   const templateSetOrder = lastSet.templateSetOrder + 1;
   const targetReps = lastSet.actualReps ?? lastSet.targetReps;
-  const targetWeight = lastSet.actualWeight ?? lastSet.targetWeight;
+  const targetWeight = normalizeExerciseWeightValue(
+    lastSet.actualWeight ?? lastSet.targetWeight,
+    firstSet.negativeWeightEnabled
+  );
 
   return db.sessionExerciseSets.add({
     sessionId,
@@ -672,7 +733,9 @@ export async function addSessionExerciseFromPrevious(sessionId: number, previous
     throw new Error("Active session not found");
   }
 
-  const sortedPreviousSets = [...previousSets].sort((a, b) => a.templateSetOrder - b.templateSetOrder);
+  const sortedPreviousSets = [...previousSets]
+    .sort((a, b) => a.templateSetOrder - b.templateSetOrder)
+    .map((set) => normalizeSessionExerciseSet(set));
   const firstSet = sortedPreviousSets[0];
   const trimmedName = firstSet.exerciseName.trim();
   if (!trimmedName) {
@@ -697,7 +760,10 @@ export async function addSessionExerciseFromPrevious(sessionId: number, previous
     for (let index = 0; index < sortedPreviousSets.length; index += 1) {
       const set = sortedPreviousSets[index];
       const targetReps = set.actualReps ?? set.targetReps;
-      const targetWeight = set.actualWeight ?? set.targetWeight;
+      const targetWeight = normalizeExerciseWeightValue(
+        set.actualWeight ?? set.targetWeight,
+        firstSet.negativeWeightEnabled
+      );
       await db.sessionExerciseSets.add({
         sessionId,
         sessionExerciseKey,
@@ -764,7 +830,11 @@ async function applySessionAsTemplate(sessionId: number) {
   }
 
   const sessionExercises = [...grouped.values()]
-    .map((exerciseSets) => exerciseSets.sort((a, b) => a.templateSetOrder - b.templateSetOrder))
+    .map((exerciseSets) =>
+      exerciseSets
+        .sort((a, b) => a.templateSetOrder - b.templateSetOrder)
+        .map((set) => normalizeSessionExerciseSet(set))
+    )
     .sort((a, b) => a[0].exerciseOrder - b[0].exerciseOrder);
 
   await db.transaction("rw", db.exercises, db.exerciseTemplateSets, async () => {
@@ -797,6 +867,7 @@ async function applySessionAsTemplate(sessionId: number) {
         order: exerciseIndex,
         isTemplate: true,
         x2Enabled: firstSet.x2Enabled ?? false,
+        negativeWeightEnabled: firstSet.negativeWeightEnabled ?? false,
         createdAt: now,
         updatedAt: now
       });
@@ -807,7 +878,10 @@ async function applySessionAsTemplate(sessionId: number) {
           exerciseId,
           order: setIndex,
           targetReps: set.actualReps ?? set.targetReps,
-          targetWeight: set.actualWeight ?? set.targetWeight
+          targetWeight: normalizeExerciseWeightValue(
+            set.actualWeight ?? set.targetWeight,
+            firstSet.negativeWeightEnabled
+          )
         });
       }
     }
@@ -883,7 +957,8 @@ export async function getPreviousSessionSummary(
   for (const groupSets of grouped.values()) {
     const sortedCompleted = groupSets
       .filter((set) => set.completed)
-      .sort((a, b) => a.templateSetOrder - b.templateSetOrder);
+      .sort((a, b) => a.templateSetOrder - b.templateSetOrder)
+      .map((set) => normalizeSessionExerciseSet(set));
 
     if (sortedCompleted.length === 0) {
       continue;
@@ -930,6 +1005,7 @@ export interface SessionSetUpdateDraft {
   exerciseOrder: number;
   isTemplateExercise: boolean;
   x2Enabled?: boolean;
+  negativeWeightEnabled?: boolean;
   templateSetOrder: number;
   actualReps: number;
   actualWeight: number;
@@ -1047,9 +1123,10 @@ export async function updateCompletedSessionSets(
           exerciseOrder: draft.exerciseOrder,
           isTemplateExercise: draft.isTemplateExercise,
           x2Enabled: draft.x2Enabled ?? false,
+          negativeWeightEnabled: draft.negativeWeightEnabled ?? false,
           templateSetOrder: draft.templateSetOrder,
           actualReps: draft.actualReps,
-          actualWeight: draft.actualWeight,
+          actualWeight: normalizeExerciseWeightValue(draft.actualWeight, draft.negativeWeightEnabled),
           completed: draft.completed,
           completedAt: draft.completed ? current.completedAt ?? completedAtFallback : undefined
         });
@@ -1066,11 +1143,12 @@ export async function updateCompletedSessionSets(
         exerciseOrder: draft.exerciseOrder,
         isTemplateExercise: draft.isTemplateExercise,
         x2Enabled: draft.x2Enabled ?? false,
+        negativeWeightEnabled: draft.negativeWeightEnabled ?? false,
         templateSetOrder: draft.templateSetOrder,
         targetReps: draft.actualReps,
-        targetWeight: draft.actualWeight,
+        targetWeight: normalizeExerciseWeightValue(draft.actualWeight, draft.negativeWeightEnabled),
         actualReps: draft.actualReps,
-        actualWeight: draft.actualWeight,
+        actualWeight: normalizeExerciseWeightValue(draft.actualWeight, draft.negativeWeightEnabled),
         completed: draft.completed,
         completedAt: draft.completed ? completedAtFallback : undefined
       });

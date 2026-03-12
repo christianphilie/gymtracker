@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowUpDown, Check, ChevronDown, CircleQuestionMark, GripVertical, PersonStanding, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, CircleQuestionMark, GripVertical, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
+import { WeightInput } from "@/components/weights/weight-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -1238,47 +1239,21 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                         )}
 
                       <div className="min-w-0">
-                        {(() => {
-                          const absWeight = Math.abs(set.targetWeight);
-                          const isBw = set.targetWeight === 0;
-                          const weightKey = `${exerciseIndex}-${setIndex}`;
-                          const isFocused = focusedWeightKey === weightKey;
-                          const showOverlay = (isBw || exercise.negativeWeightEnabled) && !isFocused;
-                          return (
-                            <div className="relative">
-                              <DecimalInput
-                                value={exercise.negativeWeightEnabled ? absWeight : set.targetWeight}
-                                min={0}
-                                step={0.5}
-                                className={`pr-12 ${showOverlay ? "pl-6 text-transparent" : ""}`}
-                                onFocus={() => setFocusedWeightKey(weightKey)}
-                                onBlur={() => setFocusedWeightKey(null)}
-                                onCommit={(value) => {
-                                  setDraft((prev) => {
-                                    const next = structuredClone(prev);
-                                    next.exercises[exerciseIndex].sets[setIndex].targetWeight =
-                                      next.exercises[exerciseIndex].negativeWeightEnabled ? -Math.abs(value) : value;
-                                    return next;
-                                  });
-                                }}
-                              />
-                              {showOverlay && (
-                                <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center gap-0.5 text-sm text-foreground">
-                                  <PersonStanding className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                  {exercise.negativeWeightEnabled && !isBw && (
-                                    <>
-                                      <span className="text-muted-foreground">−</span>
-                                      <span>{absWeight % 1 === 0 ? absWeight : absWeight.toFixed(1)}</span>
-                                    </>
-                                  )}
-                                </div>
-                              )}
-                              <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">
-                                {weightUnitLabel}
-                              </div>
-                            </div>
-                          );
-                        })()}
+                        <WeightInput
+                          value={set.targetWeight}
+                          negativeWeightEnabled={exercise.negativeWeightEnabled ?? false}
+                          weightUnitLabel={weightUnitLabel}
+                          focusedSetId={focusedWeightKey}
+                          setId={`${exerciseIndex}-${setIndex}`}
+                          onFocusChange={(id) => setFocusedWeightKey(typeof id === "string" ? id : null)}
+                          onCommit={(value) => {
+                            setDraft((prev) => {
+                              const next = structuredClone(prev);
+                              next.exercises[exerciseIndex].sets[setIndex].targetWeight = value;
+                              return next;
+                            });
+                          }}
+                        />
                       </div>
                     </div>
                   ))}

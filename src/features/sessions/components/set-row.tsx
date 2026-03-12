@@ -1,8 +1,9 @@
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DecimalInput } from "@/components/forms/decimal-input";
+import { WeightInput } from "@/components/weights/weight-input";
 import type { SessionExerciseSet } from "@/db/types";
-import { WeightInput } from "./weight-input";
+import { getSetRepsValue, getSetWeightValue } from "@/lib/utils";
 
 interface SetRowProps {
   set: SessionExerciseSet;
@@ -31,8 +32,8 @@ export function SetRow({
   onUpdateWeight,
   doneAriaLabel
 }: SetRowProps) {
-  const actualReps = set.actualReps ?? set.targetReps;
-  const actualWeight = set.actualWeight ?? set.targetWeight;
+  const actualReps = getSetRepsValue(set);
+  const actualWeight = getSetWeightValue(set);
   const showRepsHint = actualReps !== set.targetReps;
 
   return (
@@ -75,7 +76,7 @@ export function SetRow({
             weightUnitLabel={weightUnitLabel}
             focusedSetId={focusedWeightSetId}
             setId={set.id}
-            onFocusChange={onFocusChange}
+            onFocusChange={(id) => onFocusChange(typeof id === "number" ? id : null)}
             onCommit={onUpdateWeight}
           />
         </div>

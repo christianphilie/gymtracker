@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation, useSearchParams, type To } from "react-route
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   ChartNoAxesCombined,
+  ChartNoAxesColumn,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -357,8 +358,8 @@ export function AppShell() {
       title = t("editWorkoutTitle");
       Icon = PenSquare;
     } else if (/^\/workouts\/\d+\/history$/.test(location.pathname)) {
-      title = t("sessionHistory");
-      Icon = ChartNoAxesCombined;
+      title = t("workoutData");
+      Icon = ChartNoAxesColumn;
     } else if (/^\/sessions\/\d+$/.test(location.pathname)) {
       title = "Aktive Session";
       Icon = Play;

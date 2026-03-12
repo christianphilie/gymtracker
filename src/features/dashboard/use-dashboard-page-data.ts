@@ -6,7 +6,12 @@ import {
   getSessionDurationMinutes,
   resolveCaloriesBodyWeightKg
 } from "@/lib/calorie-estimation";
-import { getEffectiveSetWeight, getSetStatsMultiplier } from "@/lib/utils";
+import {
+  getSetRepsValue,
+  getSetStatsMultiplier,
+  getSetTotalWeight,
+  normalizeSessionExerciseSet
+} from "@/lib/utils";
 import type { WorkoutListItem } from "@/features/dashboard/dashboard-page-cards";
 import {
   addMuscleContributionFromSet,
@@ -19,6 +24,33 @@ import {
   type StatisticsPeriod,
   type WeeklyDashboardStats
 } from "@/features/statistics/weekly-data-utils";
+
+interface TemplateExerciseMeta {
+  aiInfo?: ExerciseAiInfo;
+  negativeWeightEnabled: boolean;
+}
+
+function getTemplateExerciseMetaForSet(
+  set: SessionExerciseSet,
+  templateMetaById: Map<number, TemplateExerciseMeta>,
+  templateMetaByWorkoutAndName: Map<string, TemplateExerciseMeta>,
+  sessionWorkoutIdBySessionId: Map<number, number>
+) {
+  if (set.templateExerciseId !== undefined) {
+    const byId = templateMetaById.get(set.templateExerciseId);
+    if (byId) {
+      return byId;
+    }
+  }
+
+  const workoutId = sessionWorkoutIdBySessionId.get(set.sessionId);
+  const exerciseNameKey = normalizeExerciseLookupName(set.exerciseName);
+  if (workoutId === undefined || !exerciseNameKey) {
+    return undefined;
+  }
+
+  return templateMetaByWorkoutAndName.get(`${workoutId}::${exerciseNameKey}`);
+}
 
 function estimateWorkoutDurationMinutes(params: {
   restSeconds: number;
@@ -204,18 +236,34 @@ export function useStatisticsPeriodData(params: {
     const templateExercises = templateExerciseIds.length
       ? await db.exercises.where("id").anyOf(templateExerciseIds).toArray()
       : [];
+    const templateMetaById = new Map<number, TemplateExerciseMeta>();
     const templateAiInfoById = new Map<number, ExerciseAiInfo>();
     for (const exercise of templateExercises) {
-      if (exercise.id !== undefined && exercise.aiInfo) {
+      if (exercise.id === undefined) {
+        continue;
+      }
+
+      templateMetaById.set(exercise.id, {
+        aiInfo: exercise.aiInfo,
+        negativeWeightEnabled: exercise.negativeWeightEnabled ?? false
+      });
+      if (exercise.aiInfo) {
         templateAiInfoById.set(exercise.id, exercise.aiInfo);
       }
     }
+    const templateMetaByWorkoutAndName = new Map<string, TemplateExerciseMeta>();
     const templateAiInfoByWorkoutAndName = new Map<string, ExerciseAiInfo>();
     for (const exercise of templateExercisesForWorkouts) {
-      if (!exercise.aiInfo) continue;
       const nameKey = normalizeExerciseLookupName(exercise.name);
       if (!nameKey) continue;
-      templateAiInfoByWorkoutAndName.set(`${exercise.workoutId}::${nameKey}`, exercise.aiInfo);
+      const key = `${exercise.workoutId}::${nameKey}`;
+      templateMetaByWorkoutAndName.set(key, {
+        aiInfo: exercise.aiInfo,
+        negativeWeightEnabled: exercise.negativeWeightEnabled ?? false
+      });
+      if (exercise.aiInfo) {
+        templateAiInfoByWorkoutAndName.set(key, exercise.aiInfo);
+      }
     }
 
     const setsBySessionId = new Map<number, SessionExerciseSet[]>();
@@ -255,20 +303,25 @@ export function useStatisticsPeriodData(params: {
     const completedWorkouts = completedSessions.map((session) => {
       const sessionId = session.id ?? -1;
       const sessionSets = setsBySessionId.get(sessionId) ?? [];
-      const completedSets = sessionSets.filter((set) => set.completed);
+      const completedSets = sessionSets
+        .filter((set) => set.completed)
+        .map((set) =>
+          normalizeSessionExerciseSet(
+            set,
+            getTemplateExerciseMetaForSet(
+              set,
+              templateMetaById,
+              templateMetaByWorkoutAndName,
+              sessionWorkoutIdBySessionId
+            )
+          )
+        );
       const weightedCompletedSetCount = completedSets.reduce((sum, set) => sum + getSetStatsMultiplier(set), 0);
       const sessionRepsTotal = completedSets.reduce(
-        (sum, set) => sum + (set.actualReps ?? set.targetReps) * getSetStatsMultiplier(set),
+        (sum, set) => sum + getSetRepsValue(set) * getSetStatsMultiplier(set),
         0
       );
-      const sessionTotalWeight = completedSets.reduce(
-        (sum, set) =>
-          sum +
-          getEffectiveSetWeight(set.actualWeight ?? set.targetWeight, bodyWeightKg) *
-            (set.actualReps ?? set.targetReps) *
-            getSetStatsMultiplier(set),
-        0
-      );
+      const sessionTotalWeight = completedSets.reduce((sum, set) => sum + getSetTotalWeight(set, bodyWeightKg), 0);
 
       setCount += weightedCompletedSetCount;
       repsTotal += sessionRepsTotal;
@@ -279,7 +332,8 @@ export function useStatisticsPeriodData(params: {
           muscleGroupMetrics,
           templateAiInfoById,
           templateAiInfoByWorkoutAndName,
-          sessionWorkoutIdBySessionId
+          sessionWorkoutIdBySessionId,
+          bodyWeightKg
         );
       }
 
