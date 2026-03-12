@@ -68,6 +68,13 @@ import {
 
 export type DashboardPageSection = "workouts" | "statistics";
 
+function formatLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function DashboardPageContent({ section }: { section: DashboardPageSection }) {
   const { t, language, weightUnit, restTimerEnabled, restTimerSeconds } = useSettings();
   const navigate = useNavigate();
@@ -191,6 +198,8 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
   const showWorkoutsSection = section === "workouts";
   const showStatsSection = section === "statistics";
   const showStatsSessionsSection = showStatsSection && statisticsPeriod === "week";
+  const showStatsMonthCalendarSection = showStatsSection && statisticsPeriod === "month";
+  const showStatsYearSessionsSection = showStatsSection && statisticsPeriod === "year";
   const hasActiveWorkout = activeWorkouts.length > 0;
   const hasTrackedWorkoutToday = useMemo(() => {
     const dayStart = new Date(clockTick);
@@ -365,6 +374,112 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
 
     return { dayLabels, ticks, items, nowTick };
   }, [clockTick, language, periodStart, statisticsPeriod, weeklyStats?.completedWorkouts]);
+
+  const monthlyCalendar = useMemo(() => {
+    if (statisticsPeriod !== "month") {
+      return null;
+    }
+
+    const monthStart = new Date(periodStart);
+    const monthEndExclusive = getStatisticsPeriodEndExclusive(monthStart, "month");
+    const lastMonthDay = new Date(monthEndExclusive);
+    lastMonthDay.setDate(lastMonthDay.getDate() - 1);
+    const gridStart = getStatisticsPeriodStart(monthStart, "week");
+    const gridEndExclusive = getStatisticsPeriodEndExclusive(getStatisticsPeriodStart(lastMonthDay, "week"), "week");
+
+    const sessionCountByDay = new Map<string, number>();
+    for (const workout of weeklyStats?.completedWorkouts ?? []) {
+      const completedAt = new Date(workout.finishedAt ?? workout.startedAt);
+      const key = formatLocalDateKey(completedAt);
+      sessionCountByDay.set(key, (sessionCountByDay.get(key) ?? 0) + 1);
+    }
+
+    const weekdayLabels = Array.from({ length: 7 }, (_, index) => {
+      const labelDate = new Date(2024, 0, 1 + index);
+      return new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", { weekday: "short" })
+        .format(labelDate)
+        .replace(/\.$/, "");
+    });
+
+    const days: Array<{
+      key: string;
+      dayNumber: number;
+      isCurrentMonth: boolean;
+      isToday: boolean;
+      sessionCount: number;
+    }> = [];
+
+    for (const cursor = new Date(gridStart); cursor < gridEndExclusive; cursor.setDate(cursor.getDate() + 1)) {
+      const day = new Date(cursor);
+      const key = formatLocalDateKey(day);
+      const today = new Date(clockTick);
+      today.setHours(0, 0, 0, 0);
+      day.setHours(0, 0, 0, 0);
+
+      days.push({
+        key,
+        dayNumber: day.getDate(),
+        isCurrentMonth: day.getMonth() === monthStart.getMonth() && day.getFullYear() === monthStart.getFullYear(),
+        isToday: day.getTime() === today.getTime(),
+        sessionCount: sessionCountByDay.get(key) ?? 0
+      });
+    }
+
+    return { weekdayLabels, days };
+  }, [clockTick, language, periodStart, statisticsPeriod, weeklyStats?.completedWorkouts]);
+
+  const yearlySessionsChart = useMemo(() => {
+    if (statisticsPeriod !== "year") {
+      return null;
+    }
+
+    const yearStart = new Date(periodStart);
+    const yearEndExclusive = getStatisticsPeriodEndExclusive(yearStart, "year");
+    const chartStart = getStatisticsPeriodStart(yearStart, "week");
+    const lastYearDay = new Date(yearEndExclusive);
+    lastYearDay.setDate(lastYearDay.getDate() - 1);
+    const chartEndExclusive = getStatisticsPeriodEndExclusive(getStatisticsPeriodStart(lastYearDay, "week"), "week");
+
+    const durationByWeekKey = new Map<string, number>();
+    for (const workout of weeklyStats?.completedWorkouts ?? []) {
+      const completedAt = new Date(workout.finishedAt ?? workout.startedAt);
+      const weekStart = getStatisticsPeriodStart(completedAt, "week");
+      const weekKey = formatLocalDateKey(weekStart);
+      const durationMinutes = getSessionDurationMinutes(workout.startedAt, workout.finishedAt ?? workout.startedAt);
+      durationByWeekKey.set(weekKey, (durationByWeekKey.get(weekKey) ?? 0) + durationMinutes);
+    }
+
+    const bars: Array<{
+      key: string;
+      durationMinutes: number;
+      heightPercent: number;
+      title: string;
+    }> = [];
+    let maxDurationMinutes = 0;
+
+    for (const cursor = new Date(chartStart); cursor < chartEndExclusive; cursor.setDate(cursor.getDate() + 7)) {
+      const weekStart = new Date(cursor);
+      const weekKey = formatLocalDateKey(weekStart);
+      const durationMinutes = durationByWeekKey.get(weekKey) ?? 0;
+      maxDurationMinutes = Math.max(maxDurationMinutes, durationMinutes);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      bars.push({
+        key: weekKey,
+        durationMinutes,
+        heightPercent: 0,
+        title: `${weekStart.toLocaleDateString(language === "de" ? "de-DE" : "en-US")} – ${weekEnd.toLocaleDateString(
+          language === "de" ? "de-DE" : "en-US"
+        )}: ${formatDurationShort(durationMinutes, language)}`
+      });
+    }
+
+    const maxValue = Math.max(maxDurationMinutes, 1);
+    return bars.map((bar) => ({
+      ...bar,
+      heightPercent: bar.durationMinutes > 0 ? Math.max(10, (bar.durationMinutes / maxValue) * 100) : 0
+    }));
+  }, [language, periodStart, statisticsPeriod, weeklyStats?.completedWorkouts]);
 
   const handleStartSession = async (workoutId: number) => {
     try {
@@ -620,6 +735,89 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
           <div className="py-1.5">
             <div className="h-px bg-border" />
           </div>
+
+          {showStatsMonthCalendarSection && monthlyCalendar && (
+            <>
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="inline-flex items-center gap-2 text-base font-semibold leading-tight text-foreground/75">
+                    {t("sessions")}
+                  </p>
+                </div>
+                <div className="grid grid-cols-7">
+                  {monthlyCalendar.weekdayLabels.map((label) => (
+                    <div
+                      key={`month-weekday-${label}`}
+                      className="flex h-5 items-center justify-center border-b border-border/90 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70"
+                    >
+                      {label}
+                    </div>
+                  ))}
+                  {monthlyCalendar.days.map((day, index) => {
+                    const isLastColumn = index % 7 === 6;
+                    const isLastRow = index >= monthlyCalendar.days.length - 7;
+                    return (
+                    <div
+                      key={day.key}
+                      className={`flex h-8 items-center justify-center ${
+                        isLastColumn ? "" : "border-r border-border/90"
+                      } ${isLastRow ? "" : "border-b border-border/90"}`}
+                    >
+                      {day.isCurrentMonth && day.sessionCount > 0 ? (
+                        <span
+                          className={`inline-flex items-center justify-center rounded-full bg-emerald-500 font-semibold text-white dark:bg-emerald-400 dark:text-emerald-950 ${
+                            day.sessionCount > 1 ? "h-5 min-w-5 px-1 text-[10px]" : "h-3.5 w-3.5"
+                          }`}
+                          aria-label={
+                            day.sessionCount > 1
+                              ? `${day.sessionCount} ${t("sessions")}`
+                              : t("monthlyCalendarSingleSession")
+                          }
+                        >
+                          {day.sessionCount > 1 ? day.sessionCount : null}
+                        </span>
+                      ) : null}
+                    </div>
+                    );
+                  })}
+                </div>
+              </section>
+              <div className="py-1.5">
+                <div className="h-px bg-border" />
+              </div>
+            </>
+          )}
+
+          {showStatsYearSessionsSection && yearlySessionsChart && (
+            <>
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="inline-flex items-center gap-2 text-base font-semibold leading-tight text-foreground/75">
+                    {t("sessions")}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex h-36 items-end gap-1 border-b border-border/90 pb-0.5">
+                    {yearlySessionsChart.map((bar) => (
+                      <div key={bar.key} className="flex min-w-0 flex-1 items-end justify-center">
+                        <div
+                          className={`w-full rounded-t-[6px] border border-b-0 border-emerald-500/65 bg-gradient-to-t from-emerald-500/0 via-emerald-500/25 to-emerald-500/85 ${
+                            bar.durationMinutes === 0 ? "border-emerald-500/20 from-transparent via-transparent to-transparent opacity-45" : ""
+                          }`}
+                          style={{ height: `${bar.heightPercent}%` }}
+                          title={bar.title}
+                          aria-label={bar.title}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+              <div className="py-1.5">
+                <div className="h-px bg-border" />
+              </div>
+            </>
+          )}
 
           {showStatsSessionsSection && (
             <>
