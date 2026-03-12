@@ -35,6 +35,7 @@ interface WorkoutDraft {
   name: string;
   icon?: Workout["icon"];
   exercises: Array<{
+    id?: number;
     name: string;
     notes?: string;
     aiInfo?: Exercise["aiInfo"];
@@ -196,10 +197,11 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
     db.exercises,
     db.exerciseTemplateSets,
     async () => {
+      const timestamp = nowIso();
       await db.workouts.update(workoutId, {
         name: draft.name.trim(),
         icon: draft.icon,
-        updatedAt: nowIso()
+        updatedAt: timestamp
       });
 
       const currentTemplateExercises = await db.exercises
@@ -208,18 +210,35 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
         .and((exercise) => exercise.isTemplate !== false)
         .toArray();
 
-      const currentTemplateExerciseIds = currentTemplateExercises
+      const currentTemplateExerciseMap = new Map(
+        currentTemplateExercises
+          .filter((exercise): exercise is Exercise & { id: number } => typeof exercise.id === "number")
+          .map((exercise) => [exercise.id, exercise])
+      );
+      const retainedTemplateExerciseIds = new Set(
+        draft.exercises
+          .map((exercise) => exercise.id)
+          .filter((value): value is number => typeof value === "number" && currentTemplateExerciseMap.has(value))
+      );
+      const deletedTemplateExerciseIds = currentTemplateExercises
         .map((exercise) => exercise.id)
-        .filter((value): value is number => !!value);
+        .filter(
+          (value): value is number =>
+            typeof value === "number" && !retainedTemplateExerciseIds.has(value)
+        );
 
-      if (currentTemplateExerciseIds.length) {
-        await db.exerciseTemplateSets.where("exerciseId").anyOf(currentTemplateExerciseIds).delete();
-        await db.exercises.where("id").anyOf(currentTemplateExerciseIds).delete();
+      if (deletedTemplateExerciseIds.length) {
+        await db.exerciseTemplateSets.where("exerciseId").anyOf(deletedTemplateExerciseIds).delete();
+        await db.exercises.where("id").anyOf(deletedTemplateExerciseIds).delete();
       }
 
       for (let exerciseIndex = 0; exerciseIndex < draft.exercises.length; exerciseIndex += 1) {
         const exerciseDraft = draft.exercises[exerciseIndex];
-        const exerciseId = await db.exercises.add({
+        const existingExercise =
+          typeof exerciseDraft.id === "number"
+            ? currentTemplateExerciseMap.get(exerciseDraft.id)
+            : undefined;
+        const exerciseRecord: Exercise = {
           workoutId,
           name: exerciseDraft.name.trim(),
           notes: exerciseDraft.notes?.trim(),
@@ -228,9 +247,14 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
           isTemplate: true,
           x2Enabled: exerciseDraft.x2Enabled ?? false,
           negativeWeightEnabled: exerciseDraft.negativeWeightEnabled ?? false,
-          createdAt: current.createdAt,
-          updatedAt: nowIso()
-        });
+          createdAt: existingExercise?.createdAt ?? timestamp,
+          updatedAt: timestamp
+        };
+        const exerciseId = existingExercise
+          ? (await db.exercises.put({ ...exerciseRecord, id: existingExercise.id }), existingExercise.id)
+          : await db.exercises.add(exerciseRecord);
+
+        await db.exerciseTemplateSets.where("exerciseId").equals(exerciseId).delete();
 
         for (let setIndex = 0; setIndex < exerciseDraft.sets.length; setIndex += 1) {
           const setDraft = exerciseDraft.sets[setIndex];

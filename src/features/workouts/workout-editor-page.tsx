@@ -404,6 +404,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         name: existing.workout.name,
         icon: existing.workout.icon,
         exercises: existing.exercises.map((item) => ({
+          id: item.exercise.id,
           name: item.exercise.name,
           notes: item.exercise.notes ?? "",
           aiInfo: item.exercise.aiInfo,
