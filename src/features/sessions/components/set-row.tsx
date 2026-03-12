@@ -36,7 +36,7 @@ export function SetRow({
   const showRepsHint = actualReps !== set.targetReps;
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-1">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-0.5">
       <div className="relative grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
         <div className="min-w-0">
           <div className="relative">

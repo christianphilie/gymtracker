@@ -1208,8 +1208,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                     <p className="text-xs text-muted-foreground">{t("sets")}</p>
                   </div>
                   {exercise.sets.map((set, setIndex) => (
-                    <div key={`set-${setIndex}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-1">
-                      <div className="relative grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+                    <div key={`set-${setIndex}`} className="relative grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 py-0.5">
                         <div className="min-w-0">
                           <div className="relative">
                             <DecimalInput
@@ -1237,49 +1236,48 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                           </span>
                         )}
 
-                        <div className="min-w-0">
-                          {(() => {
-                            const absWeight = Math.abs(set.targetWeight);
-                            const isBw = set.targetWeight === 0;
-                            const weightKey = `${exerciseIndex}-${setIndex}`;
-                            const isFocused = focusedWeightKey === weightKey;
-                            const showOverlay = (isBw || exercise.negativeWeightEnabled) && !isFocused;
-                            return (
-                              <div className="relative">
-                                <DecimalInput
-                                  value={exercise.negativeWeightEnabled ? absWeight : set.targetWeight}
-                                  min={0}
-                                  step={0.5}
-                                  className={`pr-12 ${showOverlay ? "pl-6 text-transparent" : ""}`}
-                                  onFocus={() => setFocusedWeightKey(weightKey)}
-                                  onBlur={() => setFocusedWeightKey(null)}
-                                  onCommit={(value) => {
-                                    setDraft((prev) => {
-                                      const next = structuredClone(prev);
-                                      next.exercises[exerciseIndex].sets[setIndex].targetWeight =
-                                        next.exercises[exerciseIndex].negativeWeightEnabled ? -Math.abs(value) : value;
-                                      return next;
-                                    });
-                                  }}
-                                />
-                                {showOverlay && (
-                                  <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center gap-0.5 text-sm text-foreground">
-                                    <PersonStanding className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                    {exercise.negativeWeightEnabled && !isBw && (
-                                      <>
-                                        <span className="text-muted-foreground">−</span>
-                                        <span>{absWeight % 1 === 0 ? absWeight : absWeight.toFixed(1)}</span>
-                                      </>
-                                    )}
-                                  </div>
-                                )}
-                                <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">
-                                  {weightUnitLabel}
+                      <div className="min-w-0">
+                        {(() => {
+                          const absWeight = Math.abs(set.targetWeight);
+                          const isBw = set.targetWeight === 0;
+                          const weightKey = `${exerciseIndex}-${setIndex}`;
+                          const isFocused = focusedWeightKey === weightKey;
+                          const showOverlay = (isBw || exercise.negativeWeightEnabled) && !isFocused;
+                          return (
+                            <div className="relative">
+                              <DecimalInput
+                                value={exercise.negativeWeightEnabled ? absWeight : set.targetWeight}
+                                min={0}
+                                step={0.5}
+                                className={`pr-12 ${showOverlay ? "pl-6 text-transparent" : ""}`}
+                                onFocus={() => setFocusedWeightKey(weightKey)}
+                                onBlur={() => setFocusedWeightKey(null)}
+                                onCommit={(value) => {
+                                  setDraft((prev) => {
+                                    const next = structuredClone(prev);
+                                    next.exercises[exerciseIndex].sets[setIndex].targetWeight =
+                                      next.exercises[exerciseIndex].negativeWeightEnabled ? -Math.abs(value) : value;
+                                    return next;
+                                  });
+                                }}
+                              />
+                              {showOverlay && (
+                                <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center gap-0.5 text-sm text-foreground">
+                                  <PersonStanding className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                  {exercise.negativeWeightEnabled && !isBw && (
+                                    <>
+                                      <span className="text-muted-foreground">−</span>
+                                      <span>{absWeight % 1 === 0 ? absWeight : absWeight.toFixed(1)}</span>
+                                    </>
+                                  )}
                                 </div>
+                              )}
+                              <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">
+                                {weightUnitLabel}
                               </div>
-                            );
-                          })()}
-                        </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   ))}

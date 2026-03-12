@@ -34,7 +34,14 @@ import {
   getSessionDurationMinutes,
   resolveCaloriesBodyWeightKg
 } from "@/lib/calorie-estimation";
-import { formatDurationLabel, formatNumber, formatSessionDateLabel, getEffectiveSetWeight, getSetStatsMultiplier } from "@/lib/utils";
+import {
+  formatDurationLabel,
+  formatNumber,
+  formatSessionDateLabel,
+  formatWeightValue,
+  getEffectiveSetWeight,
+  getSetStatsMultiplier
+} from "@/lib/utils";
 
 interface EditableSessionSet {
   id?: number;
@@ -468,21 +475,16 @@ export function WorkoutHistoryPage() {
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 space-y-1">
+                    <div className="mt-1 flex flex-wrap gap-1.5">
                       {sets.map((set, index) => {
                         const w = set.actualWeight ?? set.targetWeight;
-                        const isBw = w === 0;
-                        const isNeg = w < 0;
                         return (
-                          <p
+                          <span
                             key={set.id ?? `${firstSet.sessionExerciseKey}-${index}`}
-                            className="flex items-center gap-0.5 text-xs leading-none text-muted-foreground tabular-nums"
+                            className="inline-flex rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70"
                           >
-                            {set.actualReps ?? set.targetReps} ×{" "}
-                            {(isBw || isNeg) && <PersonStanding className="h-3 w-3 shrink-0" />}
-                            {isBw ? null : formatNumber(w, 0)}
-                            {" "}{weightUnit}
-                          </p>
+                            {`${set.actualReps ?? set.targetReps} × ${formatWeightValue(w)} ${weightUnit}`}
+                          </span>
                         );
                       })}
                     </div>
@@ -578,62 +580,64 @@ export function WorkoutHistoryPage() {
                           className="h-[1.25em] w-[1.25em] shrink-0 text-inherit"
                         />
                       </CardTitle>
-                      {firstSet.x2Enabled && (
-                        <span className="rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-                          2×
-                        </span>
-                      )}
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {sets.map((set) => (
-                      <div key={set.id} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
-                        <div className="relative">
-                          <DecimalInput
-                            value={set.actualReps}
-                            min={0}
-                            step={1}
-                            className="pr-10"
-                            onCommit={(value) => {
-                              setEditingSets((prev) =>
-                                prev.map((item) => (item.id === set.id ? { ...item, actualReps: value } : item))
+                      <div key={set.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                        <div className="relative grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+                          <div className="relative">
+                            <DecimalInput
+                              value={set.actualReps}
+                              min={0}
+                              step={1}
+                              className="pr-10"
+                              onCommit={(value) => {
+                                setEditingSets((prev) =>
+                                  prev.map((item) => (item.id === set.id ? { ...item, actualReps: value } : item))
+                                );
+                              }}
+                            />
+                            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">×</span>
+                          </div>
+                          {firstSet.x2Enabled && (
+                            <span className="pointer-events-none absolute left-1/2 top-0 z-10 inline-flex -translate-x-1/2 -translate-y-[22%] items-center rounded-full border border-border/70 bg-background px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground shadow-sm">
+                              2×
+                            </span>
+                          )}
+                          <div className="relative">
+                            {(() => {
+                              const isBwSet = set.actualWeight === 0;
+                              const isNegativeSet = set.actualWeight < 0;
+                              const showBwOverlay = (isBwSet || isNegativeSet) && focusedWeightSetId !== set.id;
+                              return (
+                                <>
+                                  <DecimalInput
+                                    value={set.actualWeight}
+                                    min={-999}
+                                    step={0.5}
+                                    className={`pr-10 ${showBwOverlay ? "text-transparent" : ""}`}
+                                    onFocus={() => setFocusedWeightSetId(set.id ?? null)}
+                                    onBlur={() => setFocusedWeightSetId(null)}
+                                    onCommit={(value) => {
+                                      setEditingSets((prev) =>
+                                        prev.map((item) => (item.id === set.id ? { ...item, actualWeight: value } : item))
+                                      );
+                                    }}
+                                  />
+                                  {showBwOverlay && (
+                                    <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center gap-1 text-base">
+                                      <PersonStanding className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                      {isNegativeSet && (
+                                        <span className="text-sm text-foreground">{set.actualWeight}</span>
+                                      )}
+                                    </div>
+                                  )}
+                                </>
                               );
-                            }}
-                          />
-                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">×</span>
-                        </div>
-                        <div className="relative">
-                          {(() => {
-                            const isBwSet = set.actualWeight === 0;
-                            const isNegativeSet = set.actualWeight < 0;
-                            const showBwOverlay = (isBwSet || isNegativeSet) && focusedWeightSetId !== set.id;
-                            return (
-                              <>
-                                <DecimalInput
-                                  value={set.actualWeight}
-                                  min={-999}
-                                  step={0.5}
-                                  className={`pr-10 ${showBwOverlay ? "text-transparent" : ""}`}
-                                  onFocus={() => setFocusedWeightSetId(set.id ?? null)}
-                                  onBlur={() => setFocusedWeightSetId(null)}
-                                  onCommit={(value) => {
-                                    setEditingSets((prev) =>
-                                      prev.map((item) => (item.id === set.id ? { ...item, actualWeight: value } : item))
-                                    );
-                                  }}
-                                />
-                                {showBwOverlay && (
-                                  <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center gap-1 text-base">
-                                    <PersonStanding className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                    {isNegativeSet && (
-                                      <span className="text-sm text-foreground">{set.actualWeight}</span>
-                                    )}
-                                  </div>
-                                )}
-                              </>
-                            );
-                          })()}
-                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">{weightUnit}</span>
+                            })()}
+                            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">{weightUnit}</span>
+                          </div>
                         </div>
                         <Button
                           variant={set.completed ? "default" : "outline"}
