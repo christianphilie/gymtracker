@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CalendarDays, ChartNoAxesColumn, PenSquare, X } from "lucide-react";
+import { CalendarDays, ChartNoAxesColumn, History, PenSquare, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -146,8 +146,9 @@ export function WorkoutListCard({
                   {recommendedReason === "scheduled" ? t("planned") : t("recommended")}
                 </Badge>
               )}
-              <p className="pr-2 text-xs text-muted-foreground whitespace-nowrap">
-                {t("lastSeen")}: {workout.lastSessionAt ? formatCompactDateTimeLabel(workout.lastSessionAt, language) : "-"}
+              <p className="pr-2 text-xs text-muted-foreground whitespace-nowrap inline-flex items-center gap-1.5">
+                <History className="h-3 w-3" aria-hidden="true" /> 
+                <span>{workout.lastSessionAt ? formatCompactDateTimeLabel(workout.lastSessionAt, language) : "-"}</span>
               </p>
             </>
           )}
