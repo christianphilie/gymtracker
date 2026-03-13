@@ -135,7 +135,7 @@ function useAnimatedNumber(targetValue: number, durationMs = STATS_CHART_TRANSIT
 }
 
 export function DashboardPageContent({ section }: { section: DashboardPageSection }) {
-  const { t, language, weightUnit, restTimerEnabled, restTimerSeconds } = useSettings();
+  const { t, language, weightUnit, restTimerEnabled, restTimerSeconds, weekStartsOn } = useSettings();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -162,8 +162,8 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
   const statisticsPeriod: StatisticsPeriod = isWorkoutDataMode ? "week" : statisticsMode;
   const statisticsOffset = section === "statistics" && !isWorkoutDataMode ? selectedStatisticsOffset : 0;
   const currentPeriodStart = useMemo(
-    () => getStatisticsPeriodStart(new Date(clockTick), statisticsPeriod),
-    [clockTick, statisticsPeriod]
+    () => getStatisticsPeriodStart(new Date(clockTick), statisticsPeriod, weekStartsOn),
+    [clockTick, statisticsPeriod, weekStartsOn]
   );
   const periodStart = useMemo(() => {
     if (statisticsOffset === 0) {
@@ -178,14 +178,14 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     } else {
       shifted.setDate(shifted.getDate() + statisticsOffset * 7);
     }
-    return getStatisticsPeriodStart(shifted, statisticsPeriod);
-  }, [currentPeriodStart, statisticsOffset, statisticsPeriod]);
+    return getStatisticsPeriodStart(shifted, statisticsPeriod, weekStartsOn);
+  }, [currentPeriodStart, statisticsOffset, statisticsPeriod, weekStartsOn]);
   const [discardConfirmSessionId, setDiscardConfirmSessionId] = useState<number | null>(null);
   const [isCreatingStarterWorkout, setIsCreatingStarterWorkout] = useState(false);
   const [homeWeeklyGoalKey, setHomeWeeklyGoalKey] = useState<"workouts" | "duration" | "calories" | "weight" | null>(null);
   const [animatedMusclePoints, setAnimatedMusclePoints] = useState<Array<{ x: number; y: number }>>([]);
   const animatedMusclePointsRef = useRef<Array<{ x: number; y: number }>>([]);
-  const earliestCompletedPeriodStart = useEarliestCompletedPeriodStart(statisticsPeriod);
+  const earliestCompletedPeriodStart = useEarliestCompletedPeriodStart(statisticsPeriod, weekStartsOn);
   const selectedMuscleMetricMode = useMemo(
     () => parseMuscleMetricMode(searchParams.get(STATS_MUSCLE_METRIC_SEARCH_PARAM)),
     [searchParams]
@@ -480,7 +480,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     const weekStartMs = periodStart.getTime();
     const weekEndMs = getStatisticsPeriodEndExclusive(periodStart, "week").getTime();
     const totalSpanMs = Math.max(1, weekEndMs - weekStartMs);
-    const currentWeekStartMs = getStatisticsPeriodStart(new Date(clockTick), "week").getTime();
+    const currentWeekStartMs = getStatisticsPeriodStart(new Date(clockTick), "week", weekStartsOn).getTime();
     const showNowTick = currentWeekStartMs === weekStartMs;
     const nowMs = Math.max(weekStartMs, Math.min(weekEndMs, clockTick));
     const weekdayFormatter = new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", { weekday: "short" });
@@ -533,7 +533,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     });
 
     return { dayLabels, ticks, items, nowTick };
-  }, [clockTick, language, periodStart, statisticsPeriod, weeklyStats?.completedWorkouts]);
+  }, [clockTick, language, periodStart, statisticsPeriod, weeklyStats?.completedWorkouts, weekStartsOn]);
 
   const monthlyCalendar = useMemo(() => {
     if (statisticsPeriod !== "month") {
@@ -544,8 +544,8 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     const monthEndExclusive = getStatisticsPeriodEndExclusive(monthStart, "month");
     const lastMonthDay = new Date(monthEndExclusive);
     lastMonthDay.setDate(lastMonthDay.getDate() - 1);
-    const gridStart = getStatisticsPeriodStart(monthStart, "week");
-    const gridEndExclusive = getStatisticsPeriodEndExclusive(getStatisticsPeriodStart(lastMonthDay, "week"), "week");
+    const gridStart = getStatisticsPeriodStart(monthStart, "week", weekStartsOn);
+    const gridEndExclusive = getStatisticsPeriodEndExclusive(getStatisticsPeriodStart(lastMonthDay, "week", weekStartsOn), "week");
 
     const sessionsByDay = new Map<
       string,
@@ -569,8 +569,10 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       sessionsByDay.set(key, current);
     }
 
+    const weekLabelSeed = weekStartsOn === "sun" ? new Date(2024, 0, 7) : new Date(2024, 0, 1);
     const weekdayLabels = Array.from({ length: 7 }, (_, index) => {
-      const labelDate = new Date(2024, 0, 1 + index);
+      const labelDate = new Date(weekLabelSeed);
+      labelDate.setDate(weekLabelSeed.getDate() + index);
       return new Intl.DateTimeFormat(language === "de" ? "de-DE" : "en-US", { weekday: "short" })
         .format(labelDate)
         .replace(/\.$/, "");
@@ -608,7 +610,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     }
 
     return { weekdayLabels, days };
-  }, [clockTick, language, periodStart, statisticsPeriod, weeklyStats?.completedWorkouts]);
+  }, [clockTick, language, periodStart, statisticsPeriod, weeklyStats?.completedWorkouts, weekStartsOn]);
 
   const yearlySessionsChart = useMemo(() => {
     if (statisticsPeriod !== "year") {
@@ -617,15 +619,15 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
 
     const yearStart = new Date(periodStart);
     const yearEndExclusive = getStatisticsPeriodEndExclusive(yearStart, "year");
-    const chartStart = getStatisticsPeriodStart(yearStart, "week");
+    const chartStart = getStatisticsPeriodStart(yearStart, "week", weekStartsOn);
     const lastYearDay = new Date(yearEndExclusive);
     lastYearDay.setDate(lastYearDay.getDate() - 1);
-    const chartEndExclusive = getStatisticsPeriodEndExclusive(getStatisticsPeriodStart(lastYearDay, "week"), "week");
+    const chartEndExclusive = getStatisticsPeriodEndExclusive(getStatisticsPeriodStart(lastYearDay, "week", weekStartsOn), "week");
 
     const metricByWeekKey = new Map<string, number>();
     for (const workout of weeklyStats?.completedWorkouts ?? []) {
       const completedAt = new Date(workout.finishedAt ?? workout.startedAt);
-      const weekStart = getStatisticsPeriodStart(completedAt, "week");
+      const weekStart = getStatisticsPeriodStart(completedAt, "week", weekStartsOn);
       const weekKey = formatLocalDateKey(weekStart);
       const current = metricByWeekKey.get(weekKey) ?? 0;
       const nextValue =
@@ -688,7 +690,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       ...bar,
       heightPercent: bar.metricValue > 0 ? Math.max(10, (bar.metricValue / maxValue) * 100) : 0
     }));
-  }, [language, periodStart, statisticsPeriod, t, weightUnit, weeklyStats?.completedWorkouts, yearlySessionsMetricMode]);
+  }, [language, periodStart, statisticsPeriod, t, weightUnit, weeklyStats?.completedWorkouts, yearlySessionsMetricMode, weekStartsOn]);
 
   const yearlySessionsMonthAxis = useMemo(() => {
     if (!yearlySessionsChart || yearlySessionsChart.length === 0) {

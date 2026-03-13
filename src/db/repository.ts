@@ -21,6 +21,7 @@ export {
   updateRestTimerEnabled,
   updateRestTimerSeconds,
   updateSettings,
+  updateWeekStartsOn,
   updateWeightUnitAndConvert
 } from "@/db/repository-settings";
 export type { AppDataSnapshot } from "@/db/repository-backup";

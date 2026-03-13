@@ -33,7 +33,7 @@ import {
   updateWorkout,
   type WorkoutDraft
 } from "@/db/repository";
-import { WORKOUT_SCHEDULE_DAYS, type ExerciseAiInfo } from "@/db/types";
+import type { ExerciseAiInfo } from "@/db/types";
 import { useSettings } from "@/app/settings-context";
 import { getCachedExerciseAiInfo, setCachedExerciseAiInfoBatch } from "@/lib/exercise-ai-info-cache";
 import {
@@ -44,6 +44,7 @@ import {
 import { isCanonicalMuscleKey } from "@/lib/muscle-taxonomy";
 import {
   formatWorkoutScheduleDayLabel,
+  getOrderedWorkoutScheduleDays,
   normalizeWorkoutScheduledDays
 } from "@/lib/workout-schedule";
 import { WORKOUT_ICON_OPTIONS } from "@/lib/workout-icons";
@@ -389,7 +390,7 @@ function markAutoAttempts(
 export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const { workoutId } = useParams();
   const navigate = useNavigate();
-  const { t, weightUnitLabel, language } = useSettings();
+  const { t, weightUnitLabel, language, weekStartsOn } = useSettings();
   const exerciseUiKeyCounterRef = useRef(0);
   const createExerciseUiKey = () => {
     exerciseUiKeyCounterRef.current += 1;
@@ -478,11 +479,11 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   }, [draft]);
   const workoutScheduleOptions = useMemo(
     () =>
-      WORKOUT_SCHEDULE_DAYS.map((day) => ({
+      getOrderedWorkoutScheduleDays(weekStartsOn).map((day) => ({
         value: day,
         label: formatWorkoutScheduleDayLabel(day, language)
       })),
-    [language]
+    [language, weekStartsOn]
   );
 
   const handleGenerateExerciseInfo = useCallback(async (options: GenerateExerciseInfoOptions = {}) => {

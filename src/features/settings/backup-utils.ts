@@ -22,6 +22,7 @@ const settingsSchema = z.object({
   lockerNumber: z.string().optional(),
   lockerNumberUpdatedAt: z.string().optional(),
   colorScheme: z.enum(["light", "dark", "system"]).optional(),
+  weekStartsOn: z.enum(["mon", "sun"]).optional(),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1)
 });

@@ -1,6 +1,6 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/db/db";
-import type { ExerciseAiInfo, SessionExerciseSet, WeightUnit, Workout } from "@/db/types";
+import type { ExerciseAiInfo, SessionExerciseSet, WeightUnit, WeekStartsOn, Workout } from "@/db/types";
 import {
   estimateStrengthTrainingCalories,
   getSessionDurationMinutes,
@@ -392,7 +392,7 @@ export function useWeeklyStatsData(params: {
   });
 }
 
-export function useEarliestCompletedPeriodStart(period: StatisticsPeriod) {
+export function useEarliestCompletedPeriodStart(period: StatisticsPeriod, weekStartsOn: WeekStartsOn) {
   return useLiveQuery<Date | null>(async () => {
     const completedSessions = await db.sessions.where("status").equals("completed").toArray();
     if (completedSessions.length === 0) {
@@ -412,10 +412,10 @@ export function useEarliestCompletedPeriodStart(period: StatisticsPeriod) {
       return null;
     }
 
-    return getStatisticsPeriodStart(new Date(earliestCompletedAtMs), period);
-  }, [period]);
+    return getStatisticsPeriodStart(new Date(earliestCompletedAtMs), period, weekStartsOn);
+  }, [period, weekStartsOn]);
 }
 
-export function useEarliestCompletedWeekStart() {
-  return useEarliestCompletedPeriodStart("week");
+export function useEarliestCompletedWeekStart(weekStartsOn: WeekStartsOn) {
+  return useEarliestCompletedPeriodStart("week", weekStartsOn);
 }

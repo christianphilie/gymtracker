@@ -46,7 +46,7 @@ import {
   getSetWeightValue,
   normalizeSessionExerciseSet
 } from "@/lib/utils";
-import { buildWorkoutDataRoute } from "@/features/statistics/weekly-data-utils";
+import { buildWorkoutDataRoute, getWeekStart } from "@/features/statistics/weekly-data-utils";
 import {
   Area as RechartsArea,
   AreaChart as RechartsAreaChart,
@@ -114,15 +114,6 @@ function getTemplateExerciseMetaForSet(
 
   const nameKey = normalizeExerciseNameKey(set.exerciseName);
   return nameKey ? templateExerciseMetaByName.get(nameKey) : undefined;
-}
-
-function getWeekStart(date: Date) {
-  const target = new Date(date);
-  const day = target.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  target.setHours(0, 0, 0, 0);
-  target.setDate(target.getDate() + diff);
-  return target;
 }
 
 function formatHistoryAbsoluteDate(value: Date | string, language: "de" | "en") {
@@ -248,7 +239,7 @@ export function WorkoutHistoryContent({
   showWorkoutTitle?: boolean;
   headerContent?: ReactNode;
 }) {
-  const { t, weightUnit, language } = useSettings();
+  const { t, weightUnit, language, weekStartsOn } = useSettings();
   const [deleteSessionId, setDeleteSessionId] = useState<number | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
   const [editingSets, setEditingSets] = useState<EditableSessionSet[]>([]);
@@ -400,7 +391,7 @@ export function WorkoutHistoryContent({
 
       for (const entry of groupedHistory) {
         const completedAt = new Date(entry.session.finishedAt ?? entry.session.startedAt);
-        const weekStart = getWeekStart(completedAt);
+        const weekStart = getWeekStart(completedAt, weekStartsOn);
         const weekKey = weekStart.toISOString();
         const current = groupedByWeek.get(weekKey) ?? {
           weekStart,
@@ -450,7 +441,7 @@ export function WorkoutHistoryContent({
                 : Math.round(entry.stats.totalWeight)
         };
       });
-  }, [groupedHistory, historyProgressAggregationMode, language, progressMetricMeta.key]);
+  }, [groupedHistory, historyProgressAggregationMode, language, progressMetricMeta.key, weekStartsOn]);
 
   const sessionProgressChartTicks = useMemo(
     () => sessionProgressChartData.map((entry) => entry.index),

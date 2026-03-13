@@ -309,7 +309,7 @@ function StatisticsWorkoutSelect({
 }
 
 export function AppShell() {
-  const { t, lockerNoteEnabled, language } = useSettings();
+  const { t, lockerNoteEnabled, language, weekStartsOn } = useSettings();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [savedStatisticsSearch, setSavedStatisticsSearch] = useState("");
@@ -359,8 +359,8 @@ export function AppShell() {
   );
   const statisticsTitle = t(getStatisticsPeriodTitleKey(statisticsPeriod));
   const statisticsNavigationPeriod = statisticsPeriod === "workout" ? "week" : statisticsPeriod;
-  const earliestCompletedPeriodStart = useEarliestCompletedPeriodStart(statisticsNavigationPeriod);
-  const currentStatisticsPeriodStart = getStatisticsPeriodStart(new Date(), statisticsNavigationPeriod);
+  const earliestCompletedPeriodStart = useEarliestCompletedPeriodStart(statisticsNavigationPeriod, weekStartsOn);
+  const currentStatisticsPeriodStart = getStatisticsPeriodStart(new Date(), statisticsNavigationPeriod, weekStartsOn);
   const earliestStatisticsOffset = useMemo(() => {
     if (!earliestCompletedPeriodStart) {
       return null;
@@ -373,8 +373,8 @@ export function AppShell() {
     );
   }, [currentStatisticsPeriodStart, earliestCompletedPeriodStart, statisticsNavigationPeriod]);
   const visibleStatisticsPeriodStart = useMemo(
-    () => shiftStatisticsPeriodStart(currentStatisticsPeriodStart, statisticsNavigationPeriod, statisticsOffset),
-    [currentStatisticsPeriodStart, statisticsNavigationPeriod, statisticsOffset]
+    () => shiftStatisticsPeriodStart(currentStatisticsPeriodStart, statisticsNavigationPeriod, statisticsOffset, weekStartsOn),
+    [currentStatisticsPeriodStart, statisticsNavigationPeriod, statisticsOffset, weekStartsOn]
   );
   const statisticsPeriodLabel = useMemo(
     () => formatStatisticsPeriodLabel(visibleStatisticsPeriodStart, statisticsNavigationPeriod, language),

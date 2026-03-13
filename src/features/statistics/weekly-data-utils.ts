@@ -1,4 +1,4 @@
-import type { ExerciseAiInfo, SessionExerciseSet, WorkoutIconKey } from "@/db/types";
+import type { ExerciseAiInfo, SessionExerciseSet, WorkoutIconKey, WeekStartsOn } from "@/db/types";
 import { buildExerciseAiInfoForCatalogMatch, matchExerciseCatalogEntry } from "@/lib/exercise-catalog";
 import { getCanonicalMuscleGroup, isCanonicalMuscleKey } from "@/lib/muscle-taxonomy";
 import { formatNumber, getSetRepsValue, getSetStatsMultiplier, getSetTotalWeight } from "@/lib/utils";
@@ -85,10 +85,10 @@ export const EMPTY_WEEKLY_STATS: WeeklyDashboardStats = {
   muscleGroupMetrics: createEmptyMuscleGroupMetrics()
 };
 
-export function getWeekStart(date: Date) {
+export function getWeekStart(date: Date, weekStartsOn: WeekStartsOn = "mon") {
   const target = new Date(date);
   const day = target.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
+  const diff = weekStartsOn === "sun" ? -day : day === 0 ? -6 : 1 - day;
   target.setHours(0, 0, 0, 0);
   target.setDate(target.getDate() + diff);
   return target;
@@ -114,7 +114,7 @@ export function getYearStart(date: Date) {
   return target;
 }
 
-export function getStatisticsPeriodStart(date: Date, period: StatisticsPeriod) {
+export function getStatisticsPeriodStart(date: Date, period: StatisticsPeriod, weekStartsOn: WeekStartsOn = "mon") {
   if (period === "month") {
     return getMonthStart(date);
   }
@@ -123,7 +123,7 @@ export function getStatisticsPeriodStart(date: Date, period: StatisticsPeriod) {
     return getYearStart(date);
   }
 
-  return getWeekStart(date);
+  return getWeekStart(date, weekStartsOn);
 }
 
 export function getStatisticsPeriodEndExclusive(periodStart: Date, period: StatisticsPeriod) {
@@ -142,7 +142,12 @@ export function getStatisticsPeriodEndExclusive(periodStart: Date, period: Stati
   return getWeekEndExclusive(periodStart);
 }
 
-export function shiftStatisticsPeriodStart(periodStart: Date, period: StatisticsPeriod, amount: number) {
+export function shiftStatisticsPeriodStart(
+  periodStart: Date,
+  period: StatisticsPeriod,
+  amount: number,
+  weekStartsOn: WeekStartsOn = "mon"
+) {
   const next = new Date(periodStart);
 
   if (period === "month") {
@@ -156,7 +161,7 @@ export function shiftStatisticsPeriodStart(periodStart: Date, period: Statistics
   }
 
   next.setDate(next.getDate() + amount * 7);
-  return getWeekStart(next);
+  return getWeekStart(next, weekStartsOn);
 }
 
 export function getStatisticsPeriodOffset(currentStart: Date, targetStart: Date, period: StatisticsPeriod) {

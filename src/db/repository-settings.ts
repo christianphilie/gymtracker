@@ -1,5 +1,5 @@
 import { db } from "@/db/db";
-import type { ColorScheme, Settings, WeightUnit } from "@/db/types";
+import type { ColorScheme, Settings, WeightUnit, WeekStartsOn } from "@/db/types";
 
 const SETTINGS_ID = 1;
 
@@ -43,6 +43,9 @@ export async function ensureDefaultSettings() {
     }
     if (existing.colorScheme === undefined) {
       patch.colorScheme = "system";
+    }
+    if (existing.weekStartsOn !== "mon" && existing.weekStartsOn !== "sun") {
+      patch.weekStartsOn = "mon";
     }
     if (existing.lockerNoteEnabled === undefined) {
       patch.lockerNoteEnabled = true;
@@ -88,6 +91,7 @@ export async function ensureDefaultSettings() {
     lockerNumber: "",
     lockerNumberUpdatedAt: "",
     colorScheme: "system",
+    weekStartsOn: "mon",
     createdAt: now,
     updatedAt: now
   };
@@ -113,6 +117,7 @@ export async function updateSettings(
       | "weeklyCaloriesGoal"
       | "weeklyWorkoutCountGoal"
       | "weeklyDurationGoal"
+      | "weekStartsOn"
     >
   >
 ) {
@@ -148,6 +153,10 @@ export async function updateLockerNumber(lockerNumber: string) {
 
 export async function updateColorScheme(scheme: ColorScheme) {
   return updateSettings({ colorScheme: scheme });
+}
+
+export async function updateWeekStartsOn(weekStartsOn: WeekStartsOn) {
+  return updateSettings({ weekStartsOn });
 }
 
 export async function updateWeightUnitAndConvert(nextUnit: WeightUnit) {

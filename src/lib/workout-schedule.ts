@@ -1,4 +1,4 @@
-import { WORKOUT_SCHEDULE_DAYS, type AppLanguage, type WorkoutScheduleDay } from "@/db/types";
+import { WORKOUT_SCHEDULE_DAYS, type AppLanguage, type WorkoutScheduleDay, type WeekStartsOn } from "@/db/types";
 
 const workoutScheduleDaySet = new Set<WorkoutScheduleDay>(WORKOUT_SCHEDULE_DAYS);
 
@@ -19,6 +19,14 @@ export function normalizeWorkoutScheduledDays(values: Iterable<unknown> | undefi
   }
 
   return WORKOUT_SCHEDULE_DAYS.filter((day) => uniqueDays.has(day));
+}
+
+export function getOrderedWorkoutScheduleDays(weekStartsOn: WeekStartsOn) {
+  if (weekStartsOn === "sun") {
+    return (["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const).slice();
+  }
+
+  return [...WORKOUT_SCHEDULE_DAYS];
 }
 
 export function getCurrentWorkoutScheduleDay(date: Date) {

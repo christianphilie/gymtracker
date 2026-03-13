@@ -1,9 +1,9 @@
 import { type ReactNode } from "react";
-import { Globe, Monitor, Moon, Settings2, Sun, SunMoon, Timer, Weight, DoorClosedLocked, type LucideIcon } from "lucide-react";
+import { CalendarDays, Globe, Monitor, Moon, Settings2, Sun, SunMoon, Timer, Weight, DoorClosedLocked, type LucideIcon } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { AppLanguage, ColorScheme, WeightUnit } from "@/db/types";
+import type { AppLanguage, ColorScheme, WeightUnit, WeekStartsOn } from "@/db/types";
 import type { TranslationKey } from "@/i18n/translations";
 import {
   SettingsCardTitle,
@@ -25,8 +25,11 @@ interface SettingsAppTabProps {
   setLockerNoteEnabled: (value: boolean) => void;
   colorScheme: ColorScheme;
   setColorScheme: (value: ColorScheme) => void;
+  weekStartsOn: WeekStartsOn;
+  setWeekStartsOn: (value: WeekStartsOn) => void;
   languageOptions: Array<{ value: AppLanguage; label: string }>;
   weightOptions: Array<{ value: WeightUnit; label: string }>;
+  weekStartsOnOptions: Array<{ value: WeekStartsOn; label: string }>;
   colorSchemeOptions: Array<{ value: ColorScheme; label: string }>;
   restTimerLengthOptions: TabsOption[];
 }
@@ -96,8 +99,11 @@ export function SettingsAppTab({
   setLockerNoteEnabled,
   colorScheme,
   setColorScheme,
+  weekStartsOn,
+  setWeekStartsOn,
   languageOptions,
   weightOptions,
+  weekStartsOnOptions,
   colorSchemeOptions,
   restTimerLengthOptions
 }: SettingsAppTabProps) {
@@ -174,6 +180,17 @@ export function SettingsAppTab({
                 value={weightUnit}
                 onValueChange={(value) => setWeightUnit(value as WeightUnit)}
                 options={weightOptions}
+              />
+            }
+          />
+          <CompactPreferenceRow
+            icon={CalendarDays}
+            label={t("weekStartsOn")}
+            control={
+              <CompactPreferenceTabs
+                value={weekStartsOn}
+                onValueChange={(value) => setWeekStartsOn(value as WeekStartsOn)}
+                options={weekStartsOnOptions}
               />
             }
           />

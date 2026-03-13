@@ -8,10 +8,11 @@ import {
   updateLockerNoteEnabled,
   updateRestTimerEnabled,
   updateRestTimerSeconds,
+  updateWeekStartsOn,
   updateWeightUnitAndConvert,
   updateSettings
 } from "@/db/repository";
-import type { AppLanguage, ColorScheme, WeightUnit } from "@/db/types";
+import type { AppLanguage, ColorScheme, WeightUnit, WeekStartsOn } from "@/db/types";
 import { runExerciseAiCatalogBackfillIfNeeded } from "@/lib/exercise-ai-catalog-backfill";
 import { messages, type TranslationKey } from "@/i18n/translations";
 import { toast } from "sonner";
@@ -24,6 +25,7 @@ interface SettingsContextValue {
   restTimerEnabled: boolean;
   lockerNoteEnabled: boolean;
   colorScheme: ColorScheme;
+  weekStartsOn: WeekStartsOn;
   t: (key: TranslationKey) => string;
   setLanguage: (language: AppLanguage) => Promise<void>;
   setWeightUnit: (unit: WeightUnit) => Promise<void>;
@@ -31,6 +33,7 @@ interface SettingsContextValue {
   setRestTimerSeconds: (seconds: number) => Promise<void>;
   setLockerNoteEnabled: (enabled: boolean) => Promise<void>;
   setColorScheme: (scheme: ColorScheme) => Promise<void>;
+  setWeekStartsOn: (weekStartsOn: WeekStartsOn) => Promise<void>;
 }
 
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
@@ -90,6 +93,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const restTimerEnabled = settings?.restTimerEnabled ?? true;
     const lockerNoteEnabled = settings?.lockerNoteEnabled ?? true;
     const currentColorScheme = settings?.colorScheme ?? "system";
+    const weekStartsOn = settings?.weekStartsOn === "sun" ? "sun" : "mon";
 
     return {
       language,
@@ -99,6 +103,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       restTimerEnabled,
       lockerNoteEnabled,
       colorScheme: currentColorScheme,
+      weekStartsOn,
       t: (key) => messages[language][key] ?? key,
       setLanguage: async (nextLanguage) => {
         await updateSettings({ language: nextLanguage });
@@ -117,6 +122,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       },
       setColorScheme: async (scheme) => {
         await updateColorScheme(scheme);
+      },
+      setWeekStartsOn: async (nextWeekStartsOn) => {
+        await updateWeekStartsOn(nextWeekStartsOn);
       }
     };
   }, [
@@ -125,7 +133,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     settings?.restTimerSeconds,
     settings?.restTimerEnabled,
     settings?.lockerNoteEnabled,
-    settings?.colorScheme
+    settings?.colorScheme,
+    settings?.weekStartsOn
   ]);
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
