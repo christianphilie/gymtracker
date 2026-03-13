@@ -44,9 +44,10 @@ export function SetCardContent({
 
   const isMuted = variant === "neutral-muted";
   const isNeutral = variant !== "colored";
+  const usesInlineNote = noteStyle === "inline";
 
   const titleClass = compact ? "text-sm" : "text-[15px]";
-  const valueClass = compact ? "text-xs" : "text-sm";
+  const valueClass = compact ? "text-xs" : usesInlineNote ? "text-[12px]" : "text-sm";
   const mainColorClass = isMuted ? "text-foreground/55" : "";
   const metaColorClass = isMuted ? "text-foreground/40" : "opacity-80";
   const valueColorClass = isMuted ? "text-foreground/50" : "";
@@ -58,16 +59,20 @@ export function SetCardContent({
           <span>{exercise.exerciseName}</span>
         </p>
         {!previewOnly && (
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <p className={`${valueClass} font-normal tabular-nums ${valueColorClass}`}>
-              <SetValueDisplay reps={repsValue} weight={weightValue} weightUnitLabel={weightUnitLabel} />
-              {setPositionLabel && <span className="opacity-75"> · {setPositionLabel}</span>}
+          <div className={`mt-1 flex min-w-0 items-center ${usesInlineNote ? "" : "flex-wrap gap-2"}`}>
+            <p className={`${valueClass} min-w-0 font-normal tabular-nums ${valueColorClass} ${
+              usesInlineNote ? "flex flex-1 items-center whitespace-nowrap leading-tight" : ""
+            }`}>
+              <span className={usesInlineNote ? "shrink-0" : ""}>
+                <SetValueDisplay reps={repsValue} weight={weightValue} weightUnitLabel={weightUnitLabel} />
+              </span>
+              {setPositionLabel && <span className={`opacity-75 ${usesInlineNote ? "ml-1 shrink-0" : ""}`}> · {setPositionLabel}</span>}
               {noteStyle === "inline" && exercise.exerciseNotes && (
-                <span className="opacity-75">
-                  <span className="mx-1 inline-block" aria-hidden="true">·</span>
-                  <span className="inline-flex items-center gap-1 align-middle">
+                <span className="ml-1 flex min-w-0 flex-1 items-center gap-1 opacity-75">
+                  <span className="shrink-0" aria-hidden="true">·</span>
+                  <span className="flex min-w-0 flex-1 items-center gap-1 align-middle">
                     <NotebookPen className="h-[0.9em] w-[0.9em] shrink-0" />
-                    <span>{exercise.exerciseNotes}</span>
+                    <span className="min-w-0 flex-1 truncate">{exercise.exerciseNotes}</span>
                   </span>
                 </span>
               )}

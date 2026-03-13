@@ -102,7 +102,7 @@ export const messages = {
     recommended: "Empfohlen",
     planned: "Geplant",
     resumeSession: "Fortsetzen",
-    lastSessionExtras: "Zusätzlich in letzter Session",
+    lastSessionExtras: "Letzte Session zusätzlich",
     extraSets: "zusätzliche Sätze",
     discardSession: "Session verwerfen",
     discardSessionConfirm: "Session wirklich verwerfen? Alle aktuellen Daten dieser Session gehen verloren.",
