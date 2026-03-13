@@ -193,7 +193,7 @@ export const messages = {
     removeExercise: "Übung entfernen",
     exerciseX2Toggle: "Übung als 2x markieren",
     exerciseX2ToggleDescription:
-      "2× zählt alle Werte in den Statistiken doppelt, z. B. für Übungen mit zwei Kurzhanteln die mit jeweils einem Bein ausgeführt werden",
+      "2× zählt die Werte in den Statistiken doppelt, z. B. für Übungen mit zwei Kurzhanteln oder ein Bein nach dem anderen",
     exerciseNegativeWeightToggle: "Übung als Negativgewicht markieren",
     exerciseNegativeWeightToggleDescription:
       "Markiere z. B. assistierte Übungen als negativ, bei denen dein Körpergewicht durch Gegengewicht reduziert wird",
@@ -532,7 +532,7 @@ export const messages = {
     removeExercise: "Remove exercise",
     exerciseX2Toggle: "Mark exercise as 2x",
     exerciseX2ToggleDescription:
-      "2× counts all values in statistics twice, for example for exercises with two dumbbells that are performed one leg at a time",
+      "2× counts all values twice in statistics, for example for exercises with two dumbbells or with one leg after another",
     exerciseNegativeWeightToggle: "Mark exercise as negative weight",
     exerciseNegativeWeightToggleDescription:
       "Mark assisted exercises as negative, for example when a counterweight reduces your body weight",
