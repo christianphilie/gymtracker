@@ -876,13 +876,14 @@ export function WorkoutHistoryContent({
                         return (
                           <span
                             key={set.id ?? `${firstSet.sessionExerciseKey}-${index}`}
-                            className="inline-flex rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70"
+                            className="inline-flex rounded-full border border-border/80 bg-transparent px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground/70"
                           >
                             <SetValueDisplay
                               reps={getSetRepsValue(set)}
                               weight={getSetWeightValue(set)}
                               weightUnitLabel={weightUnit}
                               iconClassName="text-muted-foreground/70"
+                              className="gap-0.5"
                             />
                           </span>
                         );

@@ -59,7 +59,7 @@ const EXERCISE_DONE_BADGE_DELAY_MS = 500;
 const EXERCISE_DONE_BADGE_POP_DURATION_MS = 1500;
 const LAST_SESSION_SECTION_LABEL_CLASS = "text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70";
 const LAST_SESSION_SUMMARY_PILL_CLASS =
-  "inline-flex rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70";
+  "inline-flex rounded-full border border-border/80 bg-transparent px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground/70";
 const EXTRA_PREVIOUS_EXERCISE_ADD_BUTTON_CLASS =
   "h-8 w-8 shrink-0 self-center rounded-full p-0 text-foreground/55 hover:text-foreground/70";
 
@@ -1203,6 +1203,7 @@ export function SessionPage() {
                             weight={getSetWeightValue(set)}
                             weightUnitLabel={weightUnitLabel}
                             iconClassName="text-muted-foreground/70"
+                            className="gap-0.5"
                           />
                         </span>
                       ))}
