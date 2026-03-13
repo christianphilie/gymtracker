@@ -469,8 +469,17 @@ export function SessionPage() {
   const scheduleRestoreCenteredSessionExercise = (sessionExerciseKey: string, onDone?: () => void) => {
     let frameId = 0;
     let attempts = 0;
+    let cancelled = false;
+
+    const cancel = () => {
+      cancelled = true;
+      if (frameId) window.cancelAnimationFrame(frameId);
+    };
 
     const tryRestore = () => {
+      if (cancelled) {
+        return;
+      }
       attempts += 1;
       const didRestore = restoreCenteredSessionExercise(sessionExerciseKey);
       if (didRestore || attempts >= 120) {
@@ -484,8 +493,19 @@ export function SessionPage() {
       frameId = window.requestAnimationFrame(tryRestore);
     });
 
+    const abortOnUserScrollIntent = () => {
+      cancel();
+    };
+
+    window.addEventListener("wheel", abortOnUserScrollIntent, { passive: true });
+    window.addEventListener("touchstart", abortOnUserScrollIntent, { passive: true });
+    window.addEventListener("pointerdown", abortOnUserScrollIntent, { passive: true });
+
     return () => {
-      if (frameId) window.cancelAnimationFrame(frameId);
+      window.removeEventListener("wheel", abortOnUserScrollIntent);
+      window.removeEventListener("touchstart", abortOnUserScrollIntent);
+      window.removeEventListener("pointerdown", abortOnUserScrollIntent);
+      cancel();
     };
   };
 
@@ -844,21 +864,6 @@ export function SessionPage() {
       stopReorderMode();
     }
   }, [isReorderMode, sessionExercises.length]);
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    if (isDraggingExercise) {
-      document.body.style.overflow = "hidden";
-      document.body.style.touchAction = "none";
-    } else {
-      document.body.style.overflow = "";
-      document.body.style.touchAction = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-      document.body.style.touchAction = "";
-    };
-  }, [isDraggingExercise]);
 
   useEffect(() => {
     const previous = previousExerciseCompletionFeedbackRef.current;
