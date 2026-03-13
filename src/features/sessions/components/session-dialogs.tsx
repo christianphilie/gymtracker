@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Flag, Import, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -87,8 +87,14 @@ export function CompleteSessionDialog({
         </DialogHeader>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
-          <Button variant="outline" onClick={onCompleteWithoutTemplate}>{t("completeWithoutTemplate")}</Button>
-          <Button className="sm:min-w-[230px]" onClick={onCompleteWithTemplate}>{t("completeWithTemplate")}</Button>
+          <Button variant="outline" onClick={onCompleteWithoutTemplate}>
+            <Flag className="mr-2 h-4 w-4" />
+            {t("completeWithoutTemplate")}
+          </Button>
+          <Button className="sm:min-w-[230px]" onClick={onCompleteWithTemplate}>
+            <Import className="mr-2 h-4 w-4" />
+            {t("completeWithTemplate")}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

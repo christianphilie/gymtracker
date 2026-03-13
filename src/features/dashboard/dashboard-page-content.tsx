@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronDown,
@@ -87,16 +87,6 @@ const STATS_SUMMARY_CARD_CLASS =
   "rounded-lg border border-emerald-300/50 bg-emerald-100/50 px-3 py-2 dark:border-emerald-800/50 dark:bg-emerald-900/25";
 const STATS_SUMMARY_LABEL_CLASS = "inline-flex items-center gap-1 text-xs text-emerald-800/80 dark:text-emerald-300/75";
 const STATS_SUMMARY_VALUE_CLASS = "text-base font-semibold text-emerald-950/90 dark:text-emerald-100";
-const MONTHLY_SESSION_MARKER_SIZE_PX = 24;
-const MONTHLY_SESSION_MARKER_OFFSET_PX = 9;
-const MONTHLY_SESSION_MARKER_FILL_GRADIENT =
-  "linear-gradient(to top, hsl(var(--secondary)) 0%, rgb(209 250 229) 40%, rgb(16 185 129) 130%)";
-const MONTHLY_SESSION_MARKER_STYLE: CSSProperties = {
-  backgroundImage: MONTHLY_SESSION_MARKER_FILL_GRADIENT,
-  backgroundOrigin: "border-box",
-  backgroundClip: "padding-box"
-};
-
 function formatLocalDateKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -522,19 +512,19 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
       : null;
 
     const items = (weeklyStats?.completedWorkouts ?? []).map((item) => {
+      const startMs = new Date(item.startedAt).getTime();
       const endMs = new Date(item.finishedAt ?? item.startedAt).getTime();
+      const clampedStartMs = Math.max(weekStartMs, Math.min(weekEndMs, startMs));
       const clampedEndMs = Math.max(weekStartMs, Math.min(weekEndMs, endMs));
-      const rawLeftPercent = ((clampedEndMs - weekStartMs) / totalSpanMs) * 100;
-      const clampedPercent = Math.max(0, Math.min(100, rawLeftPercent));
-      const anchor: "left" | "right" = clampedPercent <= 5 ? "left" : "right";
-      const leftPercent = anchor === "left" ? 0 : clampedPercent;
+      const midpointMs = clampedStartMs + Math.max(0, clampedEndMs - clampedStartMs) / 2;
+      const rawLeftPercent = ((midpointMs - weekStartMs) / totalSpanMs) * 100;
+      const leftPercent = Math.max(0, Math.min(100, rawLeftPercent));
       const startLabel = timeFormatter.format(new Date(item.startedAt));
       const endLabel = timeFormatter.format(new Date(item.finishedAt ?? item.startedAt));
       const durationMinutes = Math.round(getSessionDurationMinutes(item.startedAt, item.finishedAt ?? item.startedAt));
 
       return {
         ...item,
-        anchor,
         leftPercent,
         shortLabel: item.workoutName.trim(),
         metaLabel: `${Math.max(0, durationMinutes)} min`,
@@ -1065,7 +1055,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                   {monthlyCalendar.weekdayLabels.map((label) => (
                     <div
                       key={`month-weekday-${label}`}
-                      className="flex h-5 items-center justify-center border-b border-border/90 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70"
+                      className="flex h-5 items-center justify-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70"
                     >
                       {label}
                     </div>
@@ -1094,44 +1084,21 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                               } ${showRightBorder ? "border-r" : ""} ${showBottomBorder ? "border-b" : ""} border-border/90`}
                               aria-hidden="true"
                             />
-                            <span className="pointer-events-none absolute left-1 top-1 text-[9px] font-medium leading-none text-muted-foreground/70">
+                            <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[11px] font-medium leading-none text-muted-foreground/70">
                               {day.dayNumber}
                             </span>
                             {day.sessionCount > 0 ? (
-                              <div className="mt-0.5 inline-flex items-center justify-center gap-1">
-                                <div
-                                  className="relative"
-                                  style={{
-                                    width: `${
-                                      MONTHLY_SESSION_MARKER_SIZE_PX +
-                                      Math.max(0, Math.min(day.sessionCount, 3) - 1) * MONTHLY_SESSION_MARKER_OFFSET_PX
-                                    }px`,
-                                    height: `${MONTHLY_SESSION_MARKER_SIZE_PX}px`
-                                  }}
-                                >
-                                  {day.sessions.slice(0, 3).map((session, sessionIndex) => (
-                                    <Link
-                                      key={`month-session-${session.sessionId}`}
-                                      to={buildWorkoutDataRoute(session.workoutId, session.sessionId)}
-                                      title={session.workoutName}
-                                      aria-label={session.workoutName}
-                                      className="absolute top-1/2 inline-flex h-5 w-7 -translate-y-1/2 rounded-full border border-emerald-500/100 transition-[filter,transform] duration-200 ease-out hover:brightness-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/35 focus-visible:ring-offset-1"
-                                      style={{
-                                        ...MONTHLY_SESSION_MARKER_STYLE,
-                                        left: `${sessionIndex * MONTHLY_SESSION_MARKER_OFFSET_PX}px`,
-                                        zIndex: 3 - sessionIndex
-                                      }}
-                                    />
-                                  ))}
-                                </div>
-                                {day.sessionCount > 3 ? (
-                                  <span
-                                    className="inline-flex h-6 items-center justify-center px-0.5 text-[11px] font-semibold leading-none text-muted-foreground/80"
-                                    aria-label={`${day.sessionCount} ${t("sessions")}`}
-                                  >
-                                    +
-                                  </span>
-                                ) : null}
+                              <div className="absolute inset-0 flex items-center justify-center -space-x-2">
+                                {day.sessions.slice(0, 3).map((session, sessionIndex) => (
+                                  <Link
+                                    key={`month-session-${session.sessionId}`}
+                                    to={buildWorkoutDataRoute(session.workoutId, session.sessionId)}
+                                    title={session.workoutName}
+                                    aria-label={session.workoutName}
+                                    className="inline-flex h-5 w-5 rounded-full border border-emerald-400 bg-emerald-100 transition-opacity hover:bg-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/35 focus-visible:ring-offset-1"
+                                    style={{ zIndex: 3 - sessionIndex }}
+                                  />
+                                ))}
                               </div>
                             ) : null}
                           </>
@@ -1257,8 +1224,8 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                         title={item.title}
                         className="group absolute bottom-4"
                         style={{
-                          left: `${item.leftPercent}%`,
-                          transform: item.anchor === "left" ? "translateX(0)" : "translateX(-100%)"
+                          left: `clamp(1rem, ${item.leftPercent}%, calc(100% - 1rem))`,
+                          transform: "translateX(-50%)"
                         }}
                       >
                         <div className="relative inline-flex h-[6rem] w-[2rem] items-center justify-center rounded-md border bg-card px-3 py-3 shadow-sm transition-colors group-hover:bg-secondary">

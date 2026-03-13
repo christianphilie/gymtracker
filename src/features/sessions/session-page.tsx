@@ -1014,7 +1014,7 @@ export function SessionPage() {
             <div className="flex flex-wrap items-center gap-2">
               <span className={ACTIVE_SESSION_PILL_CLASS}>{t("activeSession")}</span>
               <span className="text-xs text-muted-foreground">
-                {t("since")} {formatSessionDateLabel(payload.session.startedAt, language)}
+                {t("since")} {formatSessionDateLabel(payload.session.startedAt, language, { omitTodayLabel: true })}
               </span>
             </div>
           )}

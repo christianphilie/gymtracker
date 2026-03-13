@@ -311,7 +311,7 @@ function InlineHelpButton({
       {open && (
         <div
           className={cn(
-            "absolute bottom-full right-0 z-20 mb-2 w-64 rounded-xl border border-border/80 bg-background p-3 shadow-xl",
+            "absolute bottom-full left-1/2 z-20 mb-2 w-64 -translate-x-1/2 rounded-xl border border-border/80 bg-background p-3 shadow-xl",
             popupClassName
           )}
         >
@@ -334,7 +334,7 @@ function ExerciseToggleHelpButton({
   negativeWeightDescription
 }: ExerciseToggleHelpButtonProps) {
   return (
-    <InlineHelpButton buttonLabel={buttonLabel} popupClassName="right-0 w-72">
+    <InlineHelpButton buttonLabel={buttonLabel} popupClassName="w-72">
       <div className="flex flex-col gap-2.5">
         <div className="flex items-start gap-2">
           <span className="inline-flex min-w-8 items-center justify-center rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
@@ -1037,7 +1037,7 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
               buttonLabel={t("workoutScheduleDaysHelp")}
               containerClassName="absolute right-0 top-1/2 -translate-y-1/2"
               buttonClassName="h-5 w-5"
-              popupClassName="top-full right-0 bottom-auto mt-2 mb-0 w-56"
+              popupClassName="top-full right-0 bottom-auto left-auto mt-2 mb-0 w-56 translate-x-0"
             >
               <p className="text-[11px] leading-snug text-muted-foreground">{t("workoutScheduleDaysHelpDescription")}</p>
             </InlineHelpButton>
@@ -1125,11 +1125,13 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                       <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${collapsed ? "-rotate-90" : ""}`} />
                       <CardTitle className="min-w-0 truncate text-left leading-tight">{title}</CardTitle>
                     </button>
-                    <ExerciseInfoDialogButton
-                      exerciseName={exercise.name.trim() || title}
-                      aiInfo={exercise.aiInfo}
-                      className="shrink-0 self-center text-muted-foreground/70"
-                    />
+                    {!isReorderMode && (
+                      <ExerciseInfoDialogButton
+                        exerciseName={exercise.name.trim() || title}
+                        aiInfo={exercise.aiInfo}
+                        className="shrink-0 self-center text-muted-foreground/70"
+                      />
+                    )}
                   </div>
                 </div>
 

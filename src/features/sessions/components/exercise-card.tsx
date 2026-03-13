@@ -96,11 +96,13 @@ export function ExerciseCard({
               </svg>
               <CardTitle className="min-w-0 truncate text-left leading-tight">{exercise.exerciseName}</CardTitle>
             </button>
-            <ExerciseInfoDialogButton
-              exerciseName={exercise.exerciseName}
-              aiInfo={exercise.exerciseAiInfo}
-              className="shrink-0 self-center text-muted-foreground/70"
-            />
+            {!reorderMode && (
+              <ExerciseInfoDialogButton
+                exerciseName={exercise.exerciseName}
+                aiInfo={exercise.exerciseAiInfo}
+                className="shrink-0 self-center text-muted-foreground/70"
+              />
+            )}
           </div>
           <div className="flex items-center gap-1">
             {reorderMode && (

@@ -133,7 +133,9 @@ export function WorkoutListCard({
               <span className={ACTIVE_SESSION_PILL_CLASS}>{t("activeSession")}</span>
               <p className="pr-2 text-xs text-muted-foreground">
                 {t("since")}{" "}
-                {workout.activeSessionStartedAt ? formatSessionDateLabel(workout.activeSessionStartedAt, language) : "-"}
+                {workout.activeSessionStartedAt
+                  ? formatSessionDateLabel(workout.activeSessionStartedAt, language, { omitTodayLabel: true })
+                  : "-"}
               </p>
             </>
           ) : (

@@ -49,9 +49,9 @@ export function SetRow({
               className={`pr-14 ${set.completed ? "border-muted bg-muted/70 text-muted-foreground opacity-75" : ""}`}
               onCommit={onUpdateReps}
             />
-            <div className={`pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-base text-muted-foreground ${set.completed ? "opacity-50" : ""}`}>
-              {showRepsHint && <span className="line-through">{set.targetReps}</span>}
-              <span>×</span>
+            <div className={`pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center text-base text-muted-foreground ${set.completed ? "opacity-50" : ""}`}>
+              {showRepsHint && <span className="shrink-0 line-through">{set.targetReps}</span>}
+              <span className={showRepsHint ? "ml-1" : ""}>×</span>
             </div>
           </div>
         </div>

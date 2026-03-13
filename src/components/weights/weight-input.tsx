@@ -31,7 +31,7 @@ export function WeightInput({
   const showNegativePrefix = value !== 0 && (negativeWeightEnabled || value < 0);
   const showBodyweightOverlay = value === 0 && !isFocused;
   const showTargetHint = targetWeight !== undefined && value !== targetWeight;
-  const inputRightPaddingClass = showTargetHint ? "pr-24" : "pr-14";
+  const inputRightPaddingClass = showTargetHint ? "pr-20" : "pr-14";
   const inputLeftPaddingClass = showBodyweightOverlay ? "pl-7 text-transparent" : showNegativePrefix ? "pl-9" : "";
 
   return (
@@ -57,11 +57,11 @@ export function WeightInput({
           <span>−</span>
         </div>
       )}
-      <div className={`pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-base text-muted-foreground ${completed ? "opacity-50" : ""}`}>
+      <div className={`pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center text-base text-muted-foreground ${completed ? "opacity-50" : ""}`}>
         {showTargetHint && (
-          <StruckWeightDisplay weight={targetWeight} />
+          <StruckWeightDisplay weight={targetWeight} className="shrink-0" />
         )}
-        <span>{weightUnitLabel}</span>
+        <span className={showTargetHint ? "ml-1" : ""}>{weightUnitLabel}</span>
       </div>
     </div>
   );

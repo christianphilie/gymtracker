@@ -39,7 +39,11 @@ function formatLocalDate(date: Date, language: AppLanguage) {
   }).format(date);
 }
 
-export function formatSessionDateLabel(value: Date | string, language: AppLanguage) {
+export function formatSessionDateLabel(
+  value: Date | string,
+  language: AppLanguage,
+  options?: { omitTodayLabel?: boolean }
+) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {
     return "-";
@@ -54,6 +58,9 @@ export function formatSessionDateLabel(value: Date | string, language: AppLangua
   }
 
   if (dayDiff === 0) {
+    if (options?.omitTodayLabel) {
+      return formatLocalTime(date, language);
+    }
     const prefix = language === "de" ? "Heute" : "Today";
     return `${prefix}, ${formatLocalTime(date, language)}`;
   }

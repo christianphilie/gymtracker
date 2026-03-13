@@ -93,7 +93,7 @@ export function UpNextPanel({
     : `${formatDurationClock(restTimerPanelState.elapsedSeconds)} / ${formatDurationClock(restTimerSeconds)}`;
 
   return (
-    <section ref={panelRef} className="sticky top-2 z-10 isolate">
+    <section ref={panelRef} className="sticky top-2 z-20 isolate">
       {mode === "complete" && completionStats ? (
         <div
           className={`z-20 ${UP_NEXT_BOX_CLASS} border-white/15 text-white`}
