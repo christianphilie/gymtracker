@@ -1,37 +1,80 @@
-import { z } from "zod";
-import { WORKOUT_SCHEDULE_DAYS, type AppLanguage } from "../../db/types";
-import { WORKOUT_ICON_OPTIONS, normalizeWorkoutIconKey, type WorkoutIconKey } from "../../lib/workout-icons";
+type AppLanguage = "de" | "en";
+type WorkoutIconKey =
+  | "dumbbell"
+  | "target"
+  | "flame"
+  | "zap"
+  | "heart-pulse"
+  | "shield"
+  | "footprints"
+  | "mountain"
+  | "activity"
+  | "repeat"
+  | "arrow-up"
+  | "arrow-down"
+  | "arrow-right"
+  | "arrow-left"
+  | "arrow-left-right"
+  | "chevrons-up"
+  | "chevrons-down"
+  | "shirt"
+  | "person-standing"
+  | "swords";
 
-const setSchema = z.object({
-  targetReps: z.number().int().positive(),
-  targetWeight: z.number().finite()
-});
+const IMPORT_ICON_KEYS: WorkoutIconKey[] = [
+  "dumbbell",
+  "target",
+  "flame",
+  "zap",
+  "heart-pulse",
+  "shield",
+  "footprints",
+  "mountain",
+  "activity",
+  "repeat",
+  "arrow-up",
+  "arrow-down",
+  "arrow-right",
+  "arrow-left",
+  "arrow-left-right",
+  "chevrons-up",
+  "chevrons-down",
+  "shirt",
+  "person-standing",
+  "swords"
+];
 
-const exerciseSchema = z.object({
-  name: z.string().min(1),
-  notes: z.string().optional(),
-  x2Enabled: z.boolean().optional(),
-  negativeWeightEnabled: z.boolean().optional(),
-  sets: z.array(setSchema).min(1)
-});
+function normalizeWorkoutIconKey(value: unknown): WorkoutIconKey | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
 
-const workoutSchema = z.object({
-  name: z.string().min(1),
-  icon: z.custom<WorkoutIconKey>((value) => normalizeWorkoutIconKey(value) !== undefined).optional(),
-  scheduledDays: z.array(z.enum(WORKOUT_SCHEDULE_DAYS)).optional(),
-  exercises: z.array(exerciseSchema).min(1)
-});
+  const normalized = value.trim().toLowerCase().replace(/[_\s]+/g, "-");
+  return IMPORT_ICON_KEYS.includes(normalized as WorkoutIconKey)
+    ? (normalized as WorkoutIconKey)
+    : undefined;
+}
 
-export const importSchema = z.object({
-  schemaVersion: z.literal("1.0"),
-  locale: z.enum(["de", "en"]).optional(),
-  workouts: z.array(workoutSchema).min(1)
-});
+export interface TrainingPlanImportV1 {
+  schemaVersion: "1.0";
+  locale?: "de" | "en";
+  workouts: Array<{
+    name: string;
+    icon?: WorkoutIconKey;
+    exercises: Array<{
+      name: string;
+      notes?: string;
+      x2Enabled?: boolean;
+      negativeWeightEnabled?: boolean;
+      sets: Array<{
+        targetReps: number;
+        targetWeight: number;
+      }>;
+    }>;
+  }>;
+}
 
-export type TrainingPlanImportV1 = z.infer<typeof importSchema>;
-
-const importIconKeyList = WORKOUT_ICON_OPTIONS.map((option) => option.value).join(", ");
-const importIconEnumList = WORKOUT_ICON_OPTIONS.map((option) => option.value);
+const importIconKeyList = IMPORT_ICON_KEYS.join(", ");
 
 export const trainingPlanImportResponseJsonSchema = {
   type: "object",
@@ -57,14 +100,7 @@ export const trainingPlanImportResponseJsonSchema = {
           name: { type: "string", minLength: 1 },
           icon: {
             type: "string",
-            enum: importIconEnumList
-          },
-          scheduledDays: {
-            type: "array",
-            items: {
-              type: "string",
-              enum: [...WORKOUT_SCHEDULE_DAYS]
-            }
+            enum: IMPORT_ICON_KEYS
           },
           exercises: {
             type: "array",
@@ -117,25 +153,70 @@ function toNumber(value: unknown) {
   return undefined;
 }
 
+function isValidLocale(value: unknown): value is "de" | "en" {
+  return value === "de" || value === "en";
+}
+
 export interface RepairResult {
   repairedObject: TrainingPlanImportV1 | null;
-  drafts: Array<{
-    name: string;
-    icon?: WorkoutIconKey;
-    scheduledDays?: Array<(typeof WORKOUT_SCHEDULE_DAYS)[number]>;
-    exercises: Array<{
-      name: string;
-      notes?: string;
-      x2Enabled?: boolean;
-      negativeWeightEnabled?: boolean;
-      sets: Array<{
-        targetReps: number;
-        targetWeight: number;
-      }>;
-    }>;
-  }>;
+  drafts: TrainingPlanImportV1["workouts"];
   changes: string[];
   errors: string[];
+}
+
+function validateCandidate(candidate: {
+  schemaVersion: "1.0";
+  locale?: "de" | "en";
+  workouts: TrainingPlanImportV1["workouts"];
+}): string[] {
+  const errors: string[] = [];
+
+  if (candidate.schemaVersion !== "1.0") {
+    errors.push('schemaVersion: must be "1.0"');
+  }
+
+  if (candidate.locale !== undefined && !isValidLocale(candidate.locale)) {
+    errors.push("locale: must be de or en");
+  }
+
+  if (!Array.isArray(candidate.workouts) || candidate.workouts.length === 0) {
+    errors.push("workouts: must contain at least one workout");
+    return errors;
+  }
+
+  candidate.workouts.forEach((workout, workoutIndex) => {
+    if (!workout.name.trim()) {
+      errors.push(`workouts.${workoutIndex}.name: required`);
+    }
+    if (workout.icon !== undefined && !normalizeWorkoutIconKey(workout.icon)) {
+      errors.push(`workouts.${workoutIndex}.icon: invalid`);
+    }
+    if (!Array.isArray(workout.exercises) || workout.exercises.length === 0) {
+      errors.push(`workouts.${workoutIndex}.exercises: must contain at least one exercise`);
+      return;
+    }
+
+    workout.exercises.forEach((exercise, exerciseIndex) => {
+      if (!exercise.name.trim()) {
+        errors.push(`workouts.${workoutIndex}.exercises.${exerciseIndex}.name: required`);
+      }
+      if (!Array.isArray(exercise.sets) || exercise.sets.length === 0) {
+        errors.push(`workouts.${workoutIndex}.exercises.${exerciseIndex}.sets: must contain at least one set`);
+        return;
+      }
+
+      exercise.sets.forEach((set, setIndex) => {
+        if (!Number.isInteger(set.targetReps) || set.targetReps <= 0) {
+          errors.push(`workouts.${workoutIndex}.exercises.${exerciseIndex}.sets.${setIndex}.targetReps: invalid`);
+        }
+        if (typeof set.targetWeight !== "number" || !Number.isFinite(set.targetWeight)) {
+          errors.push(`workouts.${workoutIndex}.exercises.${exerciseIndex}.sets.${setIndex}.targetWeight: invalid`);
+        }
+      });
+    });
+  });
+
+  return errors;
 }
 
 export function repairImportPayload(raw: unknown): RepairResult {
@@ -188,10 +269,10 @@ export function repairImportPayload(raw: unknown): RepairResult {
   }
 
   if (source.schemaVersion !== "1.0") {
-    changes.push(`schemaVersion missing/invalid -> set to "1.0"`);
+    changes.push('schemaVersion missing/invalid -> set to "1.0"');
   }
 
-  const locale = source.locale === "de" || source.locale === "en" ? source.locale : undefined;
+  const locale = isValidLocale(source.locale) ? source.locale : undefined;
   if (source.locale !== undefined && source.locale !== locale) {
     changes.push("Unsupported locale removed");
   }
@@ -231,10 +312,6 @@ export function repairImportPayload(raw: unknown): RepairResult {
     const workoutName = typeof workoutSource.name === "string" ? workoutSource.name.trim() : "";
     const rawWorkoutIcon = workoutSource.icon;
     const workoutIcon = normalizeWorkoutIconKey(rawWorkoutIcon);
-    const rawScheduledDays = Array.isArray(workoutSource.scheduledDays) ? workoutSource.scheduledDays : undefined;
-    const scheduledDays = rawScheduledDays
-      ? WORKOUT_SCHEDULE_DAYS.filter((day) => rawScheduledDays.includes(day))
-      : undefined;
 
     if (!workoutName) {
       changes.push(`workout[${workoutIndex}] removed (missing name)`);
@@ -296,39 +373,6 @@ export function repairImportPayload(raw: unknown): RepairResult {
         return;
       }
 
-      if (exerciseSource.x2 !== undefined && exerciseSource.x2Enabled === undefined) {
-        changes.push(`Alias x2 -> x2Enabled at workout[${workoutIndex}].exercise[${exerciseIndex}]`);
-      }
-      if (typeof x2Raw === "string") {
-        changes.push(`String converted to boolean for x2Enabled at workout[${workoutIndex}].exercise[${exerciseIndex}]`);
-      }
-      if (
-        exerciseSource.negativeWeight !== undefined &&
-        exerciseSource.negativeWeightEnabled === undefined
-      ) {
-        changes.push(
-          `Alias negativeWeight -> negativeWeightEnabled at workout[${workoutIndex}].exercise[${exerciseIndex}]`
-        );
-      }
-      if (
-        exerciseSource.assistedWeight !== undefined &&
-        exerciseSource.negativeWeightEnabled === undefined
-      ) {
-        changes.push(
-          `Alias assistedWeight -> negativeWeightEnabled at workout[${workoutIndex}].exercise[${exerciseIndex}]`
-        );
-      }
-      if (exerciseSource.assisted !== undefined && exerciseSource.negativeWeightEnabled === undefined) {
-        changes.push(
-          `Alias assisted -> negativeWeightEnabled at workout[${workoutIndex}].exercise[${exerciseIndex}]`
-        );
-      }
-      if (typeof negativeWeightRaw === "string") {
-        changes.push(
-          `String converted to boolean for negativeWeightEnabled at workout[${workoutIndex}].exercise[${exerciseIndex}]`
-        );
-      }
-
       const repairedSets: TrainingPlanImportV1["workouts"][number]["exercises"][number]["sets"] = [];
 
       rawSets.forEach((rawSet, setIndex) => {
@@ -342,21 +386,6 @@ export function repairImportPayload(raw: unknown): RepairResult {
         const rawWeight = setSource.targetWeight ?? setSource.weight;
         const repsValue = rawReps === null ? undefined : toNumber(rawReps);
         const weightValue = rawWeight === null ? 0 : toNumber(rawWeight) ?? 0;
-        if (setSource.reps !== undefined && setSource.targetReps === undefined) {
-          changes.push(`Alias reps -> targetReps at workout[${workoutIndex}].exercise[${exerciseIndex}].set[${setIndex}]`);
-        }
-
-        if (setSource.weight !== undefined && setSource.targetWeight === undefined) {
-          changes.push(`Alias weight -> targetWeight at workout[${workoutIndex}].exercise[${exerciseIndex}].set[${setIndex}]`);
-        }
-
-        if (typeof setSource.targetReps === "string" || typeof setSource.reps === "string") {
-          changes.push(`String converted to number for reps at workout[${workoutIndex}].exercise[${exerciseIndex}].set[${setIndex}]`);
-        }
-
-        if (typeof setSource.targetWeight === "string" || typeof setSource.weight === "string") {
-          changes.push(`String converted to number for weight at workout[${workoutIndex}].exercise[${exerciseIndex}].set[${setIndex}]`);
-        }
 
         if (repsValue === undefined || repsValue <= 0) {
           changes.push(`set removed at workout[${workoutIndex}].exercise[${exerciseIndex}].set[${setIndex}] (invalid reps)`);
@@ -386,17 +415,6 @@ export function repairImportPayload(raw: unknown): RepairResult {
         };
       });
 
-      if (negativeWeightEnabledFromInput && repairedSets.some((set) => set.targetWeight > 0)) {
-        changes.push(
-          `Positive weights converted to negative values for negativeWeightEnabled at workout[${workoutIndex}].exercise[${exerciseIndex}]`
-        );
-      }
-      if (hasNegativeWeights && !negativeWeightEnabledFromInput) {
-        changes.push(
-          `negativeWeightEnabled inferred from negative weights at workout[${workoutIndex}].exercise[${exerciseIndex}]`
-        );
-      }
-
       repairedExercises.push({
         name: exerciseName,
         notes,
@@ -414,7 +432,6 @@ export function repairImportPayload(raw: unknown): RepairResult {
     repairedWorkouts.push({
       name: workoutName,
       ...(workoutIcon ? { icon: workoutIcon } : {}),
-      ...(scheduledDays && scheduledDays.length > 0 ? { scheduledDays } : {}),
       exercises: repairedExercises
     });
   });
@@ -428,41 +445,25 @@ export function repairImportPayload(raw: unknown): RepairResult {
     };
   }
 
-  const candidate = {
-    schemaVersion: "1.0" as const,
-    locale,
+  const candidate: TrainingPlanImportV1 = {
+    schemaVersion: "1.0",
+    ...(locale ? { locale } : {}),
     workouts: repairedWorkouts
   };
 
-  const validation = importSchema.safeParse(candidate);
-  if (!validation.success) {
+  const validationErrors = validateCandidate(candidate);
+  if (validationErrors.length > 0) {
     return {
       repairedObject: null,
       drafts: [],
       changes,
-      errors: validation.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+      errors: validationErrors
     };
   }
 
-  const drafts: RepairResult["drafts"] = validation.data.workouts.map((workout) => ({
-    name: workout.name,
-    icon: workout.icon,
-    scheduledDays: workout.scheduledDays,
-    exercises: workout.exercises.map((exercise) => ({
-      name: exercise.name,
-      notes: exercise.notes,
-      x2Enabled: exercise.x2Enabled ?? false,
-      negativeWeightEnabled: exercise.negativeWeightEnabled ?? false,
-      sets: exercise.sets.map((set) => ({
-        targetReps: set.targetReps,
-        targetWeight: set.targetWeight
-      }))
-    }))
-  }));
-
   return {
-    repairedObject: validation.data,
-    drafts,
+    repairedObject: candidate,
+    drafts: candidate.workouts,
     changes,
     errors
   };
@@ -485,8 +486,8 @@ Regeln:
 8) Optional: "negativeWeightEnabled": true nur setzen, wenn die Übung als Negativgewicht bzw. assistiert angelegt werden soll.
 9) Wenn "negativeWeightEnabled": true gesetzt wird, dann müssen die targetWeight-Werte dieser Übung negative Zahlen sein, z. B. -20 für 20 kg Gegengewicht bei assistierten Klimmzügen.
 10) Setze nach Möglichkeit für jedes Workout ein passendes "icon" auf Workout-Ebene. Erlaubte Werte: ${importIconKeyList}
-11) Das Feld "notes" nur einfügen, wenn wirklich eine Anmerkung vorhanden ist – sonst weglassen.
-12) Nur die Felder aus dem Schema verwenden – keine Extrafelder.
+11) Das Feld "notes" nur einfügen, wenn wirklich eine Anmerkung vorhanden ist - sonst weglassen.
+12) Nur die Felder aus dem Schema verwenden - keine Extrafelder.
 13) Jede Übung braucht mindestens einen Satz.
 14) Wenn mehrere Trainingstage oder Splits erkennbar sind, lege mehrere Workouts an.
 15) Vergib sinnvolle Workout-Namen. Verwende NICHT generische Namen wie "Workout", "Workout-Daten", "Trainingsplan" oder "Plan". Der Name soll den Split oder Fokus klar erkennen lassen.

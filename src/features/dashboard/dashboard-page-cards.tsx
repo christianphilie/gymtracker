@@ -1,16 +1,17 @@
 import type { ReactNode } from "react";
-import { ChartNoAxesCombined, PenSquare, X } from "lucide-react";
+import { CalendarDays, ChartNoAxesColumn, PenSquare, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { WorkoutNameLabel } from "@/components/workouts/workout-name-label";
-import type { Workout } from "@/db/types";
+import type { Workout, WorkoutScheduleDay } from "@/db/types";
 import type { TranslationKey } from "@/i18n/translations";
 import { formatSessionDateLabel } from "@/lib/utils";
 
 const ACTIVE_SESSION_PILL_CLASS =
   "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500 dark:bg-emerald-950 dark:text-emerald-200";
 const RECOMMENDED_PILL_CLASS =
-  "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500 dark:bg-emerald-950 dark:text-emerald-200";
+  "gap-1 rounded-full border-transparent bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-950";
 
 function PlayFilledIcon({ className }: { className?: string }) {
   return (
@@ -32,6 +33,7 @@ export interface WorkoutListItem {
   id?: number;
   name: string;
   icon?: Workout["icon"];
+  scheduledDays?: WorkoutScheduleDay[];
   exerciseCount: number;
   estimatedDurationMinutes: number;
   lastSessionAt?: string;
@@ -58,7 +60,7 @@ interface WeeklyGoalCardProps {
 interface WorkoutListCardProps {
   workout: WorkoutListItem;
   hasActiveWorkout: boolean;
-  recommendedWorkoutId: number | null;
+  recommendedWorkouts: ReadonlyMap<number, "scheduled" | "stale">;
   language: "de" | "en";
   t: (key: TranslationKey) => string;
   onOpenHistory: (workoutId: number) => void;
@@ -81,9 +83,11 @@ export function WeeklyGoalCard({ goal, compact = false }: WeeklyGoalCardProps) {
       </div>
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
         <div
-          className={`h-full rounded-full transition-all ${compact
-            ? (goal.isComplete ? "bg-foreground" : "bg-foreground/75")
-            : (goal.isComplete ? "bg-emerald-600 dark:bg-emerald-500" : "bg-emerald-400 dark:bg-emerald-700")}`}
+          className={`h-full rounded-full transition-all ${
+            goal.isComplete
+              ? "bg-emerald-500 dark:bg-emerald-400"
+              : "bg-emerald-400/60 dark:bg-emerald-400/45"
+          }`}
           style={{ width: `${goal.progressPercent}%` }}
         />
       </div>
@@ -94,7 +98,7 @@ export function WeeklyGoalCard({ goal, compact = false }: WeeklyGoalCardProps) {
 export function WorkoutListCard({
   workout,
   hasActiveWorkout,
-  recommendedWorkoutId,
+  recommendedWorkouts,
   language,
   t,
   onOpenHistory,
@@ -104,7 +108,7 @@ export function WorkoutListCard({
 }: WorkoutListCardProps) {
   const isActive = !!workout.activeSessionId;
   const disableStartBecauseOtherActive = hasActiveWorkout && !isActive;
-  const isRecommended = !isActive && workout.id !== undefined && workout.id === recommendedWorkoutId;
+  const recommendedReason = !isActive && workout.id !== undefined ? recommendedWorkouts.get(workout.id) ?? null : null;
 
   return (
     <Card>
@@ -115,7 +119,7 @@ export function WorkoutListCard({
           </CardTitle>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>
-              {workout.exerciseCount} {t("exercises")}
+              {workout.exerciseCount} {workout.exerciseCount === 1 ? t("exerciseSingular") : t("exercises")}
               {workout.estimatedDurationMinutes > 0 && (
                 <>, {t("approxShort")} {workout.estimatedDurationMinutes} {t("minutesUnitLabel")}</>
               )}
@@ -129,15 +133,18 @@ export function WorkoutListCard({
               <span className={ACTIVE_SESSION_PILL_CLASS}>{t("activeSession")}</span>
               <p className="pr-2 text-xs text-muted-foreground">
                 {t("since")}{" "}
-                {workout.activeSessionStartedAt ? formatSessionDateLabel(workout.activeSessionStartedAt, language) : "-"}
+                {workout.activeSessionStartedAt
+                  ? formatSessionDateLabel(workout.activeSessionStartedAt, language, { omitTodayLabel: true })
+                  : "-"}
               </p>
             </>
           ) : (
             <>
-              {isRecommended && (
-                <span className={RECOMMENDED_PILL_CLASS}>
-                  {t("recommended")}
-                </span>
+              {recommendedReason && (
+                <Badge className={RECOMMENDED_PILL_CLASS}>
+                  {recommendedReason === "scheduled" && <CalendarDays className="mr-1 h-3 w-3" />}
+                  {recommendedReason === "scheduled" ? t("planned") : t("recommended")}
+                </Badge>
               )}
               <p className="pr-2 text-xs text-muted-foreground whitespace-nowrap">
                 {t("lastSeen")}: {workout.lastSessionAt ? formatCompactDateTimeLabel(workout.lastSessionAt, language) : "-"}
@@ -155,7 +162,7 @@ export function WorkoutListCard({
             aria-label={t("sessionHistory")}
             onClick={() => workout.id !== undefined && onOpenHistory(workout.id)}
           >
-            <ChartNoAxesCombined className="h-4 w-4" />
+            <ChartNoAxesColumn className="h-4 w-4" />
           </Button>
           {!isActive && (
             <Button

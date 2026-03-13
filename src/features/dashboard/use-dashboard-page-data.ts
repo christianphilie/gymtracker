@@ -1,23 +1,56 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/db/db";
-import type { ExerciseAiInfo, SessionExerciseSet, WeightUnit } from "@/db/types";
+import type { ExerciseAiInfo, SessionExerciseSet, WeightUnit, WeekStartsOn, Workout } from "@/db/types";
 import {
   estimateStrengthTrainingCalories,
   getSessionDurationMinutes,
   resolveCaloriesBodyWeightKg
 } from "@/lib/calorie-estimation";
-import { getEffectiveSetWeight, getSetStatsMultiplier } from "@/lib/utils";
+import {
+  getSetRepsValue,
+  getSetStatsMultiplier,
+  getSetTotalWeight,
+  normalizeSessionExerciseSet
+} from "@/lib/utils";
 import type { WorkoutListItem } from "@/features/dashboard/dashboard-page-cards";
 import {
   addMuscleContributionFromSet,
   createEmptyMuscleGroupMetrics,
   EMPTY_WEEKLY_STATS,
-  getWeekEndExclusive,
-  getWeekStart,
+  getStatisticsPeriodEndExclusive,
+  getStatisticsPeriodStart,
   normalizeExerciseLookupName,
   normalizeWeeklyGoal,
+  type StatisticsPeriod,
   type WeeklyDashboardStats
 } from "@/features/statistics/weekly-data-utils";
+
+interface TemplateExerciseMeta {
+  aiInfo?: ExerciseAiInfo;
+  negativeWeightEnabled: boolean;
+}
+
+function getTemplateExerciseMetaForSet(
+  set: SessionExerciseSet,
+  templateMetaById: Map<number, TemplateExerciseMeta>,
+  templateMetaByWorkoutAndName: Map<string, TemplateExerciseMeta>,
+  sessionWorkoutIdBySessionId: Map<number, number>
+) {
+  if (set.templateExerciseId !== undefined) {
+    const byId = templateMetaById.get(set.templateExerciseId);
+    if (byId) {
+      return byId;
+    }
+  }
+
+  const workoutId = sessionWorkoutIdBySessionId.get(set.sessionId);
+  const exerciseNameKey = normalizeExerciseLookupName(set.exerciseName);
+  if (workoutId === undefined || !exerciseNameKey) {
+    return undefined;
+  }
+
+  return templateMetaByWorkoutAndName.get(`${workoutId}::${exerciseNameKey}`);
+}
 
 function estimateWorkoutDurationMinutes(params: {
   restSeconds: number;
@@ -147,15 +180,16 @@ export function useDashboardWorkoutsData(params: { restTimerEnabled: boolean; re
   }, [restTimerEnabled, restTimerSeconds]);
 }
 
-export function useWeeklyStatsData(params: {
+export function useStatisticsPeriodData(params: {
   language: string;
   weightUnit: WeightUnit;
-  weekStart: Date;
+  period: StatisticsPeriod;
+  periodStart: Date;
 }) {
-  const { language, weightUnit, weekStart } = params;
+  const { language, weightUnit, period, periodStart } = params;
 
   return useLiveQuery<WeeklyDashboardStats>(async () => {
-    const weekEndExclusive = getWeekEndExclusive(weekStart);
+    const periodEndExclusive = getStatisticsPeriodEndExclusive(periodStart, period);
     const settings = await db.settings.get(1);
     const weeklyWeightGoal = normalizeWeeklyGoal(settings?.weeklyWeightGoal);
     const weeklyCaloriesGoal = normalizeWeeklyGoal(settings?.weeklyCaloriesGoal);
@@ -164,7 +198,7 @@ export function useWeeklyStatsData(params: {
     const completedSessions = (await db.sessions.where("status").equals("completed").toArray())
       .filter((session) => {
         const completedAt = new Date(session.finishedAt ?? session.startedAt);
-        return completedAt >= weekStart && completedAt < weekEndExclusive;
+        return completedAt >= periodStart && completedAt < periodEndExclusive;
       })
       .sort(
         (a, b) =>
@@ -202,18 +236,34 @@ export function useWeeklyStatsData(params: {
     const templateExercises = templateExerciseIds.length
       ? await db.exercises.where("id").anyOf(templateExerciseIds).toArray()
       : [];
+    const templateMetaById = new Map<number, TemplateExerciseMeta>();
     const templateAiInfoById = new Map<number, ExerciseAiInfo>();
     for (const exercise of templateExercises) {
-      if (exercise.id !== undefined && exercise.aiInfo) {
+      if (exercise.id === undefined) {
+        continue;
+      }
+
+      templateMetaById.set(exercise.id, {
+        aiInfo: exercise.aiInfo,
+        negativeWeightEnabled: exercise.negativeWeightEnabled ?? false
+      });
+      if (exercise.aiInfo) {
         templateAiInfoById.set(exercise.id, exercise.aiInfo);
       }
     }
+    const templateMetaByWorkoutAndName = new Map<string, TemplateExerciseMeta>();
     const templateAiInfoByWorkoutAndName = new Map<string, ExerciseAiInfo>();
     for (const exercise of templateExercisesForWorkouts) {
-      if (!exercise.aiInfo) continue;
       const nameKey = normalizeExerciseLookupName(exercise.name);
       if (!nameKey) continue;
-      templateAiInfoByWorkoutAndName.set(`${exercise.workoutId}::${nameKey}`, exercise.aiInfo);
+      const key = `${exercise.workoutId}::${nameKey}`;
+      templateMetaByWorkoutAndName.set(key, {
+        aiInfo: exercise.aiInfo,
+        negativeWeightEnabled: exercise.negativeWeightEnabled ?? false
+      });
+      if (exercise.aiInfo) {
+        templateAiInfoByWorkoutAndName.set(key, exercise.aiInfo);
+      }
     }
 
     const setsBySessionId = new Map<number, SessionExerciseSet[]>();
@@ -224,9 +274,11 @@ export function useWeeklyStatsData(params: {
     }
 
     const workoutNameById = new Map<number, string>();
+    const workoutIconById = new Map<number, Workout["icon"]>();
     for (const workout of workoutsForStats) {
       if (workout.id !== undefined) {
         workoutNameById.set(workout.id, workout.name);
+        workoutIconById.set(workout.id, workout.icon);
       }
     }
     const sessionWorkoutIdBySessionId = new Map<number, number>();
@@ -251,20 +303,25 @@ export function useWeeklyStatsData(params: {
     const completedWorkouts = completedSessions.map((session) => {
       const sessionId = session.id ?? -1;
       const sessionSets = setsBySessionId.get(sessionId) ?? [];
-      const completedSets = sessionSets.filter((set) => set.completed);
+      const completedSets = sessionSets
+        .filter((set) => set.completed)
+        .map((set) =>
+          normalizeSessionExerciseSet(
+            set,
+            getTemplateExerciseMetaForSet(
+              set,
+              templateMetaById,
+              templateMetaByWorkoutAndName,
+              sessionWorkoutIdBySessionId
+            )
+          )
+        );
       const weightedCompletedSetCount = completedSets.reduce((sum, set) => sum + getSetStatsMultiplier(set), 0);
       const sessionRepsTotal = completedSets.reduce(
-        (sum, set) => sum + (set.actualReps ?? set.targetReps) * getSetStatsMultiplier(set),
+        (sum, set) => sum + getSetRepsValue(set) * getSetStatsMultiplier(set),
         0
       );
-      const sessionTotalWeight = completedSets.reduce(
-        (sum, set) =>
-          sum +
-          getEffectiveSetWeight(set.actualWeight ?? set.targetWeight, bodyWeightKg) *
-            (set.actualReps ?? set.targetReps) *
-            getSetStatsMultiplier(set),
-        0
-      );
+      const sessionTotalWeight = completedSets.reduce((sum, set) => sum + getSetTotalWeight(set, bodyWeightKg), 0);
 
       setCount += weightedCompletedSetCount;
       repsTotal += sessionRepsTotal;
@@ -275,7 +332,8 @@ export function useWeeklyStatsData(params: {
           muscleGroupMetrics,
           templateAiInfoById,
           templateAiInfoByWorkoutAndName,
-          sessionWorkoutIdBySessionId
+          sessionWorkoutIdBySessionId,
+          bodyWeightKg
         );
       }
 
@@ -289,17 +347,17 @@ export function useWeeklyStatsData(params: {
       });
 
       const completedAt = new Date(session.finishedAt ?? session.startedAt);
-      const startedAtDate = new Date(session.startedAt);
-      const finishedAtDate = new Date(session.finishedAt ?? session.startedAt);
-      const midpointAt = new Date((startedAtDate.getTime() + finishedAtDate.getTime()) / 2);
       return {
         sessionId,
         workoutId: session.workoutId,
         workoutName: workoutNameById.get(session.workoutId) ?? "-",
+        workoutIcon: workoutIconById.get(session.workoutId),
         weekdayLabel: weekdayFormatter.format(completedAt),
         startedAt: session.startedAt,
         finishedAt: session.finishedAt ?? null,
-        midpointAt: midpointAt.toISOString()
+        durationMinutes,
+        setCount: weightedCompletedSetCount,
+        totalWeight: sessionTotalWeight
       };
     });
 
@@ -318,10 +376,23 @@ export function useWeeklyStatsData(params: {
       weeklyDurationGoal,
       muscleGroupMetrics
     };
-  }, [language, weekStart.getTime(), weightUnit]);
+  }, [language, period, periodStart.getTime(), weightUnit]);
 }
 
-export function useEarliestCompletedWeekStart() {
+export function useWeeklyStatsData(params: {
+  language: string;
+  weightUnit: WeightUnit;
+  weekStart: Date;
+}) {
+  return useStatisticsPeriodData({
+    language: params.language,
+    weightUnit: params.weightUnit,
+    period: "week",
+    periodStart: params.weekStart
+  });
+}
+
+export function useEarliestCompletedPeriodStart(period: StatisticsPeriod, weekStartsOn: WeekStartsOn) {
   return useLiveQuery<Date | null>(async () => {
     const completedSessions = await db.sessions.where("status").equals("completed").toArray();
     if (completedSessions.length === 0) {
@@ -341,6 +412,10 @@ export function useEarliestCompletedWeekStart() {
       return null;
     }
 
-    return getWeekStart(new Date(earliestCompletedAtMs));
-  }, []);
+    return getStatisticsPeriodStart(new Date(earliestCompletedAtMs), period, weekStartsOn);
+  }, [period, weekStartsOn]);
+}
+
+export function useEarliestCompletedWeekStart(weekStartsOn: WeekStartsOn) {
+  return useEarliestCompletedPeriodStart("week", weekStartsOn);
 }

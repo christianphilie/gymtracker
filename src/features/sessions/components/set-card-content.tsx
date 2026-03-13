@@ -1,7 +1,8 @@
 import { Check, NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatNumber } from "@/lib/utils";
+import { SetValueDisplay } from "@/components/weights/weight-display";
 import type { SessionExerciseSet } from "@/db/types";
+import { getSetRepsValue, getSetWeightValue } from "@/lib/utils";
 import { ExerciseNoteTag } from "./exercise-note-tag";
 
 export type SetCardVariant = "colored" | "neutral" | "neutral-muted";
@@ -35,8 +36,8 @@ export function SetCardContent({
   onDone,
   doneAriaLabel
 }: SetCardContentProps) {
-  const repsValue = set.actualReps ?? set.targetReps;
-  const weightValue = set.actualWeight ?? set.targetWeight;
+  const repsValue = getSetRepsValue(set);
+  const weightValue = getSetWeightValue(set);
 
   const index = exercise.sets.findIndex((s) => s.id === set.id);
   const setPositionLabel = index >= 0 ? `${index + 1}/${exercise.sets.length}` : "";
@@ -59,7 +60,7 @@ export function SetCardContent({
         {!previewOnly && (
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <p className={`${valueClass} font-normal tabular-nums ${valueColorClass}`}>
-              {repsValue} × {formatNumber(weightValue, 0)} {weightUnitLabel}
+              <SetValueDisplay reps={repsValue} weight={weightValue} weightUnitLabel={weightUnitLabel} />
               {setPositionLabel && <span className="opacity-75"> · {setPositionLabel}</span>}
               {noteStyle === "inline" && exercise.exerciseNotes && (
                 <span className="opacity-75">

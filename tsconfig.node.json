@@ -9,13 +9,19 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
   "include": [
     "vite.config.ts",
     "api/**/*.ts",
     "src/db/types.ts",
     "src/lib/muscle-taxonomy.ts",
-    "src/lib/exercise-catalog.ts"
+    "src/lib/exercise-catalog.ts",
+    "src/lib/workout-icons.ts",
+    "src/features/import/import-utils.ts"
   ]
 }

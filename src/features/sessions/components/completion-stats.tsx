@@ -64,10 +64,10 @@ export function CompletionStats({
 }: CompletionStatsProps) {
   const isStandalone = variant === "standalone";
   const boxClassName = isStandalone
-    ? "rounded-lg border border-emerald-300/80 bg-emerald-100/75 px-3 py-2 dark:border-emerald-900/70 dark:bg-emerald-950/40"
+    ? "rounded-lg border border-emerald-300/50 bg-emerald-100/50 px-3 py-2 dark:border-emerald-800/50 dark:bg-emerald-900/25"
     : "rounded-md border border-white/15 bg-white/10 px-2 py-1";
-  const labelClassName = isStandalone ? "text-xs text-emerald-700/90 dark:text-emerald-300/75" : "text-[10px] text-white/75";
-  const valueClassName = isStandalone ? "text-sm font-semibold text-emerald-950 dark:text-emerald-100" : "text-[11px] font-semibold";
+  const labelClassName = isStandalone ? "text-xs text-emerald-800/80 dark:text-emerald-300/75" : "text-[10px] text-white/75";
+  const valueClassName = isStandalone ? "text-sm font-semibold text-emerald-950/90 dark:text-emerald-100" : "text-[11px] font-semibold";
 
   return (
     <>

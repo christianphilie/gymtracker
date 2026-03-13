@@ -13,7 +13,6 @@ export function AddWorkoutChoicePage() {
       <Card>
         <CardHeader className="space-y-1">
           <CardTitle>{t("addWorkoutChoiceTitle")}</CardTitle>
-          <p className="text-sm text-muted-foreground">{t("addWorkoutChoiceDescription")}</p>
         </CardHeader>
         <CardContent className="space-y-2">
           <Button

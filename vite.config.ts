@@ -73,17 +73,29 @@ function createDevApiPlugin(): Plugin {
   };
 }
 
-function createDeploymentBrandingPlugin(): Plugin {
+function isProductionRelease(mode: string) {
+  const releaseChannel = process.env.RELEASE_CHANNEL?.trim().toLowerCase();
+  if (releaseChannel === "production") return true;
+  if (releaseChannel === "beta") return false;
+
+  const vercelEnv = process.env.VERCEL_ENV?.trim().toLowerCase();
+  if (vercelEnv === "production") return true;
+  if (vercelEnv === "preview" || vercelEnv === "development") return false;
+
+  return mode === "production";
+}
+
+function createDeploymentBrandingPlugin(mode: string): Plugin {
   return {
     name: "deployment-branding",
     transformIndexHtml(html) {
-      const isProductionRelease = process.env.RELEASE_CHANNEL === "production";
+      const productionRelease = isProductionRelease(mode);
       const replacements = {
-        "__APP_MANIFEST__": isProductionRelease ? "/site.webmanifest" : "/site-beta.webmanifest",
-        "__APP_ICON_SVG__": isProductionRelease ? "/favicon.svg" : "/favicon-beta.svg",
-        "__APP_ICON_192__": isProductionRelease ? "/icon-192.png" : "/icon-192-beta.png",
-        "__APP_ICON_512__": isProductionRelease ? "/icon-512.png" : "/icon-512-beta.png",
-        "__APPLE_TOUCH_ICON__": isProductionRelease ? "/apple-touch-icon.png" : "/apple-touch-icon-beta.png"
+        "__APP_MANIFEST__": productionRelease ? "/site.webmanifest" : "/site-beta.webmanifest",
+        "__APP_ICON_SVG__": productionRelease ? "/favicon.svg" : "/favicon-beta.svg",
+        "__APP_ICON_192__": productionRelease ? "/icon-192.png" : "/icon-192-beta.png",
+        "__APP_ICON_512__": productionRelease ? "/icon-512.png" : "/icon-512-beta.png",
+        "__APPLE_TOUCH_ICON__": productionRelease ? "/apple-touch-icon.png" : "/apple-touch-icon-beta.png"
       };
 
       return Object.entries(replacements).reduce(
@@ -100,7 +112,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       createDevApiPlugin(),
-      createDeploymentBrandingPlugin(),
+      createDeploymentBrandingPlugin(mode),
       react(),
       VitePWA({
         registerType: "autoUpdate",

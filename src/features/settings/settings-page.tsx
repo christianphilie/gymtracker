@@ -21,7 +21,7 @@ import {
   restoreUpdateSafetySnapshot,
   updateSettings
 } from "@/db/repository";
-import type { AppLanguage, ColorScheme, WeightUnit } from "@/db/types";
+import type { AppLanguage, ColorScheme, WeightUnit, WeekStartsOn } from "@/db/types";
 import { createBackupPayload, parseBackupPayload, type AppBackupFile } from "@/features/settings/backup-utils";
 import { SettingsAppTab } from "@/features/settings/settings-app-tab";
 import { SettingsDataTab } from "@/features/settings/settings-data-tab";
@@ -55,7 +55,9 @@ export function SettingsPage() {
     lockerNoteEnabled,
     setLockerNoteEnabled,
     colorScheme,
-    setColorScheme
+    setColorScheme,
+    weekStartsOn,
+    setWeekStartsOn
   } = useSettings();
   const navigate = useNavigate();
   const location = useLocation();
@@ -174,6 +176,10 @@ export function SettingsPage() {
     { value: "light", labelKey: "colorSchemeLight" },
     { value: "dark", labelKey: "colorSchemeDark" },
     { value: "system", labelKey: "colorSchemeSystem" }
+  ];
+  const weekStartsOnOptions: Array<{ value: WeekStartsOn; label: string }> = [
+    { value: "sun", label: t("weekStartsOnSunday") },
+    { value: "mon", label: t("weekStartsOnMonday") }
   ];
   const restTimerLengthOptions: TabsOption[] = [
     { value: "60", label: "1 min", disabled: !restTimerEnabled },
@@ -444,6 +450,8 @@ export function SettingsPage() {
           setLanguage={(value) => void setLanguage(value)}
           weightUnit={weightUnit}
           setWeightUnit={(value) => void setWeightUnit(value)}
+          weekStartsOn={weekStartsOn}
+          setWeekStartsOn={(value) => void setWeekStartsOn(value)}
           restTimerSeconds={restTimerSeconds}
           restTimerEnabled={restTimerEnabled}
           setRestTimerEnabled={(value) => void setRestTimerEnabled(value)}
@@ -454,6 +462,7 @@ export function SettingsPage() {
           setColorScheme={(value) => void setColorScheme(value)}
           languageOptions={languageOptions}
           weightOptions={weightOptions}
+          weekStartsOnOptions={weekStartsOnOptions}
           colorSchemeOptions={colorSchemeOptions.map((option) => ({
             value: option.value,
             label: t(option.labelKey)

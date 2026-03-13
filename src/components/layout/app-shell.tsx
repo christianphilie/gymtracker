@@ -1,8 +1,12 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { Link, Outlet, useLocation, useSearchParams, type To } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   ChartNoAxesCombined,
+  ChartNoAxesColumn,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Check,
   Dumbbell,
   House,
@@ -17,10 +21,37 @@ import {
   X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { LockerNoteInput } from "@/components/forms/locker-note-input";
+import { WorkoutNameLabel } from "@/components/workouts/workout-name-label";
 import { useSettings } from "@/app/settings-context";
 import { db } from "@/db/db";
+import type { WorkoutIconKey } from "@/lib/workout-icons";
 import { cn } from "@/lib/utils";
+import { useEarliestCompletedPeriodStart } from "@/features/dashboard/use-dashboard-page-data";
+import {
+  clearLegacyStatisticsWeekParam,
+  formatStatisticsPeriodLabel,
+  getNextStatisticsPeriodLabelKey,
+  getPreviousStatisticsPeriodLabelKey,
+  getStatisticsPeriodOffset,
+  getStatisticsPeriodStart,
+  getStatisticsPeriodTitleKey,
+  parseStatisticsOffset,
+  parseStatisticsPeriod,
+  shiftStatisticsPeriodStart,
+  STATS_OFFSET_SEARCH_PARAM,
+  STATS_PERIOD_SEARCH_PARAM,
+  STATS_WORKOUT_ID_SEARCH_PARAM,
+  type StatisticsPeriod
+} from "@/features/statistics/weekly-data-utils";
 
 // iOS homescreen hint (temporarily disabled; keep for later re-enable)
 // const IOS_WEBAPP_HINT_DISMISSED_KEY = "gymtracker:ios-webapp-hint-dismissed";
@@ -55,14 +86,40 @@ interface HeaderActionsProps {
   onEditorSave: () => void;
 }
 
+interface StatisticsWeekHeaderControlsProps {
+  weekLabel: string;
+  canGoPrevious: boolean;
+  canGoNext: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+  previousLabel: string;
+  nextLabel: string;
+}
+
+interface StatisticsPeriodSelectProps {
+  value: StatisticsPeriod;
+  onChange: (period: StatisticsPeriod) => void;
+  label: string;
+  options: Array<{ value: StatisticsPeriod; label: string; separated?: boolean }>;
+}
+
+interface StatisticsWorkoutSelectProps {
+  workoutLabel: string;
+  workouts: Array<{ id: number; name: string; icon?: WorkoutIconKey | null }>;
+  selectedWorkoutId: number | null;
+  onChange: (workoutId: number) => void;
+}
+
 interface BottomNavItemProps {
-  to: string;
+  to: To;
   isActive: boolean;
   label: string;
   icon: ReactNode;
   activeClassName?: string;
   inactiveClassName?: string;
 }
+
+const LAST_STATISTICS_ROUTE_STORAGE_KEY = "gymtracker:last-statistics-route";
 
 function BottomNavItem({
   to,
@@ -122,9 +179,140 @@ function HeaderActions({
   return null;
 }
 
+function StatisticsWeekHeaderControls({
+  weekLabel,
+  canGoPrevious,
+  canGoNext,
+  onPrevious,
+  onNext,
+  previousLabel,
+  nextLabel
+}: StatisticsWeekHeaderControlsProps) {
+  return (
+    <div className="flex items-center gap-1 rounded-full border border-border/80 bg-secondary/75 p-1">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 rounded-full"
+        onClick={onPrevious}
+        aria-label={previousLabel}
+        title={previousLabel}
+        disabled={!canGoPrevious}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <p className="w-[6.75rem] truncate whitespace-nowrap px-1 text-center text-[11px] font-semibold tabular-nums leading-none text-foreground/80 sm:min-w-[9.5rem] sm:max-w-[9.5rem] sm:text-xs">
+        {weekLabel}
+      </p>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 rounded-full"
+        onClick={onNext}
+        aria-label={nextLabel}
+        title={nextLabel}
+        disabled={!canGoNext}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
+function StatisticsPeriodSelect({
+  value,
+  onChange,
+  label,
+  options
+}: StatisticsPeriodSelectProps) {
+  const selectedLabel = options.find((option) => option.value === value)?.label ?? label;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          className="inline-flex min-w-0 items-center gap-1 rounded-full px-1 py-0.5 text-left text-lg font-semibold text-foreground transition-colors hover:bg-secondary/70"
+        >
+          <span className="truncate">{selectedLabel}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-44">
+        <DropdownMenuRadioGroup value={value} onValueChange={(nextValue) => onChange(nextValue as StatisticsPeriod)}>
+          {options.map((option) => (
+            <Fragment key={option.value}>
+              {option.separated ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuRadioItem value={option.value}>{option.label}</DropdownMenuRadioItem>
+            </Fragment>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function StatisticsWorkoutSelect({
+  workoutLabel,
+  workouts,
+  selectedWorkoutId,
+  onChange
+}: StatisticsWorkoutSelectProps) {
+  const selectedWorkout = workouts.find((workout) => workout.id === selectedWorkoutId) ?? workouts[0] ?? null;
+
+  return (
+    <div className="flex items-center gap-1 rounded-full border border-border/80 bg-secondary/75 p-1">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={workoutLabel}
+            className="inline-flex min-w-0 max-w-[11.5rem] items-center gap-1 rounded-full px-2 py-1 text-left text-[11px] font-semibold leading-none text-foreground/80 transition-colors hover:bg-background/70 disabled:cursor-default disabled:hover:bg-transparent sm:max-w-[14rem] sm:text-xs"
+            disabled={!selectedWorkout}
+          >
+            <span className="min-w-0 truncate">
+              {selectedWorkout ? (
+                <WorkoutNameLabel
+                  name={selectedWorkout.name}
+                  icon={selectedWorkout.icon}
+                  textClassName="truncate"
+                />
+              ) : (
+                workoutLabel
+              )}
+            </span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-56">
+          <DropdownMenuRadioGroup
+            value={selectedWorkout ? String(selectedWorkout.id) : ""}
+            onValueChange={(nextValue) => onChange(Number(nextValue))}
+          >
+            {workouts.map((workout) => (
+              <DropdownMenuRadioItem key={`statistics-workout-${workout.id}`} value={String(workout.id)}>
+                <WorkoutNameLabel
+                  name={workout.name}
+                  icon={workout.icon}
+                  textClassName="truncate"
+                />
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 export function AppShell() {
-  const { t, lockerNoteEnabled } = useSettings();
+  const { t, lockerNoteEnabled, language, weekStartsOn } = useSettings();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [savedStatisticsSearch, setSavedStatisticsSearch] = useState("");
   const pathname = location.pathname;
   const sessionMatch = location.pathname.match(/^\/sessions\/(\d+)$/);
   const workoutEditMatch = location.pathname.match(/^\/workouts\/(\d+)\/edit$/);
@@ -137,12 +325,91 @@ export function AppShell() {
     /^\/workouts\/new$/.test(pathname) ||
     /^\/workouts\/\d+\/edit$/.test(pathname);
   const isStatisticsTabRoute =
-    pathname === "/statistics" ||
-    /^\/workouts\/\d+\/history$/.test(pathname);
+    pathname === "/statistics";
   const isSettingsTabRoute =
     pathname === "/settings" ||
     pathname === "/legal" ||
     pathname === "/privacy";
+  const showStatisticsPeriodHeader = pathname === "/statistics";
+  const statisticsPeriod = useMemo(
+    () => parseStatisticsPeriod(searchParams.get(STATS_PERIOD_SEARCH_PARAM)),
+    [searchParams]
+  );
+  const statisticsOffset = useMemo(
+    () =>
+      parseStatisticsOffset(
+        searchParams.get(STATS_OFFSET_SEARCH_PARAM),
+        searchParams.get("week")
+      ),
+    [searchParams]
+  );
+  const selectedStatisticsWorkoutId = useMemo(() => {
+    const raw = searchParams.get(STATS_WORKOUT_ID_SEARCH_PARAM);
+    const parsed = Number(raw);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }, [searchParams]);
+  const statisticsPeriodOptions = useMemo(
+    () => [
+      { value: "week" as const, label: t("weeklyData") },
+      { value: "month" as const, label: t("monthlyData") },
+      { value: "year" as const, label: t("yearlyData") },
+      { value: "workout" as const, label: t("workoutData"), separated: true }
+    ],
+    [t]
+  );
+  const statisticsTitle = t(getStatisticsPeriodTitleKey(statisticsPeriod));
+  const statisticsNavigationPeriod = statisticsPeriod === "workout" ? "week" : statisticsPeriod;
+  const earliestCompletedPeriodStart = useEarliestCompletedPeriodStart(statisticsNavigationPeriod, weekStartsOn);
+  const currentStatisticsPeriodStart = getStatisticsPeriodStart(new Date(), statisticsNavigationPeriod, weekStartsOn);
+  const earliestStatisticsOffset = useMemo(() => {
+    if (!earliestCompletedPeriodStart) {
+      return null;
+    }
+
+    return getStatisticsPeriodOffset(
+      currentStatisticsPeriodStart,
+      earliestCompletedPeriodStart,
+      statisticsNavigationPeriod
+    );
+  }, [currentStatisticsPeriodStart, earliestCompletedPeriodStart, statisticsNavigationPeriod]);
+  const visibleStatisticsPeriodStart = useMemo(
+    () => shiftStatisticsPeriodStart(currentStatisticsPeriodStart, statisticsNavigationPeriod, statisticsOffset, weekStartsOn),
+    [currentStatisticsPeriodStart, statisticsNavigationPeriod, statisticsOffset, weekStartsOn]
+  );
+  const statisticsPeriodLabel = useMemo(
+    () => formatStatisticsPeriodLabel(visibleStatisticsPeriodStart, statisticsNavigationPeriod, language),
+    [language, statisticsNavigationPeriod, visibleStatisticsPeriodStart]
+  );
+  const canNavigateStatisticsPeriods = showStatisticsPeriodHeader && statisticsPeriod !== "workout";
+  const canNavigateToPreviousStatisticsPeriod =
+    canNavigateStatisticsPeriods && earliestStatisticsOffset !== null && statisticsOffset > earliestStatisticsOffset;
+  const canNavigateToNextStatisticsPeriod = canNavigateStatisticsPeriods && statisticsOffset < 0;
+  const statisticsNavTo = useMemo<To>(() => {
+    if (!savedStatisticsSearch) {
+      return "/statistics";
+    }
+
+    return { pathname: "/statistics", search: savedStatisticsSearch };
+  }, [savedStatisticsSearch]);
+  const statisticsWorkouts = useLiveQuery(async () => {
+    const workouts = await db.workouts.toArray();
+    return workouts
+      .filter((workout): workout is typeof workout & { id: number } => workout.id !== undefined)
+      .sort((a, b) => a.id - b.id)
+      .map((workout) => ({
+        id: workout.id,
+        name: workout.name,
+        icon: workout.icon
+      }));
+  }, []);
+  const selectedStatisticsWorkout = useMemo(() => {
+    if (!statisticsWorkouts || statisticsWorkouts.length === 0) {
+      return null;
+    }
+
+    return statisticsWorkouts.find((workout) => workout.id === selectedStatisticsWorkoutId) ?? statisticsWorkouts[0];
+  }, [selectedStatisticsWorkoutId, statisticsWorkouts]);
+
   const pageHeader = useMemo(() => {
     let title = t("appName");
     let Icon = Dumbbell;
@@ -157,8 +424,8 @@ export function AppShell() {
       titleClassName = "text-emerald-500 dark:text-emerald-200";
       containerClassName = "rounded-full bg-emerald-100 px-3.5 py-1.5 dark:bg-emerald-950";
     } else if (location.pathname === "/statistics") {
-      title = t("weeklyData");
-      Icon = ChartNoAxesCombined;
+      title = statisticsTitle;
+      Icon = statisticsPeriod === "workout" ? ChartNoAxesColumn : ChartNoAxesCombined;
     } else if (location.pathname === "/settings") {
       title = t("settings");
       Icon = Settings;
@@ -180,16 +447,13 @@ export function AppShell() {
     } else if (/^\/workouts\/\d+\/edit$/.test(location.pathname)) {
       title = t("editWorkoutTitle");
       Icon = PenSquare;
-    } else if (/^\/workouts\/\d+\/history$/.test(location.pathname)) {
-      title = t("sessionHistory");
-      Icon = ChartNoAxesCombined;
     } else if (/^\/sessions\/\d+$/.test(location.pathname)) {
       title = "Aktive Session";
       Icon = Play;
     }
 
     return { title, Icon, iconClassName, titleClassName, containerClassName };
-  }, [location.pathname, t]);
+  }, [location.pathname, statisticsPeriod, statisticsTitle, t]);
 
   const sessionMeta = useLiveQuery(async () => {
     if (!activeSessionId || Number.isNaN(activeSessionId)) {
@@ -302,7 +566,93 @@ export function AppShell() {
       })
     );
   }, [sessionState, timerPaused]);
-  const showLockerNote = lockerNoteEnabled && !isWorkoutEditRoute;
+
+  const updateStatisticsRouteState = useCallback(
+    (nextPeriod: StatisticsPeriod, nextOffset: number) => {
+      const normalizedOffset = Number.isInteger(nextOffset) && nextOffset <= 0 ? nextOffset : 0;
+      const nextSearchParams = new URLSearchParams(searchParams);
+
+      if (nextPeriod === "week") {
+        nextSearchParams.delete(STATS_PERIOD_SEARCH_PARAM);
+      } else {
+        nextSearchParams.set(STATS_PERIOD_SEARCH_PARAM, nextPeriod);
+      }
+
+      if (nextPeriod === "workout" || normalizedOffset === 0) {
+        nextSearchParams.delete(STATS_OFFSET_SEARCH_PARAM);
+      } else {
+        nextSearchParams.set(STATS_OFFSET_SEARCH_PARAM, String(normalizedOffset));
+      }
+
+      clearLegacyStatisticsWeekParam(nextSearchParams);
+      setSearchParams(nextSearchParams, { replace: true });
+    },
+    [searchParams, setSearchParams]
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    setSavedStatisticsSearch(window.localStorage.getItem(LAST_STATISTICS_ROUTE_STORAGE_KEY) ?? "");
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || pathname !== "/statistics") {
+      return;
+    }
+
+    window.localStorage.setItem(LAST_STATISTICS_ROUTE_STORAGE_KEY, location.search);
+    setSavedStatisticsSearch(location.search);
+  }, [location.search, pathname]);
+
+  useEffect(() => {
+    if (!showStatisticsPeriodHeader || statisticsPeriod === "workout" || earliestStatisticsOffset === null) {
+      return;
+    }
+
+    if (statisticsOffset < earliestStatisticsOffset) {
+      updateStatisticsRouteState(statisticsPeriod, earliestStatisticsOffset);
+    }
+  }, [
+    earliestStatisticsOffset,
+    showStatisticsPeriodHeader,
+    statisticsOffset,
+    statisticsPeriod,
+    updateStatisticsRouteState
+  ]);
+
+  useEffect(() => {
+    if (!showStatisticsPeriodHeader || statisticsPeriod !== "workout") {
+      return;
+    }
+
+    const normalizedWorkoutId = selectedStatisticsWorkout ? String(selectedStatisticsWorkout.id) : null;
+    const currentWorkoutId = searchParams.get(STATS_WORKOUT_ID_SEARCH_PARAM);
+
+    if (normalizedWorkoutId === currentWorkoutId || (normalizedWorkoutId === null && currentWorkoutId === null)) {
+      return;
+    }
+
+    const nextSearchParams = new URLSearchParams(searchParams);
+    if (normalizedWorkoutId === null) {
+      nextSearchParams.delete(STATS_WORKOUT_ID_SEARCH_PARAM);
+    } else {
+      nextSearchParams.set(STATS_WORKOUT_ID_SEARCH_PARAM, normalizedWorkoutId);
+    }
+    nextSearchParams.delete(STATS_OFFSET_SEARCH_PARAM);
+    clearLegacyStatisticsWeekParam(nextSearchParams);
+    setSearchParams(nextSearchParams, { replace: true });
+  }, [
+    searchParams,
+    selectedStatisticsWorkout,
+    setSearchParams,
+    showStatisticsPeriodHeader,
+    statisticsPeriod
+  ]);
+
+  const showLockerNote = lockerNoteEnabled && !isWorkoutEditRoute && !showStatisticsPeriodHeader;
   const handleToggleTimer = useCallback(() => {
     if (!sessionState?.sinceIso) {
       return;
@@ -367,7 +717,16 @@ export function AppShell() {
         <div className="container flex h-14 items-center justify-between">
           <div className={`flex min-w-0 items-center gap-2 ${pageHeader.containerClassName}`}>
             <pageHeader.Icon className={`h-5 w-5 shrink-0 ${pageHeader.iconClassName}`} />
-            <p className={`truncate text-lg font-semibold ${pageHeader.titleClassName}`}>{pageHeader.title}</p>
+            {showStatisticsPeriodHeader ? (
+              <StatisticsPeriodSelect
+                value={statisticsPeriod}
+                onChange={(nextPeriod) => updateStatisticsRouteState(nextPeriod, 0)}
+                label={t("statisticsPeriod")}
+                options={statisticsPeriodOptions}
+              />
+            ) : (
+              <p className={`truncate text-lg font-semibold ${pageHeader.titleClassName}`}>{pageHeader.title}</p>
+            )}
             {activeSessionId && sessionState && (() => {
               const pct = sessionState.total > 0 ? Math.round((sessionState.completed / sessionState.total) * 100) : 0;
               return (
@@ -389,6 +748,40 @@ export function AppShell() {
               onEditorCancel={handleEditorCancel}
               onEditorSave={handleEditorSave}
             />
+            {showStatisticsPeriodHeader && statisticsPeriod !== "workout" && (
+              <StatisticsWeekHeaderControls
+                weekLabel={statisticsPeriodLabel}
+                canGoPrevious={canNavigateToPreviousStatisticsPeriod}
+                canGoNext={canNavigateToNextStatisticsPeriod}
+                onPrevious={() => {
+                  if (earliestStatisticsOffset === null) {
+                    return;
+                  }
+                  updateStatisticsRouteState(
+                    statisticsPeriod,
+                    Math.max(earliestStatisticsOffset, statisticsOffset - 1)
+                  );
+                }}
+                onNext={() => updateStatisticsRouteState(statisticsPeriod, Math.min(0, statisticsOffset + 1))}
+                previousLabel={t(getPreviousStatisticsPeriodLabelKey(statisticsPeriod))}
+                nextLabel={t(getNextStatisticsPeriodLabelKey(statisticsPeriod))}
+              />
+            )}
+            {showStatisticsPeriodHeader && statisticsPeriod === "workout" && (
+              <StatisticsWorkoutSelect
+                workoutLabel={t("workouts")}
+                workouts={statisticsWorkouts ?? []}
+                selectedWorkoutId={selectedStatisticsWorkout?.id ?? null}
+                onChange={(workoutId) => {
+                  const nextSearchParams = new URLSearchParams(searchParams);
+                  nextSearchParams.set(STATS_PERIOD_SEARCH_PARAM, "workout");
+                  nextSearchParams.set(STATS_WORKOUT_ID_SEARCH_PARAM, String(workoutId));
+                  nextSearchParams.delete(STATS_OFFSET_SEARCH_PARAM);
+                  clearLegacyStatisticsWeekParam(nextSearchParams);
+                  setSearchParams(nextSearchParams, { replace: true });
+                }}
+              />
+            )}
             {showLockerNote && <LockerNoteInput />}
           </div>
         </div>
@@ -425,7 +818,7 @@ export function AppShell() {
                 />
               )}
               <BottomNavItem
-                to="/statistics"
+                to={statisticsNavTo}
                 isActive={isStatisticsTabRoute}
                 label={t("statistics")}
                 icon={<ChartNoAxesCombined className="h-[23px] w-[23px]" />}

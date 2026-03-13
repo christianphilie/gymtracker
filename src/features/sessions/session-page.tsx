@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { DndContext, PointerSensor, TouchSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { ArrowUpDown, Check, Flag, Plus, X } from "lucide-react";
+import { ArrowUpDown, Check, Flag, History, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
 import { Button } from "@/components/ui/button";
+import { SetValueDisplay } from "@/components/weights/weight-display";
 import { WorkoutNameLabel } from "@/components/workouts/workout-name-label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import type { ExerciseAiInfo, SessionExerciseSet } from "@/db/types";
 import { db } from "@/db/db";
 import {
   addSessionExercise,
+  addSessionExerciseFromPrevious,
   completeSession,
   discardSession,
   getPreviousSessionSummary,
@@ -27,7 +29,15 @@ import {
   getSessionDurationMinutes,
   resolveCaloriesBodyWeightKg
 } from "@/lib/calorie-estimation";
-import { formatDurationLabel, formatSessionDateLabel, getEffectiveSetWeight, getSetStatsMultiplier } from "@/lib/utils";
+import {
+  formatDurationLabel,
+  formatSessionDateLabel,
+  normalizeSessionExerciseSet,
+  getSetRepsValue,
+  getSetStatsMultiplier,
+  getSetTotalWeight,
+  getSetWeightValue
+} from "@/lib/utils";
 import type { SessionExercise } from "./components/exercise-card";
 import { ExerciseCard } from "./components/exercise-card";
 import type { UpNextMode, RestTimerPanelState } from "./components/up-next-panel";
@@ -44,9 +54,19 @@ import {
 const ACTIVE_SESSION_PILL_CLASS =
   "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-500 dark:bg-emerald-950 dark:text-emerald-200";
 const SESSION_COLLAPSED_STORAGE_KEY_PREFIX = "gymtracker:session-collapsed:";
-const SESSION_SCROLL_STORAGE_KEY_PREFIX = "gymtracker:session-scroll:";
+const SESSION_SCROLL_ANCHOR_STORAGE_KEY_PREFIX = "gymtracker:session-scroll-anchor:";
 const EXERCISE_DONE_BADGE_DELAY_MS = 500;
 const EXERCISE_DONE_BADGE_POP_DURATION_MS = 1500;
+const LAST_SESSION_SECTION_LABEL_CLASS = "text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70";
+const LAST_SESSION_SUMMARY_PILL_CLASS =
+  "inline-flex rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70";
+const EXTRA_PREVIOUS_EXERCISE_ADD_BUTTON_CLASS =
+  "h-8 w-8 shrink-0 self-center rounded-full p-0 text-foreground/55 hover:text-foreground/70";
+
+interface TemplateExerciseMeta {
+  aiInfo?: ExerciseAiInfo;
+  negativeWeightEnabled: boolean;
+}
 
 type ExerciseCompletionFeedbackState = "pending-badge" | "show-badge";
 
@@ -107,12 +127,15 @@ export function SessionPage() {
   const [draggedExerciseKey, setDraggedExerciseKey] = useState<string | null>(null);
   const [isDraggingExercise, setIsDraggingExercise] = useState(false);
   const [optimisticExerciseOrder, setOptimisticExerciseOrder] = useState<string[] | null>(null);
+  const [adoptedPreviousExerciseKeys, setAdoptedPreviousExerciseKeys] = useState<string[]>([]);
 
   const exerciseCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const exerciseDoneBadgeRefs = useRef<Record<string, HTMLSpanElement | null>>({});
   const pendingReorderAnimationRef = useRef<PendingReorderAnimation | null>(null);
   const restoredScrollLocationKeyRef = useRef<string | null>(null);
-  const lastSavedScrollTopRef = useRef<number | null>(null);
+  const latestCollapsedExercisesRef = useRef<Record<string, boolean>>({});
+  const latestSessionExercisesRef = useRef<SessionExercise[]>([]);
+  const latestLoadedCollapsedStateSessionIdRef = useRef<number | null>(null);
   const exerciseCompletionTimersRef = useRef<Record<string, ExerciseCompletionFeedbackTimers>>({});
   const previousExerciseCompletionFeedbackRef = useRef<Record<string, ExerciseCompletionFeedbackState>>({});
   const collapsedBeforeReorderRef = useRef<Record<string, boolean> | null>(null);
@@ -137,16 +160,22 @@ export function SessionPage() {
     return { ...sessionPayload, previousSummary };
   }, [numericSessionId]);
 
-  const templateExerciseInfoMap = useLiveQuery(async () => {
+  const templateExerciseMetaMap = useLiveQuery(async () => {
     const templateIds = Array.from(
       new Set((payload?.sets ?? []).map((s) => s.templateExerciseId).filter((id): id is number => id !== undefined))
     );
-    if (templateIds.length === 0) return new Map<number, ExerciseAiInfo>();
+    if (templateIds.length === 0) return new Map<number, TemplateExerciseMeta>();
     const exercises = await db.exercises.where("id").anyOf(templateIds).toArray();
     return new Map(
       exercises
-        .filter((e): e is typeof e & { id: number } => e.id !== undefined && !!e.aiInfo)
-        .map((e) => [e.id, e.aiInfo!])
+        .filter((e): e is typeof e & { id: number } => e.id !== undefined)
+        .map((e) => [
+          e.id,
+          {
+            aiInfo: e.aiInfo,
+            negativeWeightEnabled: e.negativeWeightEnabled ?? false
+          }
+        ])
     );
   }, [payload?.sets]);
 
@@ -171,23 +200,30 @@ export function SessionPage() {
     return [...groupedSets.entries()]
       .map(([sessionExerciseKey, sets]) => {
         const first = sets[0];
+        const templateMeta =
+          first.templateExerciseId !== undefined ? templateExerciseMetaMap?.get(first.templateExerciseId) : undefined;
+        const negativeWeightEnabled =
+          (templateMeta?.negativeWeightEnabled ?? false) ||
+          first.negativeWeightEnabled === true ||
+          sets.some((set) => (set.actualWeight ?? set.targetWeight) < 0 || set.targetWeight < 0);
+        const normalizedSets = sets.map((set) =>
+          normalizeSessionExerciseSet(set, { negativeWeightEnabled })
+        );
         return {
           sessionExerciseKey,
-          sets,
+          sets: normalizedSets,
           exerciseName: first.exerciseName,
           exerciseNotes: first.exerciseNotes,
           exerciseOrder: first.exerciseOrder,
           isTemplateExercise: first.isTemplateExercise,
           templateExerciseId: first.templateExerciseId,
           x2Enabled: first.x2Enabled ?? false,
-          negativeWeightEnabled: first.negativeWeightEnabled ?? false,
-          exerciseAiInfo:
-            first.exerciseAiInfo ??
-            (first.templateExerciseId !== undefined ? templateExerciseInfoMap?.get(first.templateExerciseId) : undefined)
+          negativeWeightEnabled,
+          exerciseAiInfo: first.exerciseAiInfo ?? templateMeta?.aiInfo
         };
       })
       .sort((a, b) => a.exerciseOrder - b.exerciseOrder);
-  }, [groupedSets, templateExerciseInfoMap]);
+  }, [groupedSets, templateExerciseMetaMap]);
 
   const lockedExerciseKeys = useMemo(() => {
     const locked = new Set<string>();
@@ -215,6 +251,17 @@ export function SessionPage() {
       .map((key) => byKey.get(key))
       .filter((exercise): exercise is SessionExercise => exercise !== undefined);
   }, [displayExerciseOrder, sessionExercises]);
+  const availablePreviousExtraExercises = useMemo(() => {
+    const currentExerciseNames = new Set(sessionExercises.map((exercise) => exercise.exerciseName.trim().toLowerCase()));
+    const adoptedKeys = new Set(adoptedPreviousExerciseKeys);
+    return (payload?.previousSummary?.extraExercises ?? []).flatMap((item, index) => {
+      const key = `${item.name.trim().toLowerCase()}-${index}`;
+      if (adoptedKeys.has(key) || currentExerciseNames.has(item.name.trim().toLowerCase())) {
+        return [];
+      }
+      return [{ item, sourceIndex: index, key }];
+    });
+  }, [adoptedPreviousExerciseKeys, payload?.previousSummary?.extraExercises, sessionExercises]);
 
   const isCompleted = payload?.session.status === "completed";
   const orderedSets = useMemo(() => sessionExercises.flatMap((e) => e.sets), [sessionExercises]);
@@ -311,15 +358,11 @@ export function SessionPage() {
     const setsForCount = completedSets.length > 0 ? completedSets : orderedSets;
     const exerciseCount = new Set(setsForCount.map((s) => s.sessionExerciseKey)).size;
     const setCount = completedSets.reduce((sum, s) => sum + getSetStatsMultiplier(s), 0);
-    const repsTotal = completedSets.reduce((sum, s) => sum + (s.actualReps ?? s.targetReps) * getSetStatsMultiplier(s), 0);
+    const repsTotal = completedSets.reduce((sum, set) => sum + getSetRepsValue(set) * getSetStatsMultiplier(set), 0);
     const finishedAt = payload.session.finishedAt ?? latestCompletedSet?.completedAt ?? new Date(liveNowMs).toISOString();
     const durationMinutes = getSessionDurationMinutes(payload.session.startedAt, finishedAt);
     const { bodyWeightKg, usesDefaultBodyWeight } = resolveCaloriesBodyWeightKg(settings?.bodyWeight, weightUnit);
-    const totalWeight = completedSets.reduce(
-      (sum, s) =>
-        sum + getEffectiveSetWeight(s.actualWeight ?? s.targetWeight, bodyWeightKg) * (s.actualReps ?? s.targetReps) * getSetStatsMultiplier(s),
-      0
-    );
+    const totalWeight = completedSets.reduce((sum, set) => sum + getSetTotalWeight(set, bodyWeightKg), 0);
     const calories = estimateStrengthTrainingCalories({ durationMinutes, bodyWeightKg, completedSetCount: setCount, repsTotal });
     return { durationMinutes, exerciseCount, setCount, repsTotal, totalWeight, calories, usesDefaultBodyWeightForCalories: usesDefaultBodyWeight };
   }, [latestCompletedSet?.completedAt, liveNowMs, orderedSets, payload, settings?.bodyWeight, weightUnit]);
@@ -331,32 +374,154 @@ export function SessionPage() {
 
   // ── Scroll persistence ────────────────────────────────────────────────────
 
-  const getSessionScrollStorageKey = (id: number) => `${SESSION_SCROLL_STORAGE_KEY_PREFIX}${id}`;
+  const getSessionScrollAnchorStorageKey = (id: number) => `${SESSION_SCROLL_ANCHOR_STORAGE_KEY_PREFIX}${id}`;
 
   const getPageScrollRoot = (): HTMLElement | null => {
     const candidate = document.scrollingElement ?? document.documentElement ?? document.body;
     return candidate instanceof HTMLElement ? candidate : null;
   };
 
-  const readSavedSessionScrollTop = (id: number) => {
+  const readSavedSessionScrollAnchor = (id: number) => {
     try {
-      const raw = window.localStorage.getItem(getSessionScrollStorageKey(id));
-      if (!raw) return null;
-      const parsed = Number(raw);
-      return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+      const raw = window.localStorage.getItem(getSessionScrollAnchorStorageKey(id));
+      return raw && raw.trim() ? raw : null;
     } catch {
       return null;
     }
   };
 
-  const writeSavedSessionScrollTop = (id: number, scrollTop: number) => {
-    const normalized = Math.max(0, Math.round(scrollTop));
-    if (lastSavedScrollTopRef.current === normalized) return;
-    lastSavedScrollTopRef.current = normalized;
+  const writeSavedSessionScrollAnchor = (id: number, sessionExerciseKey: string | null) => {
     try {
-      window.localStorage.setItem(getSessionScrollStorageKey(id), String(normalized));
+      if (!sessionExerciseKey) {
+        window.localStorage.removeItem(getSessionScrollAnchorStorageKey(id));
+        return;
+      }
+      window.localStorage.setItem(getSessionScrollAnchorStorageKey(id), sessionExerciseKey);
     } catch {
       // Ignore storage errors.
+    }
+  };
+
+  const persistCollapsedExercises = (id: number, value: Record<string, boolean>) => {
+    try {
+      window.localStorage.setItem(`${SESSION_COLLAPSED_STORAGE_KEY_PREFIX}${id}`, JSON.stringify(value));
+    } catch {
+      // Ignore storage errors (quota/private mode).
+    }
+  };
+
+  const buildCollapsedExercisesWithCompleted = (
+    exercises: SessionExercise[],
+    currentCollapsed: Record<string, boolean>
+  ) => {
+    let nextCollapsed = currentCollapsed;
+    for (const exercise of exercises) {
+      const isCompletedExercise = exercise.sets.length > 0 && exercise.sets.every((set) => set.completed);
+      if (!isCompletedExercise || currentCollapsed[exercise.sessionExerciseKey] === true) continue;
+      if (nextCollapsed === currentCollapsed) {
+        nextCollapsed = { ...currentCollapsed };
+      }
+      nextCollapsed[exercise.sessionExerciseKey] = true;
+    }
+    return nextCollapsed;
+  };
+
+  const findCenteredSessionExerciseKey = (exercises: SessionExercise[]) => {
+    const viewportCenter = window.innerHeight / 2;
+    let nearestKey: string | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const exercise of exercises) {
+      const card = exerciseCardRefs.current[exercise.sessionExerciseKey];
+      if (!card) continue;
+      const rect = card.getBoundingClientRect();
+      if (rect.top <= viewportCenter && rect.bottom >= viewportCenter) {
+        return exercise.sessionExerciseKey;
+      }
+      const distance = Math.abs(rect.top + rect.height / 2 - viewportCenter);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestKey = exercise.sessionExerciseKey;
+      }
+    }
+    return nearestKey;
+  };
+
+  const restoreCenteredSessionExercise = (sessionExerciseKey: string) => {
+    const scrollRoot = getPageScrollRoot();
+    const card = exerciseCardRefs.current[sessionExerciseKey];
+    if (!scrollRoot || !card) {
+      return false;
+    }
+
+    const viewportHeight = window.innerHeight || scrollRoot.clientHeight || 0;
+    const viewportCenter = viewportHeight / 2;
+    const rect = card.getBoundingClientRect();
+    const currentCardCenter = rect.top + rect.height / 2;
+    const maxTop = Math.max(0, scrollRoot.scrollHeight - viewportHeight);
+    const targetTop = Math.max(0, Math.min(maxTop, scrollRoot.scrollTop + currentCardCenter - viewportCenter));
+    scrollRoot.scrollTop = targetTop;
+
+    const nextRect = card.getBoundingClientRect();
+    const nextCardCenter = nextRect.top + nextRect.height / 2;
+    return Math.abs(nextCardCenter - viewportCenter) < 2;
+  };
+
+  const scheduleRestoreCenteredSessionExercise = (sessionExerciseKey: string, onDone?: () => void) => {
+    let frameId = 0;
+    let attempts = 0;
+    let cancelled = false;
+
+    const cancel = () => {
+      cancelled = true;
+      if (frameId) window.cancelAnimationFrame(frameId);
+    };
+
+    const tryRestore = () => {
+      if (cancelled) {
+        return;
+      }
+      attempts += 1;
+      const didRestore = restoreCenteredSessionExercise(sessionExerciseKey);
+      if (didRestore || attempts >= 120) {
+        onDone?.();
+        return;
+      }
+      frameId = window.requestAnimationFrame(tryRestore);
+    };
+
+    frameId = window.requestAnimationFrame(() => {
+      frameId = window.requestAnimationFrame(tryRestore);
+    });
+
+    const abortOnUserScrollIntent = () => {
+      cancel();
+    };
+
+    window.addEventListener("wheel", abortOnUserScrollIntent, { passive: true });
+    window.addEventListener("touchstart", abortOnUserScrollIntent, { passive: true });
+    window.addEventListener("pointerdown", abortOnUserScrollIntent, { passive: true });
+
+    return () => {
+      window.removeEventListener("wheel", abortOnUserScrollIntent);
+      window.removeEventListener("touchstart", abortOnUserScrollIntent);
+      window.removeEventListener("pointerdown", abortOnUserScrollIntent);
+      cancel();
+    };
+  };
+
+  const persistSessionExitState = (syncState = true) => {
+    if (Number.isNaN(numericSessionId) || latestLoadedCollapsedStateSessionIdRef.current !== numericSessionId) return;
+    writeSavedSessionScrollAnchor(
+      numericSessionId,
+      findCenteredSessionExerciseKey(latestSessionExercisesRef.current)
+    );
+    const currentCollapsed = latestCollapsedExercisesRef.current;
+    const nextCollapsed = buildCollapsedExercisesWithCompleted(latestSessionExercisesRef.current, currentCollapsed);
+    if (nextCollapsed === currentCollapsed) return;
+    latestCollapsedExercisesRef.current = nextCollapsed;
+    persistCollapsedExercises(numericSessionId, nextCollapsed);
+    if (syncState) {
+      setCollapsedExercises(nextCollapsed);
     }
   };
 
@@ -678,6 +843,10 @@ export function SessionPage() {
   }, [numericSessionId]);
 
   useEffect(() => {
+    setAdoptedPreviousExerciseKeys([]);
+  }, [numericSessionId]);
+
+  useEffect(() => {
     return () => {
       clearAllExerciseCompletionFeedback(false);
       exerciseDoneBadgeRefs.current = {};
@@ -695,21 +864,6 @@ export function SessionPage() {
       stopReorderMode();
     }
   }, [isReorderMode, sessionExercises.length]);
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    if (isDraggingExercise) {
-      document.body.style.overflow = "hidden";
-      document.body.style.touchAction = "none";
-    } else {
-      document.body.style.overflow = "";
-      document.body.style.touchAction = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-      document.body.style.touchAction = "";
-    };
-  }, [isDraggingExercise]);
 
   useEffect(() => {
     const previous = previousExerciseCompletionFeedbackRef.current;
@@ -749,15 +903,20 @@ export function SessionPage() {
 
   useEffect(() => {
     if (Number.isNaN(numericSessionId) || loadedCollapsedStateSessionId !== numericSessionId) return;
-    try {
-      window.localStorage.setItem(
-        `${SESSION_COLLAPSED_STORAGE_KEY_PREFIX}${numericSessionId}`,
-        JSON.stringify(collapsedExercises)
-      );
-    } catch {
-      // Ignore storage errors (quota/private mode).
-    }
+    persistCollapsedExercises(numericSessionId, collapsedExercises);
   }, [collapsedExercises, loadedCollapsedStateSessionId, numericSessionId]);
+
+  useEffect(() => {
+    latestCollapsedExercisesRef.current = collapsedExercises;
+  }, [collapsedExercises]);
+
+  useEffect(() => {
+    latestSessionExercisesRef.current = sessionExercises;
+  }, [sessionExercises]);
+
+  useEffect(() => {
+    latestLoadedCollapsedStateSessionIdRef.current = loadedCollapsedStateSessionId;
+  }, [loadedCollapsedStateSessionId]);
 
   useEffect(() => {
     const onCompleteRequest = (event: Event) => {
@@ -800,43 +959,31 @@ export function SessionPage() {
     );
   }, [sessionExerciseOrderKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (Number.isNaN(numericSessionId)) return;
-    lastSavedScrollTopRef.current = readSavedSessionScrollTop(numericSessionId);
-    let rafId = 0;
-    const saveScrollPosition = () => {
-      rafId = 0;
-      const root = getPageScrollRoot();
-      if (root) writeSavedSessionScrollTop(numericSessionId, root.scrollTop);
+    let cancelRestore: (() => void) | null = null;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        persistSessionExitState();
+        return;
+      }
+      const savedSessionExerciseKey = readSavedSessionScrollAnchor(numericSessionId);
+      if (!savedSessionExerciseKey) return;
+      cancelRestore?.();
+      cancelRestore = scheduleRestoreCenteredSessionExercise(savedSessionExerciseKey);
     };
-    const onScroll = () => { if (!rafId) rafId = window.requestAnimationFrame(saveScrollPosition); };
-    const saveNow = () => { if (rafId) { window.cancelAnimationFrame(rafId); rafId = 0; } saveScrollPosition(); };
-    const onVisibilityChange = () => { if (document.visibilityState === "hidden") saveNow(); };
+    const onPageHide = () => {
+      persistSessionExitState();
+    };
 
-    const scrollRoot = getPageScrollRoot();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    document.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("pagehide", saveNow);
     document.addEventListener("visibilitychange", onVisibilityChange);
-    if (scrollRoot && scrollRoot !== document.documentElement && scrollRoot !== document.body) {
-      scrollRoot.addEventListener("scroll", onScroll, { passive: true });
-    }
+    window.addEventListener("pagehide", onPageHide);
+
     return () => {
-      window.removeEventListener("scroll", onScroll);
-      document.removeEventListener("scroll", onScroll);
-      if (scrollRoot && scrollRoot !== document.documentElement && scrollRoot !== document.body) {
-        scrollRoot.removeEventListener("scroll", onScroll);
-      }
-      if (rafId) window.cancelAnimationFrame(rafId);
-      window.removeEventListener("pagehide", saveNow);
       document.removeEventListener("visibilitychange", onVisibilityChange);
-      const currentTop = getPageScrollRoot()?.scrollTop;
-      if (typeof currentTop === "number") {
-        const rounded = Math.max(0, Math.round(currentTop));
-        if (!(rounded === 0 && (lastSavedScrollTopRef.current ?? 0) > 0)) {
-          writeSavedSessionScrollTop(numericSessionId, rounded);
-        }
-      }
+      window.removeEventListener("pagehide", onPageHide);
+      cancelRestore?.();
+      persistSessionExitState(false);
     };
   }, [numericSessionId]);
 
@@ -847,27 +994,12 @@ export function SessionPage() {
       restoredScrollLocationKeyRef.current === location.key
     ) return;
 
-    const savedScrollTop = readSavedSessionScrollTop(numericSessionId);
-    if (savedScrollTop === null) return;
+    const savedSessionExerciseKey = readSavedSessionScrollAnchor(numericSessionId);
+    if (!savedSessionExerciseKey) return;
 
-    let frameId = 0;
-    let attempts = 0;
-    const tryRestore = () => {
-      attempts += 1;
-      const root = getPageScrollRoot();
-      if (!root) { restoredScrollLocationKeyRef.current = location.key; return; }
-      const viewportHeight = window.innerHeight || root.clientHeight || 0;
-      const maxTop = Math.max(0, root.scrollHeight - viewportHeight);
-      const targetTop = Math.min(savedScrollTop, maxTop);
-      root.scrollTop = targetTop;
-      if (Math.abs(root.scrollTop - targetTop) < 2 && (maxTop >= savedScrollTop || attempts >= 120)) {
-        restoredScrollLocationKeyRef.current = location.key;
-        return;
-      }
-      frameId = window.requestAnimationFrame(tryRestore);
-    };
-    frameId = window.requestAnimationFrame(() => { frameId = window.requestAnimationFrame(tryRestore); });
-    return () => { if (frameId) window.cancelAnimationFrame(frameId); };
+    return scheduleRestoreCenteredSessionExercise(savedSessionExerciseKey, () => {
+      restoredScrollLocationKeyRef.current = location.key;
+    });
   }, [loadedCollapsedStateSessionId, location.key, numericSessionId, payload, sessionExerciseOrderKey]);
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -887,7 +1019,7 @@ export function SessionPage() {
             <div className="flex flex-wrap items-center gap-2">
               <span className={ACTIVE_SESSION_PILL_CLASS}>{t("activeSession")}</span>
               <span className="text-xs text-muted-foreground">
-                {t("since")} {formatSessionDateLabel(payload.session.startedAt, language)}
+                {t("since")} {formatSessionDateLabel(payload.session.startedAt, language, { omitTodayLabel: true })}
               </span>
             </div>
           )}
@@ -957,7 +1089,7 @@ export function SessionPage() {
               exercise.templateExerciseId !== undefined
                 ? payload.previousSummary?.templateExerciseSets[exercise.templateExerciseId]
                 : undefined;
-            const lastSessionSetSummary = (() => {
+            const lastSessionSets = (() => {
               if (!lastTemplateSets || lastTemplateSets.length === 0) return undefined;
               const sortedPrev = [...lastTemplateSets].sort((a, b) => a.templateSetOrder - b.templateSetOrder);
               const currentSets = exercise.sets; // already sorted by templateSetOrder
@@ -966,15 +1098,16 @@ export function SessionPage() {
                 sortedPrev.some((prevSet, i) => {
                   const currSet = currentSets[i];
                   if (!currSet) return true;
-                  const prevReps = prevSet.actualReps ?? prevSet.targetReps;
-                  const prevWeight = prevSet.actualWeight ?? prevSet.targetWeight;
-                  const currentReps = currSet.actualReps ?? currSet.targetReps;
-                  const currentWeight = currSet.actualWeight ?? currSet.targetWeight;
+                  const prevReps = getSetRepsValue(prevSet);
+                  const prevWeight = getSetWeightValue(prevSet);
+                  const currentReps = getSetRepsValue(currSet);
+                  const currentWeight = getSetWeightValue(currSet);
                   return prevReps !== currentReps || prevWeight !== currentWeight;
                 });
               if (!hasDeviation) return undefined;
-              return sortedPrev
-                .map((s) => `${s.actualReps ?? s.targetReps} × ${s.actualWeight ?? s.targetWeight} ${weightUnitLabel}`);
+              return sortedPrev.map((set) =>
+                normalizeSessionExerciseSet(set, { negativeWeightEnabled: exercise.negativeWeightEnabled })
+              );
             })();
 
             return (
@@ -992,7 +1125,7 @@ export function SessionPage() {
                     isCollapsed={isCollapsed}
                     showDoneBadge={showDoneBadge}
                     sessionIsCompleted={isCompleted}
-                    lastSessionSetSummary={lastSessionSetSummary}
+                    lastSessionSets={lastSessionSets}
                     weightUnitLabel={weightUnitLabel}
                     focusedWeightSetId={focusedWeightSetId}
                     badgeRef={(node) => { exerciseDoneBadgeRefs.current[exercise.sessionExerciseKey] = node; }}
@@ -1026,19 +1159,60 @@ export function SessionPage() {
         </SortableContext>
       </DndContext>
 
-      {!isCompleted && payload.previousSummary && payload.previousSummary.extraExercises.length > 0 && (
-        <div className="space-y-1 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground">
-          <p className="font-medium">{t("lastSessionExtras")}</p>
-          {payload.previousSummary.extraExercises.map((item, i) => (
-            <p key={i}>
-              {item.name}
-              {item.sets.length > 0 && (
-                <span className="ml-1 opacity-70">
-                  ({item.sets.map((s) => `${s.actualReps ?? s.targetReps} × ${s.actualWeight ?? s.targetWeight} ${weightUnitLabel}`).join(" | ")})
-                </span>
-              )}
-            </p>
-          ))}
+      {!isCompleted && availablePreviousExtraExercises.length > 0 && (
+        <div className="space-y-2">
+          <p className={`${LAST_SESSION_SECTION_LABEL_CLASS} inline-flex items-center gap-1.5`}>
+            <History className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>{t("lastSessionExtras")}</span>
+          </p>
+          {availablePreviousExtraExercises.map(({ item, sourceIndex, key }) => {
+            return (
+              <div
+                key={`${item.name}-${sourceIndex}`}
+                className="rounded-lg border bg-secondary/45 px-3 py-2"
+              >
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className={EXTRA_PREVIOUS_EXERCISE_ADD_BUTTON_CLASS}
+                    aria-label={t("addExercise")}
+                    title={t("addExercise")}
+                    onClick={async () => {
+                      try {
+                        await addSessionExerciseFromPrevious(numericSessionId, item.sets);
+                        setAdoptedPreviousExerciseKeys((prev) => [...prev, key]);
+                      } catch {
+                        toast.error("Could not add exercise");
+                      }
+                    }}
+                  >
+                    <Plus className="h-4 w-4 text-foreground/55" />
+                  </Button>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-sm font-semibold leading-tight tracking-tight text-muted-foreground/70">{item.name}</p>
+                    {item.sets.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {item.sets.map((set, setIndex) => (
+                        <span
+                          key={`${item.name}-${sourceIndex}-${setIndex}`}
+                          className={LAST_SESSION_SUMMARY_PILL_CLASS}
+                        >
+                          <SetValueDisplay
+                            reps={getSetRepsValue(set)}
+                            weight={getSetWeightValue(set)}
+                            weightUnitLabel={weightUnitLabel}
+                            iconClassName="text-muted-foreground/70"
+                          />
+                        </span>
+                      ))}
+                    </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

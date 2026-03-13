@@ -1,11 +1,13 @@
 import type { RefCallback } from "react";
-import { Check, GripVertical, Trash2 } from "lucide-react";
+import { Check, GripVertical, History, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SetValueDisplay } from "@/components/weights/weight-display";
 import type { ExerciseAiInfo, SessionExerciseSet } from "@/db/types";
 import type { TranslationKey } from "@/i18n/translations";
 import { addSessionSet, removeSessionSet } from "@/db/repository";
+import { getSetRepsValue, getSetWeightValue } from "@/lib/utils";
 import { SetRow } from "./set-row";
 import { ExerciseNoteTag } from "./exercise-note-tag";
 
@@ -31,7 +33,7 @@ interface ExerciseCardProps {
   isCollapsed: boolean;
   showDoneBadge: boolean;
   sessionIsCompleted: boolean;
-  lastSessionSetSummary?: string[];
+  lastSessionSets?: SessionExerciseSet[];
   weightUnitLabel: string;
   focusedWeightSetId: number | null;
   cardRef?: RefCallback<HTMLDivElement>;
@@ -53,7 +55,7 @@ export function ExerciseCard({
   isCollapsed,
   showDoneBadge,
   sessionIsCompleted,
-  lastSessionSetSummary,
+  lastSessionSets,
   weightUnitLabel,
   focusedWeightSetId,
   cardRef,
@@ -77,27 +79,29 @@ export function ExerciseCard({
     >
       <CardHeader className="space-y-2">
         <div className="flex min-h-5 items-start justify-between gap-2">
-          <div className="flex min-w-0 flex-1 items-start gap-0.5">
+          <div className="flex min-w-0 flex-1 items-center gap-1">
             <button
               type="button"
-              className="flex min-w-0 flex-1 items-start gap-0.5 text-left"
+              className="flex min-w-0 max-w-full items-center gap-0.5 text-left"
               disabled={reorderMode}
               aria-label={isCollapsed ? t("expandExercise") : t("collapseExercise")}
               onClick={onToggleCollapse}
             >
               <svg
                 viewBox="0 0 24 24"
-                className={`mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+                className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
                 aria-hidden="true"
               >
                 <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              <CardTitle className="min-w-0 flex-1 text-left leading-tight">{exercise.exerciseName}</CardTitle>
+              <CardTitle className="min-w-0 truncate text-left leading-tight">{exercise.exerciseName}</CardTitle>
             </button>
-            {exercise.x2Enabled && (
-              <span className="ml-1 rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-                ×2
-              </span>
+            {!reorderMode && (
+              <ExerciseInfoDialogButton
+                exerciseName={exercise.exerciseName}
+                aiInfo={exercise.exerciseAiInfo}
+                className="shrink-0 self-center text-muted-foreground/70"
+              />
             )}
           </div>
           <div className="flex items-center gap-1">
@@ -112,12 +116,6 @@ export function ExerciseCard({
             )}
             {allCompleted && (
               <div className="flex items-center gap-1">
-                {sessionIsCompleted && (
-                  <ExerciseInfoDialogButton
-                    exerciseName={exercise.exerciseName}
-                    aiInfo={exercise.exerciseAiInfo}
-                  />
-                )}
                 <span
                   ref={badgeRef}
                   className={`${SUCCESS_CIRCLE_CLASS} transition-all duration-200 ease-out ${
@@ -129,9 +127,6 @@ export function ExerciseCard({
                 </span>
               </div>
             )}
-            {!allCompleted && sessionIsCompleted && (
-              <ExerciseInfoDialogButton exerciseName={exercise.exerciseName} aiInfo={exercise.exerciseAiInfo} />
-            )}
           </div>
         </div>
 
@@ -139,16 +134,12 @@ export function ExerciseCard({
 
       <div className={`grid transition-all duration-200 ${isCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}>
         <div className="overflow-hidden">
-          {exercise.exerciseNotes && (
-            <div className="px-4 pb-2">
-              <ExerciseNoteTag note={exercise.exerciseNotes} />
-            </div>
-          )}
-          <CardContent className="space-y-2">
+          <CardContent className={`space-y-2 ${exercise.x2Enabled ? "pt-1" : ""}`}>
             {exercise.sets.map((set) => (
               <SetRow
                 key={set.id}
                 set={set}
+                x2Enabled={exercise.x2Enabled}
                 negativeWeightEnabled={exercise.negativeWeightEnabled}
                 sessionIsCompleted={sessionIsCompleted}
                 weightUnitLabel={weightUnitLabel}
@@ -161,58 +152,71 @@ export function ExerciseCard({
               />
             ))}
 
-            {lastSessionSetSummary && lastSessionSetSummary.length > 0 && (
-              <div className="space-y-1 pt-1">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
-                  {t("lastSession")}
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {lastSessionSetSummary.map((summary, index) => (
-                    <span
-                      key={`${summary}-${index}`}
-                      className="inline-flex rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70"
-                    >
-                      {summary}
-                    </span>
-                  ))}
+            {(exercise.exerciseNotes || (lastSessionSets && lastSessionSets.length > 0) || !sessionIsCompleted) && (
+              <div className="border-t pt-2">
+                <div className="flex items-center gap-2">
+                  {lastSessionSets && lastSessionSets.length > 0 ? (
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <History className="h-3.5 w-3.5 text-muted-foreground/70" aria-label={t("lastSession")} />
+                        {lastSessionSets.map((summarySet, index) => (
+                          <span
+                            key={summarySet.id ?? `${exercise.sessionExerciseKey}-${index}`}
+                            className="inline-flex rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70"
+                          >
+                            <SetValueDisplay
+                              reps={getSetRepsValue(summarySet)}
+                              weight={getSetWeightValue(summarySet)}
+                              weightUnitLabel={weightUnitLabel}
+                              iconClassName="text-muted-foreground/70"
+                            />
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : exercise.exerciseNotes ? (
+                    <div className="min-w-0 flex-1">
+                      <ExerciseNoteTag note={exercise.exerciseNotes} className="align-middle" />
+                    </div>
+                  ) : (
+                    <div className="min-w-0 flex-1" />
+                  )}
+                  {!sessionIsCompleted && (
+                    <div className="ml-auto flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
+                        aria-label={t("removeExercise")}
+                        onClick={async () => {
+                          const sorted = [...exercise.sets].sort((a, b) => b.templateSetOrder - a.templateSetOrder);
+                          if (sorted.length > 1) {
+                            await removeSessionSet(sorted[0].id!);
+                            return;
+                          }
+                          onRequestDeleteExercise(exercise.sessionExerciseKey);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="rounded-md text-lg leading-none"
+                        onClick={async () => {
+                          await addSessionSet(sessionId, exercise.sessionExerciseKey);
+                        }}
+                        aria-label={t("addSet")}
+                      >
+                        +
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
-
-            {!sessionIsCompleted && (
-              <div className="flex items-center gap-2 border-t pt-2">
-                <ExerciseInfoDialogButton
-                  exerciseName={exercise.exerciseName}
-                  aiInfo={exercise.exerciseAiInfo}
-                  className="h-8 w-8 rounded-md text-muted-foreground/70"
-                />
-                <div className="flex-1" />
-                <button
-                  type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
-                  aria-label={t("removeExercise")}
-                  onClick={async () => {
-                    const sorted = [...exercise.sets].sort((a, b) => b.templateSetOrder - a.templateSetOrder);
-                    if (sorted.length > 1) {
-                      await removeSessionSet(sorted[0].id!);
-                      return;
-                    }
-                    onRequestDeleteExercise(exercise.sessionExerciseKey);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="rounded-md text-lg leading-none"
-                  onClick={async () => {
-                    await addSessionSet(sessionId, exercise.sessionExerciseKey);
-                  }}
-                  aria-label={t("addSet")}
-                >
-                  +
-                </Button>
+                {lastSessionSets && lastSessionSets.length > 0 && exercise.exerciseNotes && (
+                  <div className="pt-1.5">
+                    <ExerciseNoteTag note={exercise.exerciseNotes} className="align-middle" />
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

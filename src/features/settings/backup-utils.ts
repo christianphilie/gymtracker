@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { APP_DATA_EXPORT_VERSION, DB_SCHEMA_VERSION } from "@/app/version";
 import type { AppDataSnapshot } from "@/db/repository";
+import { WORKOUT_SCHEDULE_DAYS } from "@/db/types";
 import { isCanonicalMuscleKey, type CanonicalMuscleKey } from "@/lib/muscle-taxonomy";
 import { isWorkoutIconKey, type WorkoutIconKey } from "@/lib/workout-icons";
 
@@ -21,6 +22,7 @@ const settingsSchema = z.object({
   lockerNumber: z.string().optional(),
   lockerNumberUpdatedAt: z.string().optional(),
   colorScheme: z.enum(["light", "dark", "system"]).optional(),
+  weekStartsOn: z.enum(["mon", "sun"]).optional(),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1)
 });
@@ -29,6 +31,7 @@ const workoutSchema = z.object({
   id: z.number().int(),
   name: z.string().min(1),
   icon: z.custom<WorkoutIconKey>((value) => isWorkoutIconKey(value)).optional(),
+  scheduledDays: z.array(z.enum(WORKOUT_SCHEDULE_DAYS)).optional(),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1),
   archivedAt: z.string().nullable().optional()
@@ -61,6 +64,7 @@ const exerciseSchema = z.object({
   order: z.number().int(),
   isTemplate: z.boolean().optional(),
   x2Enabled: z.boolean().optional(),
+  negativeWeightEnabled: z.boolean().optional(),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1)
 });
@@ -70,7 +74,7 @@ const exerciseTemplateSetSchema = z.object({
   exerciseId: z.number().int(),
   order: z.number().int(),
   targetReps: z.number().int().positive(),
-  targetWeight: z.number().nonnegative()
+  targetWeight: z.number()
 });
 
 const sessionSchema = z.object({
@@ -111,11 +115,12 @@ const sessionExerciseSetSchema = z.object({
   exerciseOrder: z.number().int(),
   isTemplateExercise: z.boolean(),
   x2Enabled: z.boolean().optional(),
+  negativeWeightEnabled: z.boolean().optional(),
   templateSetOrder: z.number().int(),
   targetReps: z.number().int().positive(),
-  targetWeight: z.number().nonnegative(),
+  targetWeight: z.number(),
   actualReps: z.number().int().positive().optional(),
-  actualWeight: z.number().nonnegative().optional(),
+  actualWeight: z.number().optional(),
   completed: z.boolean(),
   completedAt: z.string().min(1).optional()
 });

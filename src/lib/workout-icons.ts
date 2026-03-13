@@ -1,5 +1,5 @@
-import type { WorkoutIconKey } from "@/db/types";
-export type { WorkoutIconKey } from "@/db/types";
+import type { WorkoutIconKey } from "../db/types";
+export type { WorkoutIconKey } from "../db/types";
 
 export const WORKOUT_ICON_KEYS = [
   "dumbbell",

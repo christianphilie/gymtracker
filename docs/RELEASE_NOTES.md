@@ -4,6 +4,66 @@
 
 ---
 
+## 1.5.0 - 2026-03-12
+
+### Added
+1. Workout editing now supports weekday-based planning with multi-select day chips, persisted `scheduledDays`, import/backup compatibility, and a dedicated migration for existing data.
+2. Statistics now include a dedicated "Workout Data" mode in the shared `/statistics` view, including a workout picker in the header and direct deep links to individual sessions.
+3. Yearly session stats now support a fourth metric for weekly moved weight volume.
+
+### Changed
+1. Dashboard recommendation logic now prefers all workouts planned for the current weekday and marks them as planned on the home screen before falling back to the oldest inactive workout.
+2. Workout-data history cards now use only `Today` / `Yesterday` as relative dates; older entries render with absolute dates and weekdays.
+3. Monthly calendar session markers were restyled to use the same emerald language as the yearly chart bars, with larger stacked markers and an opaque background-to-green gradient for cleaner overlap.
+4. Workout-data navigation from dashboard, weekly, monthly, and legacy history entry points now resolves to the same embedded statistics view and auto-expands/scrolls the targeted session.
+
+### Fixed
+1. The planning help tooltip in the workout editor now anchors directly to the icon without affecting the title spacing.
+2. Home-screen planned/recommended badges now use the intended static pill styling without unintended hover or border regressions.
+
+### Docs
+1. Technical specification was updated for workout planning, unified workout-data statistics routing, and dashboard recommendation behavior.
+
+---
+
+## 1.4.1 - 2026-03-12
+
+### Fixed
+1. Production AI import on Vercel now resolves its local API runtime reliably again by keeping the runtime logic inside `api/` and importing it with an explicit `.js` ESM path.
+
+---
+
+## 1.4.0 - 2026-03-12
+
+### Changed
+1. Workout import now uses a single AI-assisted flow instead of separate text/manual tabs: users can write, paste, dictate, and optionally upload a PDF/photo in one place.
+2. The `/api/ai-import` endpoint was migrated from Groq to Gemini with schema-constrained JSON output and prompt rules for `x2Enabled`, bodyweight, and assisted/negative-weight exercises.
+3. Import repair/schema handling now also supports `negativeWeightEnabled` plus negative set weights for assisted exercises.
+4. Privacy copy and import UX text were updated to explain that AI-import content is sent to Google via the Gemini API.
+
+### Docs
+1. README, product/tech notes, and import schema documentation were updated to reflect the new Gemini-based single-flow import.
+
+---
+
+## 1.3.5 - 2026-03-12
+
+### Added
+1. Workout history now includes an inline progress chart with session/week aggregation and set/reps/weight metric switching, plus a shared chart UI primitive built on `recharts`.
+
+### Changed
+1. The workout-history route is now presented as "Workout Data" in the shell/dashboard entry points, and weekly/dashboard summary cards plus segmented controls were visually refined for a cleaner emerald data style.
+2. Weight and set displays across active session, workout editor, session history, last-session pills, completion stats, and compact set cards now use shared display/input components so bodyweight and assisted values render consistently.
+
+### Fixed
+1. Negative/bodyweight/assisted exercise handling is now normalized across active sessions, workout editing, completed-session editing, history summaries, dashboard totals, and muscle-group statistics, including legacy data where assisted exercises were only identifiable via name or AI match metadata.
+2. Previous-template hints and adopted previous exercises now preserve bodyweight and assisted-weight semantics instead of falling back to raw stored values in some older sessions.
+
+### Docs
+1. Project status backlog now explicitly tracks test coverage for legacy assisted/bodyweight normalization across history and statistics paths.
+
+---
+
 ## 1.3.3 - 2026-03-05
 
 ### Changed

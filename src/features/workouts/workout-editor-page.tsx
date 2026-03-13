@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowUpDown, Check, ChevronDown, GripVertical, PersonStanding, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, CircleQuestionMark, GripVertical, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { DecimalInput } from "@/components/forms/decimal-input";
 import { ExerciseInfoDialogButton } from "@/components/exercises/exercise-info-dialog-button";
+import { WeightInput } from "@/components/weights/weight-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -21,8 +22,9 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { WorkoutIconGlyph } from "@/components/workouts/workout-name-label";
 import {
   createWorkout,
@@ -40,7 +42,13 @@ import {
   matchExerciseCatalogEntry
 } from "@/lib/exercise-catalog";
 import { isCanonicalMuscleKey } from "@/lib/muscle-taxonomy";
+import {
+  formatWorkoutScheduleDayLabel,
+  getOrderedWorkoutScheduleDays,
+  normalizeWorkoutScheduledDays
+} from "@/lib/workout-schedule";
 import { WORKOUT_ICON_OPTIONS } from "@/lib/workout-icons";
+import { cn } from "@/lib/utils";
 
 interface WorkoutEditorPageProps {
   mode: "create" | "edit";
@@ -65,6 +73,7 @@ function createEmptyDraft(): WorkoutDraft {
   return {
     name: "",
     icon: undefined,
+    scheduledDays: [],
     exercises: [
       {
         name: "",
@@ -207,6 +216,144 @@ function mergeExerciseInfosByExerciseName(
   return next;
 }
 
+interface InlineHelpButtonProps {
+  buttonLabel: string;
+  children: ReactNode;
+  buttonClassName?: string;
+  containerClassName?: string;
+  popupClassName?: string;
+}
+
+function InlineHelpButton({
+  buttonLabel,
+  children,
+  buttonClassName,
+  containerClassName,
+  popupClassName
+}: InlineHelpButtonProps) {
+  const [open, setOpen] = useState(false);
+  const [supportsHover, setSupportsHover] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(hover: hover)");
+    const update = () => setSupportsHover(mediaQuery.matches);
+    update();
+
+    mediaQuery.addEventListener?.("change", update);
+    return () => mediaQuery.removeEventListener?.("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!open || typeof document === "undefined") {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (containerRef.current?.contains(event.target as Node)) {
+        return;
+      }
+      setOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={containerRef}
+      className={cn("relative inline-flex items-center self-center", containerClassName)}
+      onMouseEnter={() => {
+        if (supportsHover) {
+          setOpen(true);
+        }
+      }}
+      onMouseLeave={() => {
+        if (supportsHover) {
+          setOpen(false);
+        }
+      }}
+      onBlur={(event) => {
+        if (containerRef.current?.contains(event.relatedTarget as Node | null)) {
+          return;
+        }
+        setOpen(false);
+      }}
+    >
+      <button
+        type="button"
+        className={cn(
+          "inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:bg-secondary hover:text-foreground",
+          buttonClassName
+        )}
+        aria-label={buttonLabel}
+        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
+        onFocus={() => setOpen(true)}
+      >
+        <CircleQuestionMark className="h-4 w-4" />
+      </button>
+      {open && (
+        <div
+          className={cn(
+            "absolute bottom-full left-1/2 z-20 mb-2 w-64 -translate-x-1/2 rounded-xl border border-border/80 bg-background p-3 shadow-xl",
+            popupClassName
+          )}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ExerciseToggleHelpButtonProps {
+  buttonLabel: string;
+  x2Description: string;
+  negativeWeightDescription: string;
+}
+
+function ExerciseToggleHelpButton({
+  buttonLabel,
+  x2Description,
+  negativeWeightDescription
+}: ExerciseToggleHelpButtonProps) {
+  return (
+    <InlineHelpButton buttonLabel={buttonLabel} popupClassName="w-72">
+      <div className="flex flex-col gap-2.5">
+        <div className="flex items-start gap-2">
+          <span className="inline-flex min-w-8 items-center justify-center rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+            2×
+          </span>
+          <p className="pt-px text-[11px] leading-snug text-muted-foreground">{x2Description}</p>
+        </div>
+        <div className="flex items-start gap-2">
+          <span className="inline-flex min-w-8 items-center justify-center rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+            −
+          </span>
+          <p className="pt-px text-[11px] leading-snug text-muted-foreground">{negativeWeightDescription}</p>
+        </div>
+      </div>
+    </InlineHelpButton>
+  );
+}
+
 function buildLocalExerciseInfoApiItems(language: "de" | "en", exerciseNames: string[]): ExerciseInfoApiItem[] {
   return exerciseNames.flatMap((inputName) => {
     const match = matchExerciseCatalogEntry(inputName);
@@ -243,7 +390,7 @@ function markAutoAttempts(
 export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
   const { workoutId } = useParams();
   const navigate = useNavigate();
-  const { t, weightUnitLabel, language } = useSettings();
+  const { t, weightUnitLabel, language, weekStartsOn } = useSettings();
   const exerciseUiKeyCounterRef = useRef(0);
   const createExerciseUiKey = () => {
     exerciseUiKeyCounterRef.current += 1;
@@ -295,7 +442,9 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
       setDraft({
         name: existing.workout.name,
         icon: existing.workout.icon,
+        scheduledDays: existing.workout.scheduledDays ?? [],
         exercises: existing.exercises.map((item) => ({
+          id: item.exercise.id,
           name: item.exercise.name,
           notes: item.exercise.notes ?? "",
           aiInfo: item.exercise.aiInfo,
@@ -328,6 +477,14 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         exercise.sets.every((set) => set.targetReps > 0 && (exercise.negativeWeightEnabled ? set.targetWeight <= 0 : set.targetWeight >= 0))
     );
   }, [draft]);
+  const workoutScheduleOptions = useMemo(
+    () =>
+      getOrderedWorkoutScheduleDays(weekStartsOn).map((day) => ({
+        value: day,
+        label: formatWorkoutScheduleDayLabel(day, language)
+      })),
+    [language, weekStartsOn]
+  );
 
   const handleGenerateExerciseInfo = useCallback(async (options: GenerateExerciseInfoOptions = {}) => {
     const forceRefresh = options.forceRefresh === true;
@@ -455,16 +612,6 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         });
 
         if (!response.ok) {
-          let errorCode = "";
-          let errorDetail = "";
-          try {
-            const errorPayload = (await response.json()) as { error?: string; detail?: string };
-            errorCode = typeof errorPayload.error === "string" ? errorPayload.error : "";
-            errorDetail = typeof errorPayload.detail === "string" ? errorPayload.detail : "";
-          } catch {
-            // ignore parse errors and fall back below
-          }
-
           // In local dev / API outages, fall back to local matching in the frontend.
           payload = {
             exercises: buildLocalExerciseInfoApiItems(language, requestNames),
@@ -480,13 +627,6 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
               markAutoAttempts(attemptedAutoExerciseInfoKeysRef, language, requestNames);
             } else {
               toast.error(t("exerciseInfoEndpointUnavailable"));
-            }
-            return;
-          } else if (errorCode.includes("GROQ_API_KEY") || errorDetail.includes("GROQ_API_KEY")) {
-            if (silent) {
-              markAutoAttempts(attemptedAutoExerciseInfoKeysRef, language, requestNames);
-            } else {
-              toast.error(t("exerciseInfoProviderNotConfigured"));
             }
             return;
           } else if (!silent) {
@@ -890,6 +1030,47 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardContent className="flex flex-col gap-3 pt-4">
+          <div className="relative">
+            <p className="pr-7 text-xs text-muted-foreground">{t("workoutScheduleDays")}</p>
+            <InlineHelpButton
+              buttonLabel={t("workoutScheduleDaysHelp")}
+              containerClassName="absolute right-0 top-1/2 -translate-y-1/2"
+              buttonClassName="h-5 w-5"
+              popupClassName="top-full right-0 bottom-auto left-auto mt-2 mb-0 w-56 translate-x-0"
+            >
+              <p className="text-[11px] leading-snug text-muted-foreground">{t("workoutScheduleDaysHelpDescription")}</p>
+            </InlineHelpButton>
+          </div>
+          <ToggleGroup
+            type="multiple"
+            variant="outline"
+            size="sm"
+            value={draft.scheduledDays ?? []}
+            onValueChange={(value) =>
+              setDraft((prev) => ({
+                ...prev,
+                scheduledDays: normalizeWorkoutScheduledDays(value)
+              }))
+            }
+            className="grid grid-cols-7 gap-1"
+            aria-label={t("workoutScheduleDays")}
+          >
+            {workoutScheduleOptions.map((day) => (
+              <ToggleGroupItem
+                key={day.value}
+                value={day.value}
+                className="min-w-0 border-border px-0 text-sm data-[state=on]:border-foreground data-[state=on]:bg-foreground data-[state=on]:text-background"
+                aria-label={day.label}
+              >
+                {day.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </CardContent>
+      </Card>
+
       <h2 className="text-base font-semibold">{t("exercises")}</h2>
 
       {draft.exercises.map((exercise, exerciseIndex) => {
@@ -930,28 +1111,32 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
             <CardHeader className="space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <button
-                    type="button"
-                    className="flex w-full items-start gap-0.5 text-left"
-                    onClick={() =>
-                      setCollapsedExercises((prev) => ({
-                        ...prev,
-                        [exerciseIndex]: !collapsed
-                      }))
-                    }
-                    aria-label={collapsed ? t("expandExercise") : t("collapseExercise")}
-                  >
-                    <ChevronDown className={`mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${collapsed ? "-rotate-90" : ""}`} />
-                    <CardTitle className="min-w-0 flex-1 text-left leading-tight">{title}</CardTitle>
-                  </button>
+                  <div className="flex min-w-0 items-center gap-1">
+                    <button
+                      type="button"
+                      className="flex min-w-0 max-w-full items-center gap-0.5 text-left"
+                      onClick={() =>
+                        setCollapsedExercises((prev) => ({
+                          ...prev,
+                          [exerciseIndex]: !collapsed
+                        }))
+                      }
+                      aria-label={collapsed ? t("expandExercise") : t("collapseExercise")}
+                    >
+                      <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${collapsed ? "-rotate-90" : ""}`} />
+                      <CardTitle className="min-w-0 truncate text-left leading-tight">{title}</CardTitle>
+                    </button>
+                    {!isReorderMode && (
+                      <ExerciseInfoDialogButton
+                        exerciseName={exercise.name.trim() || title}
+                        aiInfo={exercise.aiInfo}
+                        className="shrink-0 self-center text-muted-foreground/70"
+                      />
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-1">
-                  {exercise.x2Enabled && (
-                    <span className="rounded-full border border-border/70 bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-                      ×2
-                    </span>
-                  )}
                   {isReorderMode && <button
                     type="button"
                     draggable={true}
@@ -1096,12 +1281,85 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
 
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs text-muted-foreground">{t("sets")}</p>
-                    <div className="flex items-center gap-4">
-                      <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="font-mono">−{weightUnitLabel}</span>
-                        <Switch
-                          checked={exercise.negativeWeightEnabled ?? false}
-                          onCheckedChange={(checked) => {
+                  </div>
+                  {exercise.sets.map((set, setIndex) => (
+                    <div key={`set-${setIndex}`} className="relative grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 py-0.5">
+                        <div className="min-w-0">
+                          <div className="relative">
+                            <DecimalInput
+                              value={set.targetReps}
+                              min={1}
+                              step={1}
+                              className="pr-10"
+                              onCommit={(value) => {
+                                setDraft((prev) => {
+                                  const next = structuredClone(prev);
+                                  next.exercises[exerciseIndex].sets[setIndex].targetReps = value;
+                                  return next;
+                                });
+                              }}
+                            />
+                            <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">
+                              ×
+                            </div>
+                          </div>
+                        </div>
+
+                        {exercise.x2Enabled && (
+                          <span className="pointer-events-none absolute left-1/2 top-0 z-10 inline-flex -translate-x-1/2 -translate-y-[22%] items-center rounded-full border border-border/70 bg-background px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground shadow-sm">
+                            2×
+                          </span>
+                        )}
+
+                      <div className="min-w-0">
+                        <WeightInput
+                          value={set.targetWeight}
+                          negativeWeightEnabled={exercise.negativeWeightEnabled ?? false}
+                          weightUnitLabel={weightUnitLabel}
+                          focusedSetId={focusedWeightKey}
+                          setId={`${exerciseIndex}-${setIndex}`}
+                          onFocusChange={(id) => setFocusedWeightKey(typeof id === "string" ? id : null)}
+                          onCommit={(value) => {
+                            setDraft((prev) => {
+                              const next = structuredClone(prev);
+                              next.exercises[exerciseIndex].sets[setIndex].targetWeight = value;
+                              return next;
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="flex items-center gap-2 border-t pt-2">
+                    <div className="relative min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Tabs
+                          value={exercise.x2Enabled ? "2x" : "1x"}
+                          onValueChange={(value) => {
+                            setDraft((prev) => {
+                              const next = structuredClone(prev);
+                              next.exercises[exerciseIndex].x2Enabled = value === "2x";
+                              return next;
+                            });
+                          }}
+                        >
+                          <TabsList className="h-8 rounded-full bg-secondary/80 p-0.5">
+                            <TabsTrigger value="1x" className="h-6 min-w-7 rounded-full px-1.5 text-[11px]">
+                              1×
+                            </TabsTrigger>
+                            <TabsTrigger
+                              value="2x"
+                              className="h-6 min-w-7 rounded-full px-1.5 text-[11px] data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:ring-foreground"
+                            >
+                              2×
+                            </TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                        <Tabs
+                          value={exercise.negativeWeightEnabled ? "negative" : "positive"}
+                          onValueChange={(value) => {
+                            const checked = value === "negative";
                             setDraft((prev) => {
                               const next = structuredClone(prev);
                               next.exercises[exerciseIndex].negativeWeightEnabled = checked;
@@ -1114,101 +1372,26 @@ export function WorkoutEditorPage({ mode }: WorkoutEditorPageProps) {
                               return next;
                             });
                           }}
-                          aria-label={t("exerciseNegativeWeightToggle")}
+                        >
+                          <TabsList className="h-8 rounded-full bg-secondary/80 p-0.5">
+                            <TabsTrigger value="positive" className="h-6 min-w-7 rounded-full px-1.5 text-[11px]">
+                              +
+                            </TabsTrigger>
+                            <TabsTrigger
+                              value="negative"
+                              className="h-6 min-w-7 rounded-full px-1.5 text-[11px] data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:ring-foreground"
+                            >
+                              −
+                            </TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                        <ExerciseToggleHelpButton
+                          buttonLabel={t("exerciseToggleHelp")}
+                          x2Description={t("exerciseX2ToggleDescription")}
+                          negativeWeightDescription={t("exerciseNegativeWeightToggleDescription")}
                         />
-                      </label>
-                      <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>×2</span>
-                        <Switch
-                          checked={exercise.x2Enabled ?? false}
-                          onCheckedChange={(checked) => {
-                            setDraft((prev) => {
-                              const next = structuredClone(prev);
-                              next.exercises[exerciseIndex].x2Enabled = checked;
-                              return next;
-                            });
-                          }}
-                          aria-label={t("exerciseX2Toggle")}
-                        />
-                      </label>
-                    </div>
-                  </div>
-                  {exercise.sets.map((set, setIndex) => (
-                    <div key={`set-${setIndex}`} className="grid grid-cols-[1fr_1fr] items-center gap-2 py-1">
-                      <div className="min-w-0">
-                        <div className="relative">
-                          <DecimalInput
-                            value={set.targetReps}
-                            min={1}
-                            step={1}
-                            className="pr-10"
-                            onCommit={(value) => {
-                              setDraft((prev) => {
-                                const next = structuredClone(prev);
-                                next.exercises[exerciseIndex].sets[setIndex].targetReps = value;
-                                return next;
-                              });
-                            }}
-                          />
-                          <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">
-                            ×
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="min-w-0">
-                        {(() => {
-                          const absWeight = Math.abs(set.targetWeight);
-                          const isBw = set.targetWeight === 0;
-                          const weightKey = `${exerciseIndex}-${setIndex}`;
-                          const isFocused = focusedWeightKey === weightKey;
-                          const showOverlay = (isBw || exercise.negativeWeightEnabled) && !isFocused;
-                          return (
-                            <div className="relative">
-                              <DecimalInput
-                                value={exercise.negativeWeightEnabled ? absWeight : set.targetWeight}
-                                min={0}
-                                step={0.5}
-                                className={`pr-12 ${showOverlay ? "pl-6 text-transparent" : ""}`}
-                                onFocus={() => setFocusedWeightKey(weightKey)}
-                                onBlur={() => setFocusedWeightKey(null)}
-                                onCommit={(value) => {
-                                  setDraft((prev) => {
-                                    const next = structuredClone(prev);
-                                    next.exercises[exerciseIndex].sets[setIndex].targetWeight =
-                                      next.exercises[exerciseIndex].negativeWeightEnabled ? -Math.abs(value) : value;
-                                    return next;
-                                  });
-                                }}
-                              />
-                              {showOverlay && (
-                                <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center gap-0.5 text-sm text-foreground">
-                                  <PersonStanding className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                  {exercise.negativeWeightEnabled && !isBw && (
-                                    <>
-                                      <span className="text-muted-foreground">−</span>
-                                      <span>{absWeight % 1 === 0 ? absWeight : absWeight.toFixed(1)}</span>
-                                    </>
-                                  )}
-                                </div>
-                              )}
-                              <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-base text-muted-foreground">
-                                {weightUnitLabel}
-                              </div>
-                            </div>
-                          );
-                        })()}
                       </div>
                     </div>
-                  ))}
-
-                  <div className="flex items-center gap-2 border-t pt-2">
-                    <ExerciseInfoDialogButton
-                      exerciseName={exercise.name.trim() || title}
-                      aiInfo={exercise.aiInfo}
-                      className="h-8 w-8 rounded-md text-muted-foreground/70"
-                    />
-                    <div className="flex-1" />
                     <button
                       type="button"
                       disabled={draft.exercises.length <= 1}

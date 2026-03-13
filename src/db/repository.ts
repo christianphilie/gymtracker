@@ -9,6 +9,8 @@ import type {
   Workout,
   WorkoutWithRelations
 } from "@/db/types";
+import { normalizeWorkoutScheduledDays } from "@/lib/workout-schedule";
+import { normalizeSessionExerciseSet } from "@/lib/utils";
 
 export {
   ensureDefaultSettings,
@@ -19,6 +21,7 @@ export {
   updateRestTimerEnabled,
   updateRestTimerSeconds,
   updateSettings,
+  updateWeekStartsOn,
   updateWeightUnitAndConvert
 } from "@/db/repository-settings";
 export type { AppDataSnapshot } from "@/db/repository-backup";
@@ -31,10 +34,42 @@ export {
   restoreUpdateSafetySnapshot
 } from "@/db/repository-backup";
 
+function normalizeExerciseWeightValue(weight: number, negativeWeightEnabled?: boolean) {
+  if (weight === 0) {
+    return 0;
+  }
+  return negativeWeightEnabled ? -Math.abs(weight) : weight;
+}
+
+function normalizeTemplateExerciseRelation(
+  exercise: Exercise,
+  sets: ExerciseTemplateSet[]
+): { exercise: Exercise; sets: ExerciseTemplateSet[] } {
+  const negativeWeightEnabled =
+    exercise.negativeWeightEnabled === true || sets.some((set) => set.targetWeight < 0);
+
+  if (!negativeWeightEnabled) {
+    return { exercise, sets };
+  }
+
+  return {
+    exercise: {
+      ...exercise,
+      negativeWeightEnabled: true
+    },
+    sets: sets.map((set) => ({
+      ...set,
+      targetWeight: normalizeExerciseWeightValue(set.targetWeight, true)
+    }))
+  };
+}
+
 interface WorkoutDraft {
   name: string;
   icon?: Workout["icon"];
+  scheduledDays?: Workout["scheduledDays"];
   exercises: Array<{
+    id?: number;
     name: string;
     notes?: string;
     aiInfo?: Exercise["aiInfo"];
@@ -121,10 +156,12 @@ export async function getWorkoutById(workoutId: number): Promise<WorkoutWithRela
 
   return {
     workout,
-    exercises: exercises.map((exercise) => ({
-      exercise,
-      sets: exercise.id ? (exerciseMap.get(exercise.id) ?? []) : []
-    }))
+    exercises: exercises.map((exercise) =>
+      normalizeTemplateExerciseRelation(
+        exercise,
+        exercise.id ? (exerciseMap.get(exercise.id) ?? []) : []
+      )
+    )
   };
 }
 
@@ -133,6 +170,7 @@ async function createWorkoutRecord(draft: WorkoutDraft) {
   const workout: Workout = {
     name: draft.name.trim(),
     icon: draft.icon,
+    scheduledDays: normalizeWorkoutScheduledDays(draft.scheduledDays),
     createdAt: now,
     updatedAt: now,
     archivedAt: null
@@ -164,7 +202,10 @@ async function createWorkoutRecord(draft: WorkoutDraft) {
         exerciseId,
         order: setIndex,
         targetReps: setDraft.targetReps,
-        targetWeight: setDraft.targetWeight
+        targetWeight: normalizeExerciseWeightValue(
+          setDraft.targetWeight,
+          exerciseDraft.negativeWeightEnabled
+        )
       });
     }
   }
@@ -196,10 +237,12 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
     db.exercises,
     db.exerciseTemplateSets,
     async () => {
+      const timestamp = nowIso();
       await db.workouts.update(workoutId, {
         name: draft.name.trim(),
         icon: draft.icon,
-        updatedAt: nowIso()
+        scheduledDays: normalizeWorkoutScheduledDays(draft.scheduledDays),
+        updatedAt: timestamp
       });
 
       const currentTemplateExercises = await db.exercises
@@ -208,18 +251,35 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
         .and((exercise) => exercise.isTemplate !== false)
         .toArray();
 
-      const currentTemplateExerciseIds = currentTemplateExercises
+      const currentTemplateExerciseMap = new Map(
+        currentTemplateExercises
+          .filter((exercise): exercise is Exercise & { id: number } => typeof exercise.id === "number")
+          .map((exercise) => [exercise.id, exercise])
+      );
+      const retainedTemplateExerciseIds = new Set(
+        draft.exercises
+          .map((exercise) => exercise.id)
+          .filter((value): value is number => typeof value === "number" && currentTemplateExerciseMap.has(value))
+      );
+      const deletedTemplateExerciseIds = currentTemplateExercises
         .map((exercise) => exercise.id)
-        .filter((value): value is number => !!value);
+        .filter(
+          (value): value is number =>
+            typeof value === "number" && !retainedTemplateExerciseIds.has(value)
+        );
 
-      if (currentTemplateExerciseIds.length) {
-        await db.exerciseTemplateSets.where("exerciseId").anyOf(currentTemplateExerciseIds).delete();
-        await db.exercises.where("id").anyOf(currentTemplateExerciseIds).delete();
+      if (deletedTemplateExerciseIds.length) {
+        await db.exerciseTemplateSets.where("exerciseId").anyOf(deletedTemplateExerciseIds).delete();
+        await db.exercises.where("id").anyOf(deletedTemplateExerciseIds).delete();
       }
 
       for (let exerciseIndex = 0; exerciseIndex < draft.exercises.length; exerciseIndex += 1) {
         const exerciseDraft = draft.exercises[exerciseIndex];
-        const exerciseId = await db.exercises.add({
+        const existingExercise =
+          typeof exerciseDraft.id === "number"
+            ? currentTemplateExerciseMap.get(exerciseDraft.id)
+            : undefined;
+        const exerciseRecord: Exercise = {
           workoutId,
           name: exerciseDraft.name.trim(),
           notes: exerciseDraft.notes?.trim(),
@@ -228,9 +288,14 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
           isTemplate: true,
           x2Enabled: exerciseDraft.x2Enabled ?? false,
           negativeWeightEnabled: exerciseDraft.negativeWeightEnabled ?? false,
-          createdAt: current.createdAt,
-          updatedAt: nowIso()
-        });
+          createdAt: existingExercise?.createdAt ?? timestamp,
+          updatedAt: timestamp
+        };
+        const exerciseId = existingExercise
+          ? (await db.exercises.put({ ...exerciseRecord, id: existingExercise.id }), existingExercise.id)
+          : await db.exercises.add(exerciseRecord);
+
+        await db.exerciseTemplateSets.where("exerciseId").equals(exerciseId).delete();
 
         for (let setIndex = 0; setIndex < exerciseDraft.sets.length; setIndex += 1) {
           const setDraft = exerciseDraft.sets[setIndex];
@@ -238,7 +303,10 @@ export async function updateWorkout(workoutId: number, draft: WorkoutDraft) {
             exerciseId,
             order: setIndex,
             targetReps: setDraft.targetReps,
-            targetWeight: setDraft.targetWeight
+            targetWeight: normalizeExerciseWeightValue(
+              setDraft.targetWeight,
+              exerciseDraft.negativeWeightEnabled
+            )
           });
         }
       }
@@ -442,6 +510,10 @@ export async function startSession(workoutId: number) {
         }
 
         for (const set of exerciseBlock.sets) {
+          const normalizedWeight = normalizeExerciseWeightValue(
+            set.targetWeight,
+            exerciseBlock.exercise.negativeWeightEnabled
+          );
           await db.sessionExerciseSets.add({
             sessionId: createdSessionId,
             templateExerciseId,
@@ -455,9 +527,9 @@ export async function startSession(workoutId: number) {
             negativeWeightEnabled: exerciseBlock.exercise.negativeWeightEnabled ?? false,
             templateSetOrder: set.order,
             targetReps: set.targetReps,
-            targetWeight: set.targetWeight,
+            targetWeight: normalizedWeight,
             actualReps: set.targetReps,
-            actualWeight: set.targetWeight,
+            actualWeight: normalizedWeight,
             completed: false
           });
         }
@@ -505,9 +577,24 @@ export async function updateSessionSet(
       : patch.completed
         ? nowIso()
         : undefined;
+  const negativeWeightEnabled =
+    current.negativeWeightEnabled === true ||
+    (current.actualWeight ?? current.targetWeight) < 0 ||
+    current.targetWeight < 0 ||
+    (current.templateExerciseId !== undefined
+      ? ((await db.exercises.get(current.templateExerciseId))?.negativeWeightEnabled ?? false)
+      : false) ||
+    false;
+  const normalizedPatch = patch.actualWeight === undefined
+    ? patch
+    : {
+        ...patch,
+        actualWeight: normalizeExerciseWeightValue(patch.actualWeight, negativeWeightEnabled)
+      };
 
   await db.sessionExerciseSets.update(setId, {
-    ...patch,
+    ...normalizedPatch,
+    negativeWeightEnabled,
     completedAt: nextCompletedAt
   });
 }
@@ -569,7 +656,10 @@ export async function addSessionSet(sessionId: number, sessionExerciseKey: strin
   const lastSet = sortedSets[sortedSets.length - 1];
   const templateSetOrder = lastSet.templateSetOrder + 1;
   const targetReps = lastSet.actualReps ?? lastSet.targetReps;
-  const targetWeight = lastSet.actualWeight ?? lastSet.targetWeight;
+  const targetWeight = normalizeExerciseWeightValue(
+    lastSet.actualWeight ?? lastSet.targetWeight,
+    firstSet.negativeWeightEnabled
+  );
 
   return db.sessionExerciseSets.add({
     sessionId,
@@ -638,6 +728,70 @@ export async function addSessionExercise(sessionId: number, name: string) {
   return { sessionExerciseKey, normalizedBase };
 }
 
+export async function addSessionExerciseFromPrevious(sessionId: number, previousSets: SessionExerciseSet[]) {
+  if (previousSets.length === 0) {
+    throw new Error("Previous exercise sets are required");
+  }
+
+  const session = await db.sessions.get(sessionId);
+  if (!session || session.status !== "active") {
+    throw new Error("Active session not found");
+  }
+
+  const sortedPreviousSets = [...previousSets]
+    .sort((a, b) => a.templateSetOrder - b.templateSetOrder)
+    .map((set) => normalizeSessionExerciseSet(set));
+  const firstSet = sortedPreviousSets[0];
+  const trimmedName = firstSet.exerciseName.trim();
+  if (!trimmedName) {
+    throw new Error("Exercise name is required");
+  }
+
+  const currentSets = await db.sessionExerciseSets.where("sessionId").equals(sessionId).toArray();
+  const existingNames = new Set(currentSets.map((set) => set.exerciseName.trim().toLowerCase()));
+
+  const normalizedBase = trimmedName.toLowerCase();
+  let finalName = trimmedName;
+  let suffix = 2;
+  while (existingNames.has(finalName.toLowerCase())) {
+    finalName = `${trimmedName} ${suffix}`;
+    suffix += 1;
+  }
+
+  const maxOrder = currentSets.reduce((maxValue, set) => Math.max(maxValue, set.exerciseOrder), -1);
+  const sessionExerciseKey = `custom-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  await db.transaction("rw", db.sessionExerciseSets, async () => {
+    for (let index = 0; index < sortedPreviousSets.length; index += 1) {
+      const set = sortedPreviousSets[index];
+      const targetReps = set.actualReps ?? set.targetReps;
+      const targetWeight = normalizeExerciseWeightValue(
+        set.actualWeight ?? set.targetWeight,
+        firstSet.negativeWeightEnabled
+      );
+      await db.sessionExerciseSets.add({
+        sessionId,
+        sessionExerciseKey,
+        exerciseName: finalName,
+        exerciseNotes: firstSet.exerciseNotes,
+        exerciseAiInfo: firstSet.exerciseAiInfo,
+        exerciseOrder: maxOrder + 1,
+        isTemplateExercise: false,
+        x2Enabled: firstSet.x2Enabled ?? false,
+        negativeWeightEnabled: firstSet.negativeWeightEnabled ?? false,
+        templateSetOrder: index,
+        targetReps,
+        targetWeight,
+        actualReps: targetReps,
+        actualWeight: targetWeight,
+        completed: false
+      });
+    }
+  });
+
+  return { sessionExerciseKey, normalizedBase };
+}
+
 export async function removeSessionSet(setId: number) {
   const set = await db.sessionExerciseSets.get(setId);
   if (!set) {
@@ -681,7 +835,11 @@ async function applySessionAsTemplate(sessionId: number) {
   }
 
   const sessionExercises = [...grouped.values()]
-    .map((exerciseSets) => exerciseSets.sort((a, b) => a.templateSetOrder - b.templateSetOrder))
+    .map((exerciseSets) =>
+      exerciseSets
+        .sort((a, b) => a.templateSetOrder - b.templateSetOrder)
+        .map((set) => normalizeSessionExerciseSet(set))
+    )
     .sort((a, b) => a[0].exerciseOrder - b[0].exerciseOrder);
 
   await db.transaction("rw", db.exercises, db.exerciseTemplateSets, async () => {
@@ -714,6 +872,7 @@ async function applySessionAsTemplate(sessionId: number) {
         order: exerciseIndex,
         isTemplate: true,
         x2Enabled: firstSet.x2Enabled ?? false,
+        negativeWeightEnabled: firstSet.negativeWeightEnabled ?? false,
         createdAt: now,
         updatedAt: now
       });
@@ -724,7 +883,10 @@ async function applySessionAsTemplate(sessionId: number) {
           exerciseId,
           order: setIndex,
           targetReps: set.actualReps ?? set.targetReps,
-          targetWeight: set.actualWeight ?? set.targetWeight
+          targetWeight: normalizeExerciseWeightValue(
+            set.actualWeight ?? set.targetWeight,
+            firstSet.negativeWeightEnabled
+          )
         });
       }
     }
@@ -800,7 +962,8 @@ export async function getPreviousSessionSummary(
   for (const groupSets of grouped.values()) {
     const sortedCompleted = groupSets
       .filter((set) => set.completed)
-      .sort((a, b) => a.templateSetOrder - b.templateSetOrder);
+      .sort((a, b) => a.templateSetOrder - b.templateSetOrder)
+      .map((set) => normalizeSessionExerciseSet(set));
 
     if (sortedCompleted.length === 0) {
       continue;
@@ -847,6 +1010,7 @@ export interface SessionSetUpdateDraft {
   exerciseOrder: number;
   isTemplateExercise: boolean;
   x2Enabled?: boolean;
+  negativeWeightEnabled?: boolean;
   templateSetOrder: number;
   actualReps: number;
   actualWeight: number;
@@ -964,9 +1128,10 @@ export async function updateCompletedSessionSets(
           exerciseOrder: draft.exerciseOrder,
           isTemplateExercise: draft.isTemplateExercise,
           x2Enabled: draft.x2Enabled ?? false,
+          negativeWeightEnabled: draft.negativeWeightEnabled ?? false,
           templateSetOrder: draft.templateSetOrder,
           actualReps: draft.actualReps,
-          actualWeight: draft.actualWeight,
+          actualWeight: normalizeExerciseWeightValue(draft.actualWeight, draft.negativeWeightEnabled),
           completed: draft.completed,
           completedAt: draft.completed ? current.completedAt ?? completedAtFallback : undefined
         });
@@ -983,11 +1148,12 @@ export async function updateCompletedSessionSets(
         exerciseOrder: draft.exerciseOrder,
         isTemplateExercise: draft.isTemplateExercise,
         x2Enabled: draft.x2Enabled ?? false,
+        negativeWeightEnabled: draft.negativeWeightEnabled ?? false,
         templateSetOrder: draft.templateSetOrder,
         targetReps: draft.actualReps,
-        targetWeight: draft.actualWeight,
+        targetWeight: normalizeExerciseWeightValue(draft.actualWeight, draft.negativeWeightEnabled),
         actualReps: draft.actualReps,
-        actualWeight: draft.actualWeight,
+        actualWeight: normalizeExerciseWeightValue(draft.actualWeight, draft.negativeWeightEnabled),
         completed: draft.completed,
         completedAt: draft.completed ? completedAtFallback : undefined
       });

@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { AppLanguage, SessionExerciseSet } from "@/db/types";
+import type { AppLanguage, ExerciseAiInfo, SessionExerciseSet } from "@/db/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -39,7 +39,11 @@ function formatLocalDate(date: Date, language: AppLanguage) {
   }).format(date);
 }
 
-export function formatSessionDateLabel(value: Date | string, language: AppLanguage) {
+export function formatSessionDateLabel(
+  value: Date | string,
+  language: AppLanguage,
+  options?: { omitTodayLabel?: boolean }
+) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {
     return "-";
@@ -54,6 +58,9 @@ export function formatSessionDateLabel(value: Date | string, language: AppLangua
   }
 
   if (dayDiff === 0) {
+    if (options?.omitTodayLabel) {
+      return formatLocalTime(date, language);
+    }
     const prefix = language === "de" ? "Heute" : "Today";
     return `${prefix}, ${formatLocalTime(date, language)}`;
   }
@@ -81,6 +88,105 @@ export function formatNumber(value: number | undefined, fractionDigits = 0) {
   }).format(value);
 }
 
+export function formatWeightValue(value: number | undefined) {
+  if (value === undefined || Number.isNaN(value)) {
+    return "-";
+  }
+
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1
+  }).format(value);
+}
+
+export function getSetRepsValue(set: Pick<SessionExerciseSet, "actualReps" | "targetReps">) {
+  return set.actualReps ?? set.targetReps;
+}
+
+export function getSetWeightValue(set: Pick<SessionExerciseSet, "actualWeight" | "targetWeight">) {
+  return set.actualWeight ?? set.targetWeight;
+}
+
+export function getWeightInputValue(weight: number) {
+  return weight < 0 ? Math.abs(weight) : weight;
+}
+
+export function normalizeWeightInputValue(value: number, negativeWeightEnabled: boolean) {
+  if (value === 0) {
+    return 0;
+  }
+  return negativeWeightEnabled ? -Math.abs(value) : value;
+}
+
+export interface SessionSetNormalizationMeta {
+  negativeWeightEnabled?: boolean;
+  exerciseAiInfo?: ExerciseAiInfo;
+  exerciseName?: string;
+}
+
+const ASSISTED_EXERCISE_NAME_PATTERN = /\bassist(?:ed|iert)?\b/i;
+
+function isAssistedExerciseName(value?: string) {
+  return typeof value === "string" && ASSISTED_EXERCISE_NAME_PATTERN.test(value);
+}
+
+function normalizeNegativeSetWeight(weight: number | undefined) {
+  if (weight === undefined) {
+    return undefined;
+  }
+
+  return weight === 0 ? 0 : -Math.abs(weight);
+}
+
+export function resolveSessionSetNegativeWeightEnabled(
+  set: Pick<
+    SessionExerciseSet,
+    "exerciseName" | "exerciseAiInfo" | "negativeWeightEnabled" | "actualWeight" | "targetWeight"
+  >,
+  fallbackMeta?: SessionSetNormalizationMeta
+) {
+  return (
+    fallbackMeta?.negativeWeightEnabled === true ||
+    set.negativeWeightEnabled === true ||
+    (set.actualWeight ?? set.targetWeight) < 0 ||
+    set.targetWeight < 0 ||
+    isAssistedExerciseName(set.exerciseName) ||
+    isAssistedExerciseName(set.exerciseAiInfo?.matchedExerciseName) ||
+    isAssistedExerciseName(fallbackMeta?.exerciseName) ||
+    isAssistedExerciseName(fallbackMeta?.exerciseAiInfo?.matchedExerciseName)
+  );
+}
+
+export function normalizeSessionExerciseSet<
+  T extends Pick<
+    SessionExerciseSet,
+    "exerciseName" | "exerciseAiInfo" | "negativeWeightEnabled" | "actualWeight" | "targetWeight"
+  >
+>(set: T, fallbackMeta?: SessionSetNormalizationMeta): T {
+  const negativeWeightEnabled = resolveSessionSetNegativeWeightEnabled(set, fallbackMeta);
+  if (!negativeWeightEnabled) {
+    return set;
+  }
+
+  const normalizedActualWeight = normalizeNegativeSetWeight(set.actualWeight);
+  const normalizedTargetWeight = normalizeNegativeSetWeight(set.targetWeight);
+
+  if (
+    set.negativeWeightEnabled === true &&
+    set.actualWeight === normalizedActualWeight &&
+    set.targetWeight === normalizedTargetWeight
+  ) {
+    return set;
+  }
+
+  return {
+    ...set,
+    negativeWeightEnabled: true,
+    actualWeight: normalizedActualWeight,
+    targetWeight: normalizedTargetWeight
+  };
+}
+
 export function formatDurationClock(totalSeconds: number) {
   const safe = Math.max(0, Math.floor(totalSeconds));
   const minutes = Math.floor(safe / 60)
@@ -99,7 +205,7 @@ export function formatDurationLabel(durationMinutes: number, language: "de" | "e
   const hours = Math.floor(roundedMinutes / 60);
   const minutes = roundedMinutes % 60;
   return language === "de"
-    ? `${hours}:${String(minutes).padStart(2, "0")} Stunden`
+    ? `${hours}:${String(minutes).padStart(2, "0")} h`
     : `${hours}:${String(minutes).padStart(2, "0")} h`;
 }
 
@@ -117,4 +223,11 @@ export function getEffectiveSetWeight(weight: number, bodyWeightKg: number): num
   if (weight === 0) return bodyWeightKg;
   if (weight < 0) return Math.max(0, bodyWeightKg + weight);
   return weight;
+}
+
+export function getSetTotalWeight(
+  set: Pick<SessionExerciseSet, "actualReps" | "targetReps" | "actualWeight" | "targetWeight" | "x2Enabled">,
+  bodyWeightKg: number
+) {
+  return getEffectiveSetWeight(getSetWeightValue(set), bodyWeightKg) * getSetRepsValue(set) * getSetStatsMultiplier(set);
 }

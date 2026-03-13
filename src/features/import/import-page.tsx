@@ -1,31 +1,51 @@
-import { useMemo, useState } from "react";
-import { toast } from "sonner";
+import { useRef, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Copy, File, Sparkles, Type } from "lucide-react";
+import { ArrowDownToLine, FileUp, LoaderCircle, Sparkles, X } from "lucide-react";
+import { toast } from "sonner";
 import { useSettings } from "@/app/settings-context";
-import { APP_VERSION } from "@/app/version";
 import { Button } from "@/components/ui/button";
-import { WorkoutNameLabel } from "@/components/workouts/workout-name-label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { SetValueDisplay } from "@/components/weights/weight-display";
+import { WorkoutNameLabel } from "@/components/workouts/workout-name-label";
 import { importWorkouts } from "@/db/repository";
-import { getPromptTemplate, repairImportPayload, type RepairResult } from "@/features/import/import-utils";
+import {
+  AI_IMPORT_ACCEPT_ATTRIBUTE,
+  encodeAiImportFile,
+  type EncodedAiImportFile
+} from "@/features/import/import-file-utils";
+import { repairImportPayload, type RepairResult } from "@/features/import/import-utils";
+
+function formatFileSize(sizeBytes: number, language: "de" | "en") {
+  const kiloBytes = sizeBytes / 1024;
+  if (kiloBytes < 1024) {
+    const rounded = kiloBytes >= 10 ? Math.round(kiloBytes) : Math.round(kiloBytes * 10) / 10;
+    return `${rounded} KB`;
+  }
+
+  const megaBytes = sizeBytes / (1024 * 1024);
+  const rounded = megaBytes >= 10 ? Math.round(megaBytes) : Math.round(megaBytes * 10) / 10;
+  return language === "de" ? `${rounded} MB` : `${rounded} MB`;
+}
 
 export function ImportPage() {
-  const { t, language } = useSettings();
+  const { t, language, weightUnitLabel } = useSettings();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [rawInput, setRawInput] = useState("");
+  const [aiErrorMessage, setAiErrorMessage] = useState("");
   const [repairResult, setRepairResult] = useState<RepairResult | null>(null);
-  const [activeTab, setActiveTab] = useState("ai");
   const [isImporting, setIsImporting] = useState(false);
   const [aiPlanText, setAiPlanText] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [privacyConsentAccepted, setPrivacyConsentAccepted] = useState(false);
 
-  const canValidate = rawInput.trim().length > 0;
   const hasPreview = (repairResult?.drafts.length ?? 0) > 0 && (repairResult?.errors.length ?? 0) === 0;
-
-  const promptTemplate = useMemo(() => getPromptTemplate(language), [language]);
+  const canGenerate = (aiPlanText.trim().length > 0 || !!selectedFile) && privacyConsentAccepted;
 
   const runValidation = (jsonText: string) => {
     try {
@@ -33,8 +53,10 @@ export function ImportPage() {
       const result = repairImportPayload(parsed);
       setRepairResult(result);
       if (result.errors.length > 0) {
+        setAiErrorMessage(t("aiImportInvalidResult"));
         toast.error(t("invalidImport"));
       } else {
+        setAiErrorMessage("");
         toast.success(t("aiImportReady"));
       }
     } catch {
@@ -44,48 +66,115 @@ export function ImportPage() {
         changes: [],
         errors: ["Invalid JSON"]
       });
+      setAiErrorMessage(t("aiImportInvalidResult"));
       toast.error(t("invalidImport"));
     }
   };
 
-  const handleValidate = () => {
-    runValidation(rawInput);
+  const clearSelectedFile = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextFile = event.target.files?.[0] ?? null;
+    if (!nextFile) {
+      clearSelectedFile();
+      return;
+    }
+
+    if (!AI_IMPORT_ACCEPT_ATTRIBUTE.split(",").includes(nextFile.type)) {
+      clearSelectedFile();
+      setAiErrorMessage("");
+      toast.error(t("aiImportUnsupportedFile"));
+      return;
+    }
+
+    setAiErrorMessage("");
+    setRepairResult(null);
+    setSelectedFile(nextFile);
+    toast.success(t("fileLoaded"));
   };
 
   const handleAiGenerate = async () => {
-    if (!aiPlanText.trim()) {
+    if (!canGenerate) {
       return;
     }
 
     setIsAiLoading(true);
+    setAiErrorMessage("");
     setRepairResult(null);
+
     try {
+      let file: EncodedAiImportFile | undefined;
+      if (selectedFile) {
+        file = await encodeAiImportFile(selectedFile);
+      }
+
       const response = await fetch("/api/ai-import", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           locale: language,
           planText: aiPlanText.trim(),
-          appVersion: APP_VERSION,
-          promptTemplate
+          ...(file ? { file } : {})
         })
       });
 
       if (!response.ok) {
-        toast.error(t("aiImportFailed"));
+        const errorPayload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          detail?: string;
+          userMessage?: string;
+        };
+        const errorText = `${errorPayload.error ?? ""} ${errorPayload.detail ?? ""}`;
+        const userMessage =
+          typeof errorPayload.userMessage === "string" && errorPayload.userMessage.trim()
+            ? errorPayload.userMessage.trim()
+            : "";
+
+        if (errorText.includes("GEMINI_API_KEY") || errorText.includes("GOOGLE_API_KEY")) {
+          setAiErrorMessage(t("aiImportProviderNotConfigured"));
+          toast.error(t("aiImportProviderNotConfigured"));
+        } else if (response.status === 413 || errorText.includes("too large")) {
+          setAiErrorMessage(t("aiImportFileTooLarge"));
+          toast.error(t("aiImportFileTooLarge"));
+        } else if (errorText.includes("Unsupported file type")) {
+          setAiErrorMessage(t("aiImportUnsupportedFile"));
+          toast.error(t("aiImportUnsupportedFile"));
+        } else if (userMessage) {
+          setAiErrorMessage(userMessage);
+          toast.error(userMessage);
+        } else {
+          setAiErrorMessage(t("aiImportFailedDetailed"));
+          toast.error(t("aiImportFailed"));
+        }
         return;
       }
 
       const payload = (await response.json()) as { jsonText?: string };
       if (!payload.jsonText) {
+        setAiErrorMessage(t("aiImportFailedDetailed"));
         toast.error(t("aiImportFailed"));
         return;
       }
 
       setRawInput(payload.jsonText);
       runValidation(payload.jsonText);
-    } catch {
-      toast.error(t("aiImportFailed"));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("file-too-large")) {
+        setAiErrorMessage(t("aiImportFileTooLarge"));
+        toast.error(t("aiImportFileTooLarge"));
+      } else if (message.includes("unsupported-file-type")) {
+        setAiErrorMessage(t("aiImportUnsupportedFile"));
+        toast.error(t("aiImportUnsupportedFile"));
+      } else {
+        setAiErrorMessage(t("aiImportFailedDetailed"));
+        toast.error(t("aiImportFailed"));
+      }
     } finally {
       setIsAiLoading(false);
     }
@@ -109,122 +198,158 @@ export function ImportPage() {
   return (
     <section className="space-y-4">
       <Card>
-        <CardContent className="space-y-3 pt-4">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="w-full">
-              <TabsTrigger value="ai" className="flex-1">
-                <Type className="mr-1.5 h-3.5 w-3.5" />
-                {t("importFromText")}
-              </TabsTrigger>
-              <TabsTrigger value="manual" className="flex-1">
-                <File className="mr-1.5 h-3.5 w-3.5" />
-                {t("importFromFile")}
-              </TabsTrigger>
-            </TabsList>
+        <CardContent className="space-y-4 pt-4">
+          <Textarea
+            className="min-h-[220px]"
+            value={aiPlanText}
+            onChange={(event) => {
+              setAiPlanText(event.target.value);
+              setAiErrorMessage("");
+              setRepairResult(null);
+            }}
+            placeholder={t("aiImportPlaceholder")}
+          />
 
-            <TabsContent value="ai" className="space-y-3">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">{t("aiImportTitle")}</p>
-                <p className="text-xs text-muted-foreground">{t("aiImportDescription")}</p>
+          <div className="space-y-3 rounded-xl border border-dashed border-border/80 bg-secondary/20 p-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-background">
+                <FileUp className="h-4 w-4" />
               </div>
-              <Textarea
-                className="min-h-[200px]"
-                value={aiPlanText}
-                onChange={(event) => setAiPlanText(event.target.value)}
-                placeholder={t("aiImportPlaceholder")}
-              />
-              <p className="text-xs text-muted-foreground">{t("aiImportPrivacy")}</p>
-              <Button
-                className="w-full"
-                disabled={!aiPlanText.trim() || isAiLoading}
-                onClick={() => void handleAiGenerate()}
-              >
-                <Sparkles className="mr-2 h-4 w-4" />
-                {isAiLoading ? "..." : t("aiImportGenerateButton")}
-              </Button>
-            </TabsContent>
-
-            <TabsContent value="manual" className="space-y-4">
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">{t("importFromFileOwnAiTitle")}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {t("importFromFileOwnAiDescriptionBefore")}{" "}
-                    <strong className="font-semibold text-foreground">{t("importFromFileOwnAiDescriptionHighlight")}</strong>{" "}
-                    {t("importFromFileOwnAiDescriptionAfter")}
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(promptTemplate);
-                      toast.success(t("copyPrompt"));
-                    }}
-                  >
-                    <Copy className="mr-1.5 h-3.5 w-3.5" />
-                    {t("copyPromptForOwnAi")}
-                  </Button>
-                </div>
-
-                <div className="space-y-1">
-                  <Textarea
-                    className="mono-text min-h-[160px] text-xs mb-2"
-                    value={rawInput}
-                    onChange={(event) => setRawInput(event.target.value)}
-                    placeholder={t("importJsonResponsePlaceholder")}
-                  />
-                  <Button className="w-full gap-1.5" disabled={!canValidate} onClick={handleValidate}>
-                    <ArrowRight className="h-4 w-4" />
-                    {t("buildPreview")}
-                  </Button>
-                </div>
+              <div className="min-w-0 space-y-0.5">
+                <p className="text-sm font-medium">{t("aiImportFileTitle")}</p>
+                <p className="text-xs text-muted-foreground">{t("optionalLabel")}</p>
               </div>
-            </TabsContent>
-          </Tabs>
+            </div>
+
+            <Input ref={fileInputRef} type="file" accept={AI_IMPORT_ACCEPT_ATTRIBUTE} onChange={handleFileChange} />
+
+            {selectedFile && (
+              <div className="flex items-start justify-between gap-3 rounded-lg border bg-background px-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{selectedFile.name}</p>
+                  <p className="text-xs text-muted-foreground">{formatFileSize(selectedFile.size, language)}</p>
+                </div>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={clearSelectedFile}>
+                  <X className="h-4 w-4" />
+                  <span className="sr-only">{t("clear")}</span>
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-start gap-3 rounded-lg border bg-secondary/20 p-3">
+            <Checkbox
+              id="ai-import-privacy-consent"
+              checked={privacyConsentAccepted}
+              onCheckedChange={(checked) => setPrivacyConsentAccepted(checked === true)}
+              className="mt-0.5"
+            />
+            <Label htmlFor="ai-import-privacy-consent" className="text-xs font-normal leading-relaxed text-muted-foreground">
+              {t("aiImportPrivacyConsent")}
+            </Label>
+          </div>
+
+          <Button
+            variant={hasPreview ? "secondary" : "default"}
+            className="w-full"
+            disabled={!canGenerate || isAiLoading}
+            onClick={() => void handleAiGenerate()}
+          >
+            {isAiLoading ? (
+              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="mr-2 h-4 w-4" />
+            )}
+            {isAiLoading ? t("aiImportGeneratingButton") : t("aiImportGenerateButton")}
+          </Button>
+
+          {aiErrorMessage && (
+            <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {aiErrorMessage}
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {repairResult && (
         <Card>
           <CardContent className="space-y-3 pt-4">
-            <p className="text-sm font-medium">{t("importOverview")}</p>
-
             {repairResult.errors.length > 0 && (
-              <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">
-                {repairResult.errors.map((error) => (
-                  <li key={error}>{error}</li>
-                ))}
-              </ul>
+              <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2">
+                <p className="text-sm font-medium text-red-700">{t("aiImportInvalidResult")}</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-red-700">
+                  {repairResult.errors.map((error) => (
+                    <li key={error}>{error}</li>
+                  ))}
+                </ul>
+              </div>
             )}
 
             {repairResult.errors.length === 0 && (
               <>
-                {repairResult.changes.length === 0 && <p className="text-sm text-muted-foreground">{t("noChangesNeeded")}</p>}
-
-                {repairResult.changes.length > 0 && (
-                  <ul className="list-disc space-y-1 pl-5 text-sm">
-                    {repairResult.changes.map((change) => (
-                      <li key={change}>{change}</li>
-                    ))}
-                  </ul>
-                )}
-
-                <div className="space-y-2 rounded-md border p-3">
-                  <p className="text-sm font-medium">{t("previewImport")}</p>
+                <div className="space-y-3">
                   {repairResult.drafts.map((workout) => (
-                    <div key={workout.name} className="rounded-md border p-2 text-sm">
-                      <p className="font-medium">
-                        <WorkoutNameLabel name={workout.name} icon={workout.icon} />
-                      </p>
-                      <p className="text-xs text-muted-foreground">{workout.exercises.length} {t("exercises")}</p>
+                    <div key={workout.name} className="rounded-xl border bg-card p-3">
+                      <div className="flex items-start justify-between gap-3 border-b pb-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold">
+                            <WorkoutNameLabel name={workout.name} icon={workout.icon} />
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {workout.exercises.length} {t("exercises")}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2 pt-3">
+                        {workout.exercises.map((exercise, exerciseIndex) => (
+                          <div key={`${workout.name}-${exercise.name}-${exerciseIndex}`} className="rounded-lg border bg-background/70 px-3 py-2">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium">{exercise.name}</p>
+                                {exercise.notes && (
+                                  <p className="mt-0.5 text-xs text-muted-foreground">{exercise.notes}</p>
+                                )}
+                              </div>
+                              <div className="flex shrink-0 items-center gap-1">
+                                {exercise.x2Enabled && (
+                                  <span className="rounded-full border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                    2×
+                                  </span>
+                                )}
+                                {exercise.negativeWeightEnabled && (
+                                  <span className="rounded-full border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                    −kg
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {exercise.sets.map((set, setIndex) => (
+                                <div
+                                  key={`${workout.name}-${exercise.name}-${setIndex}`}
+                                  className="rounded-full border bg-card px-2.5 py-1 text-xs"
+                                >
+                                  <SetValueDisplay
+                                    reps={set.targetReps}
+                                    weight={set.targetWeight}
+                                    weightUnitLabel={weightUnitLabel}
+                                    className="gap-1 text-xs"
+                                    iconClassName="size-3"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
 
-                <Button className="w-full" disabled={!hasPreview || isImporting} onClick={handleImport}>
+                <Button className="w-full" disabled={!hasPreview || isImporting || !rawInput} onClick={handleImport}>
+                  <ArrowDownToLine className="mr-2 h-4 w-4" />
                   {t("importPlan")}
                 </Button>
               </>
