@@ -58,7 +58,7 @@ export function SetRow({
 
         {x2Enabled && (
           <span
-            className={`pointer-events-none absolute left-1/2 top-0 z-10 inline-flex -translate-x-1/2 -translate-y-[22%] items-center rounded-full border border-border/70 bg-background px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground shadow-sm ${
+            className={`pointer-events-none absolute left-1/2 top-1/2 z-10 inline-flex h-[18px] w-[18px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-background text-[10px] font-medium leading-none text-muted-foreground shadow-sm ${
               set.completed ? "opacity-60" : ""
             }`}
           >
