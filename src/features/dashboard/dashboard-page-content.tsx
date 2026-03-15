@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { WorkoutIconGlyph } from "@/components/workouts/workout-name-label";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1097,9 +1098,14 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                                     to={buildWorkoutDataRoute(session.workoutId, session.sessionId)}
                                     title={session.workoutName}
                                     aria-label={session.workoutName}
-                                    className="inline-flex h-5 w-5 rounded-full border border-emerald-400 bg-emerald-100 transition-opacity hover:bg-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/35 focus-visible:ring-offset-1"
+                                    className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-background bg-emerald-100 text-emerald-500 transition-colors hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/35 focus-visible:ring-offset-1 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-950"
                                     style={{ zIndex: 3 - sessionIndex }}
-                                  />
+                                  >
+                                    <WorkoutIconGlyph
+                                      icon={session.workoutIcon ?? "dumbbell"}
+                                      className="h-3 w-3 text-current"
+                                    />
+                                  </Link>
                                 ))}
                               </div>
                             ) : null}
@@ -1194,8 +1200,8 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                     {t("sessions")}
                   </p>
                 </div>
-                <div className="relative h-34 px-1 pt-4">
-                  <div className="relative h-28">
+                <div className="relative h-40 px-1 pt-4">
+                  <div className="relative h-36">
                     <div className="absolute inset-x-0 bottom-3 h-px bg-border" />
 
                     {weeklySessionsTimeline.ticks.map((tick) => (
@@ -1233,10 +1239,14 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                           transform: "translateX(-50%)"
                         }}
                       >
-                        <div className="relative inline-flex h-[6rem] w-[2rem] items-center justify-center rounded-md border bg-card px-3 py-3 shadow-sm transition-colors group-hover:bg-secondary">
-                          <div className="absolute left-1/2 top-1/2 w-[5rem] -translate-x-1/2 -translate-y-1/2 -rotate-90 overflow-hidden">
-                            <span className="block truncate text-center font-sans text-[12px] font-medium leading-none text-foreground">
-                              {item.shortLabel}
+                        <div className="relative inline-flex h-[8rem] w-[2rem] items-center justify-center rounded-md border bg-card px-3 py-3 shadow-sm transition-colors group-hover:bg-secondary">
+                          <div className="absolute left-1/2 top-1/2 w-[7rem] -translate-x-1/2 -translate-y-1/2 -rotate-90 overflow-hidden">
+                            <span className="inline-flex w-full items-center justify-center gap-1.5 truncate text-center font-sans text-[12px] font-medium leading-none text-foreground">
+                              <WorkoutIconGlyph
+                                icon={item.workoutIcon ?? "dumbbell"}
+                                className="h-3 w-3 shrink-0 text-muted-foreground"
+                              />
+                              <span className="truncate">{item.shortLabel}</span>
                             </span>
                           </div>
                         </div>
