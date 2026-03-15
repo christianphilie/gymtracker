@@ -1215,7 +1215,10 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
                         style={{ left: `${weeklySessionsTimeline.nowTick.leftPercent}%` }}
                         aria-hidden="true"
                       >
-                        <div className="w-[2px] h-5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+                        <div className="flex flex-col items-center translate-y-[2px]">
+                          <div className="w-[2px] h-5 rounded-t-full bg-emerald-500 dark:bg-emerald-400" />
+                          <div className="w-[6px] h-[6px] rounded-full bg-emerald-500 dark:bg-emerald-400" />
+                        </div>
                       </div>
                     )}
 
