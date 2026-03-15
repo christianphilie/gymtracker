@@ -41,7 +41,7 @@ export function WeightInput({
         min={0}
         step={0.5}
         disabled={disabled}
-        className={`${inputRightPaddingClass} ${inputLeftPaddingClass} ${completed ? "border-muted bg-muted/70 text-muted-foreground opacity-75" : ""}`}
+        className={`${inputRightPaddingClass} ${inputLeftPaddingClass} ${completed ? `border-muted bg-muted/70 opacity-75 ${showBodyweightOverlay ? "" : "text-muted-foreground"}` : ""}`}
         onFocus={() => onFocusChange(setId ?? null)}
         onBlur={() => onFocusChange(null)}
         onCommit={(nextValue) => onCommit(normalizeWeightInputValue(nextValue, negativeWeightEnabled))}
