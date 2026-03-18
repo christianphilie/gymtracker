@@ -120,6 +120,7 @@ interface BottomNavItemProps {
 }
 
 const LAST_STATISTICS_ROUTE_STORAGE_KEY = "gymtracker:last-statistics-route";
+const LAST_STATISTICS_ROUTE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 function BottomNavItem({
   to,
@@ -595,7 +596,17 @@ export function AppShell() {
       return;
     }
 
-    setSavedStatisticsSearch(window.localStorage.getItem(LAST_STATISTICS_ROUTE_STORAGE_KEY) ?? "");
+    try {
+      const raw = window.localStorage.getItem(LAST_STATISTICS_ROUTE_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { search: string; savedAt: number };
+        if (Date.now() - parsed.savedAt < LAST_STATISTICS_ROUTE_TTL_MS) {
+          setSavedStatisticsSearch(parsed.search);
+        }
+      }
+    } catch {
+      // ignore malformed stored value
+    }
   }, []);
 
   useEffect(() => {
@@ -603,7 +614,8 @@ export function AppShell() {
       return;
     }
 
-    window.localStorage.setItem(LAST_STATISTICS_ROUTE_STORAGE_KEY, location.search);
+    const value = JSON.stringify({ search: location.search, savedAt: Date.now() });
+    window.localStorage.setItem(LAST_STATISTICS_ROUTE_STORAGE_KEY, value);
     setSavedStatisticsSearch(location.search);
   }, [location.search, pathname]);
 

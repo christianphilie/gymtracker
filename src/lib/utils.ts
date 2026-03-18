@@ -71,7 +71,7 @@ export function formatSessionDateLabel(
   }
 
   if (dayDiff < 14) {
-    return language === "de" ? `Vor ${dayDiff} Tagen, ${formatLocalTime(date, language)}` : `${dayDiff} days ago, ${formatLocalTime(date, language)}`;
+    return language === "de" ? `vor ${dayDiff} Tagen, ${formatLocalTime(date, language)}` : `${dayDiff} days ago, ${formatLocalTime(date, language)}`;
   }
 
   return formatLocalDate(date, language);

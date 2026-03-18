@@ -154,69 +154,66 @@ export function ExerciseCard({
 
             {(exercise.exerciseNotes || (lastSessionSets && lastSessionSets.length > 0) || !sessionIsCompleted) && (
               <div className="border-t pt-2">
-                <div className="flex items-center gap-2">
-                  {lastSessionSets && lastSessionSets.length > 0 ? (
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <History className="h-3.5 w-3.5 text-muted-foreground/70" aria-label={t("lastSession")} />
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1 grow flex flex-wrap items-center gap-x-3 gap-y-2 pt-1.5">
+                    {exercise.exerciseNotes && (
+                      <ExerciseNoteTag note={exercise.exerciseNotes} className="align-middle" />
+                    )}
+                    {lastSessionSets && lastSessionSets.length > 0 && (
+                      <div className="flex items-top gap-1.5 pt-0.5">
+                        <History className="h-3.5 w-3.5 mt-1 text-muted-foreground/70 shrink-0" aria-label={t("lastSession")} />
+                        <div className="flex flex-wrap gap-1">
                         {lastSessionSets.map((summarySet, index) => (
                           <span
                             key={summarySet.id ?? `${exercise.sessionExerciseKey}-${index}`}
-                            className="inline-flex rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70"
+                            className="inline-flex rounded-full border border-border/80 bg-transparent px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground/70"
                           >
                             <SetValueDisplay
                               reps={getSetRepsValue(summarySet)}
                               weight={getSetWeightValue(summarySet)}
                               weightUnitLabel={weightUnitLabel}
                               iconClassName="text-muted-foreground/70"
+                              className="gap-0.5"
                             />
                           </span>
                         ))}
+                        </div>
                       </div>
-                    </div>
-                  ) : exercise.exerciseNotes ? (
-                    <div className="min-w-0 flex-1">
-                      <ExerciseNoteTag note={exercise.exerciseNotes} className="align-middle" />
-                    </div>
-                  ) : (
-                    <div className="min-w-0 flex-1" />
-                  )}
+                    )}
+                  </div>
                   {!sessionIsCompleted && (
-                    <div className="ml-auto flex shrink-0 items-center gap-2">
-                      <button
-                        type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
-                        aria-label={t("removeExercise")}
-                        onClick={async () => {
-                          const sorted = [...exercise.sets].sort((a, b) => b.templateSetOrder - a.templateSetOrder);
-                          if (sorted.length > 1) {
-                            await removeSessionSet(sorted[0].id!);
-                            return;
-                          }
-                          onRequestDeleteExercise(exercise.sessionExerciseKey);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="rounded-md text-lg leading-none"
-                        onClick={async () => {
-                          await addSessionSet(sessionId, exercise.sessionExerciseKey);
-                        }}
-                        aria-label={t("addSet")}
-                      >
-                        +
-                      </Button>
+                    <div className="ml-auto shrink-0 self-start">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
+                          aria-label={t("removeExercise")}
+                          onClick={async () => {
+                            const sorted = [...exercise.sets].sort((a, b) => b.templateSetOrder - a.templateSetOrder);
+                            if (sorted.length > 1) {
+                              await removeSessionSet(sorted[0].id!);
+                              return;
+                            }
+                            onRequestDeleteExercise(exercise.sessionExerciseKey);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="rounded-md text-lg leading-none"
+                          onClick={async () => {
+                            await addSessionSet(sessionId, exercise.sessionExerciseKey);
+                          }}
+                          aria-label={t("addSet")}
+                        >
+                          +
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
-                {lastSessionSets && lastSessionSets.length > 0 && exercise.exerciseNotes && (
-                  <div className="pt-1.5">
-                    <ExerciseNoteTag note={exercise.exerciseNotes} className="align-middle" />
-                  </div>
-                )}
               </div>
             )}
           </CardContent>

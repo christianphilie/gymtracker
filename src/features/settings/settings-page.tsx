@@ -12,10 +12,10 @@ import {
 import { useSettings } from "@/app/settings-context";
 import { APP_VERSION } from "@/app/version";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { db } from "@/db/db";
 import {
   clearAllData,
   exportAllDataSnapshot,
-  getSettings,
   getLatestUpdateSafetySnapshot,
   importAllDataSnapshot,
   restoreUpdateSafetySnapshot,
@@ -75,7 +75,7 @@ export function SettingsPage() {
   });
 
   const latestUpdateSnapshot = useLiveQuery(async () => getLatestUpdateSafetySnapshot(), []);
-  const settingsRecord = useLiveQuery(async () => getSettings(), []);
+  const settingsRecord = useLiveQuery(() => db.settings.get(1), []);
   const [bodyWeightDraft, setBodyWeightDraft] = useState("");
   const [weeklyWeightGoalDraft, setWeeklyWeightGoalDraft] = useState("");
   const [weeklyCaloriesGoalDraft, setWeeklyCaloriesGoalDraft] = useState("");
@@ -188,9 +188,14 @@ export function SettingsPage() {
     { value: "300", label: "5 min", disabled: !restTimerEnabled }
   ];
   const handleClearAllData = async () => {
-    await clearAllData();
-    setClearDialogOpen(false);
-    toast.success(t("allDataDeleted"));
+    try {
+      await clearAllData();
+      setClearDialogOpen(false);
+      toast.success(t("allDataDeleted"));
+      navigate("/");
+    } catch {
+      toast.error("Action failed");
+    }
   };
 
   const handleExportAllData = async () => {

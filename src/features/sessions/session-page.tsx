@@ -59,7 +59,7 @@ const EXERCISE_DONE_BADGE_DELAY_MS = 500;
 const EXERCISE_DONE_BADGE_POP_DURATION_MS = 1500;
 const LAST_SESSION_SECTION_LABEL_CLASS = "text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70";
 const LAST_SESSION_SUMMARY_PILL_CLASS =
-  "inline-flex rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70";
+  "inline-flex rounded-full border border-border/80 bg-transparent px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground/70";
 const EXTRA_PREVIOUS_EXERCISE_ADD_BUTTON_CLASS =
   "h-8 w-8 shrink-0 self-center rounded-full p-0 text-foreground/55 hover:text-foreground/70";
 
@@ -686,7 +686,6 @@ export function SessionPage() {
       cancelExerciseCompletionFeedback(exercise.sessionExerciseKey);
     }
 
-    const beforeExerciseTop = exerciseCardRefs.current[exercise.sessionExerciseKey]?.getBoundingClientRect().top ?? null;
     const shouldCollapse =
       nextCompleted &&
       !set.completed &&
@@ -695,38 +694,6 @@ export function SessionPage() {
     await updateSessionSet(set.id, { completed: nextCompleted });
 
     if (shouldCollapse) scheduleExerciseCompletionFeedback(exercise.sessionExerciseKey);
-    if (!nextCompleted || set.completed) return;
-
-    const firstUnstartedIndex = sessionExercises.findIndex((entry) => {
-      const completedCount = entry.sets.reduce((count, s) => {
-        if (entry.sessionExerciseKey === exercise.sessionExerciseKey && s.id === set.id) return count + 1;
-        return count + (s.completed ? 1 : 0);
-      }, 0);
-      return completedCount === 0;
-    });
-    const currentIndex = sessionExercises.findIndex((e) => e.sessionExerciseKey === exercise.sessionExerciseKey);
-
-    if (firstUnstartedIndex < 0 || currentIndex < 0 || currentIndex <= firstUnstartedIndex) return;
-
-    const nextOrder = sessionExercises.map((e) => e.sessionExerciseKey);
-    const [movedKey] = nextOrder.splice(currentIndex, 1);
-    if (!movedKey) return;
-    nextOrder.splice(firstUnstartedIndex, 0, movedKey);
-
-    const beforeCardTops = captureExerciseCardTops();
-    pendingReorderAnimationRef.current = {
-      expectedOrderKey: nextOrder.join("|"),
-      beforeTops: beforeCardTops,
-      followExerciseKey: exercise.sessionExerciseKey,
-      followExerciseBeforeTop: beforeExerciseTop,
-      followBehaviour: "keep-visible"
-    };
-    try {
-      await reorderSessionExercises(numericSessionId, nextOrder);
-    } catch (error) {
-      pendingReorderAnimationRef.current = null;
-      throw error;
-    }
   };
 
   const handleCompleteUpNextSet = () => {
@@ -1203,6 +1170,7 @@ export function SessionPage() {
                             weight={getSetWeightValue(set)}
                             weightUnitLabel={weightUnitLabel}
                             iconClassName="text-muted-foreground/70"
+                            className="gap-0.5"
                           />
                         </span>
                       ))}

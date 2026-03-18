@@ -409,7 +409,6 @@ export function WorkoutHistoryContent({
 
       return [...groupedByWeek.values()]
         .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime())
-        .slice(-12)
         .map((entry, index) => ({
           index,
           axisLabel: dayFormatter.format(entry.weekStart),
@@ -424,7 +423,7 @@ export function WorkoutHistoryContent({
     }
 
     return groupedHistory
-      .slice(0, 12)
+      .slice()
       .reverse()
       .map((entry, index) => {
         const completedAt = new Date(entry.session.finishedAt ?? entry.session.startedAt);
@@ -447,6 +446,7 @@ export function WorkoutHistoryContent({
     () => sessionProgressChartData.map((entry) => entry.index),
     [sessionProgressChartData]
   );
+  const showSessionProgressDots = sessionProgressChartData.length <= 60;
 
   const sessionProgressConfig = useMemo(
     () =>
@@ -660,7 +660,13 @@ export function WorkoutHistoryContent({
     }
   };
 
-  if (!payload?.workout) {
+  if (payload === undefined) {
+    return null;
+  }
+
+  const workoutPayload = payload?.workout;
+
+  if (!workoutPayload) {
     return <p className="text-sm text-muted-foreground">Workout not found.</p>;
   }
 
@@ -670,7 +676,7 @@ export function WorkoutHistoryContent({
         <div className="space-y-0.5">
           {showWorkoutTitle && (
             <p className="text-base font-semibold leading-tight text-foreground/75">
-              <WorkoutNameLabel name={payload.workout.workout.name} icon={payload.workout.workout.icon} />
+              <WorkoutNameLabel name={workoutPayload.workout.name} icon={workoutPayload.workout.icon} />
             </p>
           )}
           {headerContent}
@@ -770,12 +776,16 @@ export function WorkoutHistoryContent({
                   isAnimationActive
                   animationDuration={HISTORY_CHART_TRANSITION_MS}
                   animationEasing="ease-out"
-                  dot={{
-                    r: 3.5,
-                    strokeWidth: 2,
-                    stroke: "var(--color-metric)",
-                    fill: "hsl(var(--background))"
-                  }}
+                  dot={
+                    showSessionProgressDots
+                      ? {
+                          r: 3.5,
+                          strokeWidth: 2,
+                          stroke: "var(--color-metric)",
+                          fill: "hsl(var(--background))"
+                        }
+                      : false
+                  }
                   activeDot={{ r: 4, fill: "var(--color-metric)" }}
                 />
               </RechartsAreaChart>
@@ -876,13 +886,14 @@ export function WorkoutHistoryContent({
                         return (
                           <span
                             key={set.id ?? `${firstSet.sessionExerciseKey}-${index}`}
-                            className="inline-flex rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground/70"
+                            className="inline-flex rounded-full border border-border/80 bg-transparent px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground/70"
                           >
                             <SetValueDisplay
                               reps={getSetRepsValue(set)}
                               weight={getSetWeightValue(set)}
                               weightUnitLabel={weightUnit}
                               iconClassName="text-muted-foreground/70"
+                              className="gap-0.5"
                             />
                           </span>
                         );

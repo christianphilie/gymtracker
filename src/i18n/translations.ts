@@ -102,7 +102,7 @@ export const messages = {
     recommended: "Empfohlen",
     planned: "Geplant",
     resumeSession: "Fortsetzen",
-    lastSessionExtras: "Zusätzlich in letzter Session",
+    lastSessionExtras: "Letzte Session zusätzlich",
     extraSets: "zusätzliche Sätze",
     discardSession: "Session verwerfen",
     discardSessionConfirm: "Session wirklich verwerfen? Alle aktuellen Daten dieser Session gehen verloren.",
@@ -193,7 +193,7 @@ export const messages = {
     removeExercise: "Übung entfernen",
     exerciseX2Toggle: "Übung als 2x markieren",
     exerciseX2ToggleDescription:
-      "2× zählt alle Werte in den Statistiken doppelt, z. B. für Übungen mit zwei Kurzhanteln die mit jeweils einem Bein ausgeführt werden",
+      "2× zählt die Werte in den Statistiken doppelt, z. B. für Übungen mit zwei Kurzhanteln oder ein Bein nach dem anderen",
     exerciseNegativeWeightToggle: "Übung als Negativgewicht markieren",
     exerciseNegativeWeightToggleDescription:
       "Markiere z. B. assistierte Übungen als negativ, bei denen dein Körpergewicht durch Gegengewicht reduziert wird",
@@ -269,6 +269,11 @@ export const messages = {
     useStarterWorkoutHint: "Fügt ein Oberkörper- und ein Unterkörper-Workout mit Beispielübungen hinzu",
     dashboardImportExistingData: "Vorhandene Daten importieren",
     dashboardImportExistingDataHint: "Wenn du schon Daten in einem anderen Browser angelegt hast, findest du den Backup-Import in den Einstellungen:",
+    dashboardTryDemoDataHint:
+      "Möchtest du Gymtracker mit Demo-Daten ausprobieren, um alle Funktionen und Statistiken zu erkunden?",
+    loadDemoData: "Demo-Daten laden",
+    demoDataLoaded: "Demo-Daten wurden geladen",
+    demoDataAlreadyExists: "Demo-Daten können nur in eine leere App geladen werden",
     statistics: "Statistiken",
     weeklyData: "Wochendaten",
     monthlyData: "Monatsdaten",
@@ -532,7 +537,7 @@ export const messages = {
     removeExercise: "Remove exercise",
     exerciseX2Toggle: "Mark exercise as 2x",
     exerciseX2ToggleDescription:
-      "2× counts all values in statistics twice, for example for exercises with two dumbbells that are performed one leg at a time",
+      "2× counts all values twice in statistics, for example for exercises with two dumbbells or with one leg after another",
     exerciseNegativeWeightToggle: "Mark exercise as negative weight",
     exerciseNegativeWeightToggleDescription:
       "Mark assisted exercises as negative, for example when a counterweight reduces your body weight",
@@ -608,6 +613,11 @@ export const messages = {
     useStarterWorkoutHint: "Adds an upper-body and a lower-body workout with example exercises",
     dashboardImportExistingData: "Import existing data",
     dashboardImportExistingDataHint: "If you already created data in another browser, use the backup import in Settings:",
+    dashboardTryDemoDataHint:
+      "Want to try Gymtracker with demo data so you can explore all features and statistics?",
+    loadDemoData: "Load demo data",
+    demoDataLoaded: "Demo data loaded",
+    demoDataAlreadyExists: "Demo data can only be loaded into an empty app",
     statistics: "Statistics",
     weeklyData: "Weekly Data",
     monthlyData: "Monthly Data",
