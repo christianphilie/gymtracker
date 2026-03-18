@@ -1,14 +1,23 @@
 import { db } from "@/db/db";
 import type {
+  AppLanguage,
   Exercise,
   ExerciseTemplateSet,
   PreviousSessionSummary,
   Session,
   SessionExerciseSet,
+  Settings,
   WeightUnit,
   Workout,
+  WorkoutScheduleDay,
   WorkoutWithRelations
 } from "@/db/types";
+import { importAllDataSnapshot } from "@/db/repository-backup";
+import { ensureDefaultSettings } from "@/db/repository-settings";
+import {
+  buildExerciseAiInfoForCatalogMatch,
+  matchExerciseCatalogEntry
+} from "@/lib/exercise-catalog";
 import { normalizeWorkoutScheduledDays } from "@/lib/workout-schedule";
 import { normalizeSessionExerciseSet } from "@/lib/utils";
 
@@ -82,8 +91,329 @@ interface WorkoutDraft {
   }>;
 }
 
+const STARTER_WORKOUT_DRAFTS: WorkoutDraft[] = [
+  {
+    name: "Oberkörper",
+    icon: "dumbbell",
+    exercises: [
+      {
+        name: "Brustpresse (Maschine)",
+        sets: [
+          { targetReps: 10, targetWeight: 35 },
+          { targetReps: 10, targetWeight: 35 },
+          { targetReps: 10, targetWeight: 35 }
+        ]
+      },
+      {
+        name: "Rudern sitzend (Maschine)",
+        sets: [
+          { targetReps: 10, targetWeight: 35 },
+          { targetReps: 10, targetWeight: 35 },
+          { targetReps: 10, targetWeight: 35 }
+        ]
+      },
+      {
+        name: "Latzug (Maschine)",
+        sets: [
+          { targetReps: 10, targetWeight: 35 },
+          { targetReps: 10, targetWeight: 35 },
+          { targetReps: 10, targetWeight: 35 }
+        ]
+      },
+      {
+        name: "Schulterdrücken (Maschine)",
+        sets: [
+          { targetReps: 12, targetWeight: 20 },
+          { targetReps: 12, targetWeight: 20 },
+          { targetReps: 12, targetWeight: 20 }
+        ]
+      },
+      {
+        name: "Seitheben (Kabel/Maschine)",
+        sets: [
+          { targetReps: 15, targetWeight: 7.5 },
+          { targetReps: 15, targetWeight: 7.5 },
+          { targetReps: 15, targetWeight: 7.5 }
+        ]
+      },
+      {
+        name: "Bizepscurl (Kabel oder Maschine)",
+        x2Enabled: true,
+        sets: [
+          { targetReps: 12, targetWeight: 12.5 },
+          { targetReps: 12, targetWeight: 12.5 },
+          { targetReps: 12, targetWeight: 12.5 }
+        ]
+      },
+      {
+        name: "Trizepsdrücken (Kabelzug)",
+        sets: [
+          { targetReps: 12, targetWeight: 15 },
+          { targetReps: 12, targetWeight: 15 },
+          { targetReps: 12, targetWeight: 15 }
+        ]
+      }
+    ]
+  },
+  {
+    name: "Unterkörper",
+    icon: "footprints",
+    exercises: [
+      {
+        name: "Beinpresse",
+        sets: [
+          { targetReps: 10, targetWeight: 70 },
+          { targetReps: 10, targetWeight: 70 },
+          { targetReps: 10, targetWeight: 70 }
+        ]
+      },
+      {
+        name: "Rumänisches Kreuzheben (Kurzhantel)",
+        sets: [
+          { targetReps: 10, targetWeight: 20 },
+          { targetReps: 10, targetWeight: 20 },
+          { targetReps: 10, targetWeight: 20 }
+        ]
+      },
+      {
+        name: "Beinstrecker (Maschine)",
+        sets: [
+          { targetReps: 12, targetWeight: 35 },
+          { targetReps: 12, targetWeight: 35 },
+          { targetReps: 12, targetWeight: 35 }
+        ]
+      },
+      {
+        name: "Beinbeuger (Maschine)",
+        sets: [
+          { targetReps: 12, targetWeight: 30 },
+          { targetReps: 12, targetWeight: 30 },
+          { targetReps: 12, targetWeight: 30 }
+        ]
+      },
+      {
+        name: "Glute Kickback (Kabel)",
+        x2Enabled: true,
+        sets: [
+          { targetReps: 15, targetWeight: 12.5 },
+          { targetReps: 15, targetWeight: 12.5 },
+          { targetReps: 15, targetWeight: 12.5 }
+        ]
+      },
+      {
+        name: "Wadenheben (Maschine)",
+        sets: [
+          { targetReps: 15, targetWeight: 40 },
+          { targetReps: 15, targetWeight: 40 },
+          { targetReps: 15, targetWeight: 40 }
+        ]
+      }
+    ]
+  }
+];
+const DEMO_WEEKS = 104;
+const DEMO_WORKOUT_SCHEDULES: WorkoutScheduleDay[][] = [["mon"], ["thu"]];
+type DemoSessionVariant = "main" | "pump" | "deload";
+
 function nowIso() {
   return new Date().toISOString();
+}
+
+function cloneWorkoutDraft(draft: WorkoutDraft): WorkoutDraft {
+  return {
+    ...draft,
+    scheduledDays: draft.scheduledDays ? [...draft.scheduledDays] : undefined,
+    exercises: draft.exercises.map((exercise) => ({
+      ...exercise,
+      sets: exercise.sets.map((set) => ({ ...set }))
+    }))
+  };
+}
+
+function getStarterWorkoutDrafts() {
+  return STARTER_WORKOUT_DRAFTS.map((draft) => cloneWorkoutDraft(draft));
+}
+
+function roundToStep(value: number, step: number) {
+  return Math.round(value / step) * step;
+}
+
+function convertWeightForUnit(valueKg: number, unit: WeightUnit) {
+  if (unit === "kg") {
+    return roundToStep(valueKg, 0.5);
+  }
+
+  return roundToStep(valueKg * 2.2046226218, 1);
+}
+
+function getStartOfIsoWeek(date: Date) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const day = start.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + diff);
+  return start;
+}
+
+function addDays(date: Date, amount: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function getDemoExerciseGainKg(params: {
+  baseWeightKg: number;
+  x2Enabled?: boolean;
+  workoutIndex: number;
+  exerciseIndex: number;
+}) {
+  const { baseWeightKg, x2Enabled, workoutIndex, exerciseIndex } = params;
+  let gain = Math.max(
+    baseWeightKg * (x2Enabled ? 0.18 : 0.32),
+    baseWeightKg >= 60 ? 20 : baseWeightKg >= 35 ? 12.5 : baseWeightKg >= 20 ? 7.5 : baseWeightKg >= 10 ? 5 : 2.5
+  );
+
+  if (workoutIndex === 1 && exerciseIndex === 0) {
+    gain += 7.5;
+  }
+
+  if (exerciseIndex === 0) {
+    gain += 2.5;
+  }
+
+  return gain;
+}
+
+function getDemoSessionWeightKg(params: {
+  baseWeightKg: number;
+  weekIndex: number;
+  totalWeeks: number;
+  workoutIndex: number;
+  exerciseIndex: number;
+  x2Enabled?: boolean;
+}) {
+  const { baseWeightKg, weekIndex, totalWeeks, workoutIndex, exerciseIndex, x2Enabled } = params;
+  const gain = getDemoExerciseGainKg({ baseWeightKg, x2Enabled, workoutIndex, exerciseIndex });
+  const progress = totalWeeks <= 1 ? 1 : weekIndex / (totalWeeks - 1);
+  const wavePattern = [0, 0.15, 0.3, 0.45, 0.7, 0.9, 0.55, 1];
+  const waveProgress = wavePattern[weekIndex % wavePattern.length] ?? progress;
+  let value = baseWeightKg + gain * Math.min(1, progress * 0.85 + waveProgress * 0.15);
+
+  if ((weekIndex + 1) % 12 === 0) {
+    value -= Math.max(1, gain * 0.08);
+  }
+
+  return Math.max(baseWeightKg * 0.8, value);
+}
+
+function getDemoActualReps(params: {
+  targetReps: number;
+  weekIndex: number;
+  setIndex: number;
+  x2Enabled?: boolean;
+}) {
+  const { targetReps, weekIndex, setIndex, x2Enabled } = params;
+  const pattern = [1, 0, 0, -1, 1, 0, 1, 0];
+  const delta = pattern[(weekIndex + setIndex) % pattern.length] ?? 0;
+  const heavySetPenalty = setIndex > 0 ? 1 : 0;
+  const minimum = x2Enabled ? 10 : Math.max(6, targetReps - 2);
+  return Math.max(minimum, targetReps + delta - heavySetPenalty);
+}
+
+function getDemoExerciseAiInfo(name: string, language: AppLanguage) {
+  const match = matchExerciseCatalogEntry(name);
+  return match ? buildExerciseAiInfoForCatalogMatch(match, language) : undefined;
+}
+
+function getPatternValue(pattern: number[], index: number) {
+  if (pattern.length === 0) {
+    return 0;
+  }
+
+  return pattern[index % pattern.length] ?? pattern[0] ?? 0;
+}
+
+function getDemoWeekProfile(weekIndex: number) {
+  const blockWeek = weekIndex % 12;
+  const intensityPattern = [-0.05, -0.02, 0.01, 0.03, 0.06, 0.08, 0.04, -0.1, -0.02, 0.02, 0.05, -0.04];
+  const repPattern = [1, 1, 0, 0, -1, -1, 0, 2, 1, 0, -1, 1];
+
+  return {
+    blockWeek,
+    intensityOffset: intensityPattern[blockWeek] ?? 0,
+    repBias: repPattern[blockWeek] ?? 0,
+    isDeloadWeek: blockWeek === 7,
+    isTravelWeek: weekIndex % 17 === 8,
+    hasExtraUpperSession: blockWeek === 4 || weekIndex % 18 === 6,
+    hasExtraLowerSession: blockWeek === 10 && weekIndex % 2 === 0
+  };
+}
+
+function getDemoWeekSessionPlans(weekIndex: number) {
+  const profile = getDemoWeekProfile(weekIndex);
+  const plans: Array<{ workoutIndex: number; dayOffset: number; variant: DemoSessionVariant }> = [];
+  const upperPrimaryOffsets = [0, 1, 0, 2, 3, 1, 0, 2, 4, 1, 0, 3, 0, 1, 2, 5];
+  const lowerPrimaryOffsets = [3, 4, 2, 5, 3, 4, 6, 3, 5, 2, 4, 3, 5, 4, 6, 2];
+  const upperPumpOffsets = [5, 6, 4, 5, 2, 6, 5, 4];
+  const lowerPumpOffsets = [6, 5, 4, 6, 3, 5, 6, 4];
+  const upperPreferredOffset = getPatternValue(upperPrimaryOffsets, weekIndex);
+  const lowerPreferredOffset = getPatternValue(lowerPrimaryOffsets, weekIndex * 2 + 1);
+  const upperRescheduledOffset = 7 + ((weekIndex + 1) % 3);
+  const lowerRescheduledOffset = 7 + ((weekIndex + 2) % 3);
+  const upperShouldBeLate = weekIndex % 9 === 5 || weekIndex % 14 === 3;
+  const lowerShouldBeLate = weekIndex % 11 === 7 || weekIndex % 16 === 10;
+  const upperCanceled = profile.isTravelWeek && weekIndex % 4 !== 0;
+  const lowerCanceled = profile.isTravelWeek && weekIndex % 5 === 1;
+
+  if (!upperCanceled) {
+    plans.push({
+      workoutIndex: 0,
+      dayOffset: upperShouldBeLate ? upperRescheduledOffset : upperPreferredOffset,
+      variant: profile.isDeloadWeek ? "deload" : "main"
+    });
+  }
+
+  if (!lowerCanceled) {
+    plans.push({
+      workoutIndex: 1,
+      dayOffset: lowerShouldBeLate ? lowerRescheduledOffset : lowerPreferredOffset,
+      variant: profile.isDeloadWeek ? "deload" : "main"
+    });
+  }
+
+  if (profile.hasExtraUpperSession && !profile.isTravelWeek) {
+    plans.push({
+      workoutIndex: 0,
+      dayOffset: getPatternValue(upperPumpOffsets, weekIndex * 3 + 2),
+      variant: "pump"
+    });
+  }
+
+  if (profile.hasExtraLowerSession && !profile.isTravelWeek && !profile.isDeloadWeek) {
+    plans.push({
+      workoutIndex: 1,
+      dayOffset: getPatternValue(lowerPumpOffsets, weekIndex * 2 + 4),
+      variant: "pump"
+    });
+  }
+
+  if (upperCanceled && weekIndex % 6 === 2) {
+    plans.push({
+      workoutIndex: 0,
+      dayOffset: upperRescheduledOffset,
+      variant: "pump"
+    });
+  }
+
+  if (lowerCanceled && weekIndex % 7 === 3) {
+    plans.push({
+      workoutIndex: 1,
+      dayOffset: lowerRescheduledOffset,
+      variant: profile.isDeloadWeek ? "deload" : "pump"
+    });
+  }
+
+  return plans;
 }
 
 async function getLatestCompletedSession(workoutId: number, beforeSessionId?: number) {
@@ -353,125 +683,9 @@ export async function ensureDefaultWorkout() {
     return;
   }
 
-  await createWorkout({
-    name: "Oberkörper",
-    icon: "dumbbell",
-    exercises: [
-      {
-        name: "Brustpresse (Maschine)",
-        sets: [
-          { targetReps: 10, targetWeight: 35 },
-          { targetReps: 10, targetWeight: 35 },
-          { targetReps: 10, targetWeight: 35 }
-        ]
-      },
-      {
-        name: "Rudern sitzend (Maschine)",
-        sets: [
-          { targetReps: 10, targetWeight: 35 },
-          { targetReps: 10, targetWeight: 35 },
-          { targetReps: 10, targetWeight: 35 }
-        ]
-      },
-      {
-        name: "Latzug (Maschine)",
-        sets: [
-          { targetReps: 10, targetWeight: 35 },
-          { targetReps: 10, targetWeight: 35 },
-          { targetReps: 10, targetWeight: 35 }
-        ]
-      },
-      {
-        name: "Schulterdrücken (Maschine)",
-        sets: [
-          { targetReps: 12, targetWeight: 20 },
-          { targetReps: 12, targetWeight: 20 },
-          { targetReps: 12, targetWeight: 20 }
-        ]
-      },
-      {
-        name: "Seitheben (Kabel/Maschine)",
-        sets: [
-          { targetReps: 15, targetWeight: 7.5 },
-          { targetReps: 15, targetWeight: 7.5 },
-          { targetReps: 15, targetWeight: 7.5 }
-        ]
-      },
-      {
-        name: "Bizepscurl (Kabel oder Maschine)",
-        x2Enabled: true,
-        sets: [
-          { targetReps: 12, targetWeight: 12.5 },
-          { targetReps: 12, targetWeight: 12.5 },
-          { targetReps: 12, targetWeight: 12.5 }
-        ]
-      },
-      {
-        name: "Trizepsdrücken (Kabelzug)",
-        sets: [
-          { targetReps: 12, targetWeight: 15 },
-          { targetReps: 12, targetWeight: 15 },
-          { targetReps: 12, targetWeight: 15 }
-        ]
-      }
-    ]
-  });
-
-  await createWorkout({
-    name: "Unterkörper",
-    icon: "footprints",
-    exercises: [
-      {
-        name: "Beinpresse",
-        sets: [
-          { targetReps: 10, targetWeight: 70 },
-          { targetReps: 10, targetWeight: 70 },
-          { targetReps: 10, targetWeight: 70 }
-        ]
-      },
-      {
-        name: "Rumänisches Kreuzheben (Kurzhantel)",
-        sets: [
-          { targetReps: 10, targetWeight: 20 },
-          { targetReps: 10, targetWeight: 20 },
-          { targetReps: 10, targetWeight: 20 }
-        ]
-      },
-      {
-        name: "Beinstrecker (Maschine)",
-        sets: [
-          { targetReps: 12, targetWeight: 35 },
-          { targetReps: 12, targetWeight: 35 },
-          { targetReps: 12, targetWeight: 35 }
-        ]
-      },
-      {
-        name: "Beinbeuger (Maschine)",
-        sets: [
-          { targetReps: 12, targetWeight: 30 },
-          { targetReps: 12, targetWeight: 30 },
-          { targetReps: 12, targetWeight: 30 }
-        ]
-      },
-      {
-        name: "Glute Kickback (Kabel)",
-        x2Enabled: true,
-        sets: [
-          { targetReps: 15, targetWeight: 12.5 },
-          { targetReps: 15, targetWeight: 12.5 },
-          { targetReps: 15, targetWeight: 12.5 }
-        ]
-      },
-      {
-        name: "Wadenheben (Maschine)",
-        sets: [
-          { targetReps: 15, targetWeight: 40 },
-          { targetReps: 15, targetWeight: 40 },
-          { targetReps: 15, targetWeight: 40 }
-        ]
-      }
-    ]
-  });
+  for (const draft of getStarterWorkoutDrafts()) {
+    await createWorkout(draft);
+  }
 }
 
 export async function startSession(workoutId: number) {
@@ -1170,32 +1384,300 @@ export async function getAllSessionsByWorkout(workoutId: number) {
 }
 
 export async function seedDemoDataIfEmpty() {
-  const existingCount = await db.workouts.count();
-  if (existingCount > 0) {
-    return;
+  const [workoutCount, exerciseCount, sessionCount, sessionSetCount] = await Promise.all([
+    db.workouts.count(),
+    db.exercises.count(),
+    db.sessions.count(),
+    db.sessionExerciseSets.count()
+  ]);
+
+  if (workoutCount > 0 || exerciseCount > 0 || sessionCount > 0 || sessionSetCount > 0) {
+    return false;
   }
 
-  await createWorkout({
-    name: "Upper Body A",
-    icon: "dumbbell",
-    exercises: [
-      {
-        name: "Bench Press",
-        sets: [
-          { targetReps: 8, targetWeight: 60 },
-          { targetReps: 8, targetWeight: 60 },
-          { targetReps: 6, targetWeight: 65 }
-        ]
-      },
-      {
-        name: "Row",
-        sets: [
-          { targetReps: 10, targetWeight: 45 },
-          { targetReps: 10, targetWeight: 45 }
-        ]
-      }
-    ]
+  const currentSettings = await ensureDefaultSettings();
+  const now = new Date();
+  const earliestWeekStart = addDays(getStartOfIsoWeek(now), -(DEMO_WEEKS - 1) * 7);
+  const demoDrafts = getStarterWorkoutDrafts().map((draft, index) => ({
+    ...draft,
+    scheduledDays: DEMO_WORKOUT_SCHEDULES[index] ? [...DEMO_WORKOUT_SCHEDULES[index]] : undefined
+  }));
+  const unitStep = currentSettings.weightUnit === "kg" ? 0.5 : 1;
+  const workouts: Array<Workout & { id: number }> = [];
+  const exercises: Array<Exercise & { id: number }> = [];
+  const exerciseTemplateSets: Array<ExerciseTemplateSet & { id: number }> = [];
+  const sessions: Array<Session & { id: number }> = [];
+  const sessionExerciseSets: Array<SessionExerciseSet & { id: number }> = [];
+  let nextExerciseId = 1;
+  let nextTemplateSetId = 1;
+  let nextSessionId = 1;
+  let nextSessionSetId = 1;
+
+  const workoutRecords = demoDrafts.map((draft, workoutIndex) => {
+    const workoutId = workoutIndex + 1;
+    const createdAt = addDays(earliestWeekStart, -2 + workoutIndex).toISOString();
+    const templateExercises = draft.exercises.map((exerciseDraft, exerciseIndex) => {
+      const exerciseId = nextExerciseId;
+      nextExerciseId += 1;
+      const aiInfo = getDemoExerciseAiInfo(exerciseDraft.name, currentSettings.language);
+      const exerciseRecord: Exercise & { id: number } = {
+        id: exerciseId,
+        workoutId,
+        name: exerciseDraft.name.trim(),
+        notes: exerciseDraft.notes?.trim(),
+        aiInfo,
+        order: exerciseIndex,
+        isTemplate: true,
+        x2Enabled: exerciseDraft.x2Enabled ?? false,
+        negativeWeightEnabled: exerciseDraft.negativeWeightEnabled ?? false,
+        createdAt,
+        updatedAt: now.toISOString()
+      };
+      const templateSetRecords = exerciseDraft.sets.map((setDraft, setIndex) => {
+        const targetWeight = roundToStep(
+          convertWeightForUnit(
+            getDemoSessionWeightKg({
+              baseWeightKg: setDraft.targetWeight,
+              weekIndex: DEMO_WEEKS - 1,
+              totalWeeks: DEMO_WEEKS,
+              workoutIndex,
+              exerciseIndex,
+              x2Enabled: exerciseDraft.x2Enabled
+            }),
+            currentSettings.weightUnit
+          ),
+          unitStep
+        );
+        const templateSet: ExerciseTemplateSet & { id: number } = {
+          id: nextTemplateSetId,
+          exerciseId,
+          order: setIndex,
+          targetReps: setDraft.targetReps,
+          targetWeight
+        };
+        nextTemplateSetId += 1;
+        return templateSet;
+      });
+
+      exercises.push(exerciseRecord);
+      exerciseTemplateSets.push(...templateSetRecords);
+
+      return {
+        exercise: exerciseRecord,
+        templateSets: templateSetRecords,
+        baseSets: exerciseDraft.sets.map((set) => ({ ...set }))
+      };
+    });
+
+    const workoutRecord: Workout & { id: number } = {
+      id: workoutId,
+      name: draft.name,
+      icon: draft.icon,
+      scheduledDays: draft.scheduledDays,
+      createdAt,
+      updatedAt: now.toISOString(),
+      archivedAt: null
+    };
+
+    workouts.push(workoutRecord);
+
+    return {
+      workout: workoutRecord,
+      templateExercises
+    };
   });
+
+  for (let weekIndex = 0; weekIndex < DEMO_WEEKS; weekIndex += 1) {
+    const weekProfile = getDemoWeekProfile(weekIndex);
+    const sessionPlans = getDemoWeekSessionPlans(weekIndex);
+
+    for (const plan of sessionPlans) {
+      const workoutIndex = plan.workoutIndex;
+      const workoutRecord = workoutRecords[workoutIndex];
+      if (!workoutRecord) {
+        continue;
+      }
+
+      const { workout, templateExercises } = workoutRecord;
+      const sessionDate = addDays(earliestWeekStart, weekIndex * 7 + plan.dayOffset);
+      sessionDate.setHours(
+        18 + workoutIndex,
+        plan.variant === "pump" ? 5 : workoutIndex === 0 ? 15 : 45,
+        0,
+        0
+      );
+      if (sessionDate.getTime() >= now.getTime()) {
+        continue;
+      }
+
+      const sessionId = nextSessionId;
+      nextSessionId += 1;
+      const sessionStart = new Date(sessionDate);
+      const sessionRecord: Session & { id: number } = {
+        id: sessionId,
+        workoutId: workout.id,
+        startedAt: sessionStart.toISOString(),
+        finishedAt: sessionStart.toISOString(),
+        status: "completed",
+        createdAt: sessionStart.toISOString()
+      };
+
+      let latestCompletedAt = sessionStart.getTime() + 6 * 60_000;
+      let sessionExerciseOrder = 0;
+
+      templateExercises.forEach(({ exercise, templateSets, baseSets }, exerciseIndex) => {
+        const isPumpSession = plan.variant === "pump";
+        const isDeloadSession = plan.variant === "deload";
+        const includeExercise =
+          isPumpSession
+            ? workoutIndex === 0
+              ? exerciseIndex < 5
+              : exerciseIndex < 4
+            : isDeloadSession
+              ? exerciseIndex < templateExercises.length - 1
+              : !(weekProfile.isTravelWeek && workoutIndex === 0 && exerciseIndex === templateExercises.length - 1);
+
+        if (!includeExercise) {
+          return;
+        }
+
+        const baseSetCount = isDeloadSession
+          ? Math.max(2, templateSets.length - 1)
+          : isPumpSession
+            ? Math.max(2, templateSets.length - (exerciseIndex > 1 ? 1 : 0))
+            : templateSets.length;
+        const extraSetCount =
+          isPumpSession
+            ? exerciseIndex < 2
+              ? 1
+              : 0
+            : !isDeloadSession && (exerciseIndex === 0 || (exerciseIndex === 1 && weekProfile.blockWeek >= 4 && weekProfile.blockWeek <= 6))
+              ? 1
+              : 0;
+        const totalSetCount = baseSetCount + extraSetCount;
+
+        for (let setIndex = 0; setIndex < totalSetCount; setIndex += 1) {
+          const sourceSetIndex = Math.min(setIndex, templateSets.length - 1);
+          const templateSet = templateSets[sourceSetIndex];
+          const baseSet = baseSets[sourceSetIndex];
+          const variantWeightMultiplier =
+            plan.variant === "pump"
+              ? 0.88
+              : isDeloadSession
+                ? 0.84
+                : 1 + weekProfile.intensityOffset;
+          const extraSetWeightMultiplier = setIndex >= templateSets.length ? 0.94 : 1;
+          const adjustedWeightKg = Math.max(
+            baseSet.targetWeight * 0.72,
+            getDemoSessionWeightKg({
+              baseWeightKg: baseSet.targetWeight,
+              weekIndex,
+              totalWeeks: DEMO_WEEKS,
+              workoutIndex,
+              exerciseIndex,
+              x2Enabled: exercise.x2Enabled
+            }) *
+              variantWeightMultiplier *
+              extraSetWeightMultiplier
+          );
+          const targetWeight = roundToStep(
+            convertWeightForUnit(adjustedWeightKg, currentSettings.weightUnit),
+            unitStep
+          );
+          const targetReps = Math.max(
+            6,
+            templateSet.targetReps + (isPumpSession ? 2 : isDeloadSession ? 1 : 0)
+          );
+          const actualReps = Math.max(
+            isPumpSession ? 10 : 6,
+            getDemoActualReps({
+              targetReps,
+              weekIndex,
+              setIndex,
+              x2Enabled: exercise.x2Enabled
+            }) + weekProfile.repBias
+          );
+          const actualWeight = roundToStep(
+            Math.max(
+              0,
+              targetWeight +
+                (plan.variant === "main" && setIndex === totalSetCount - 1 && weekIndex % 6 === 4 ? unitStep : 0)
+            ),
+            unitStep
+          );
+          const completedAt = new Date(
+            sessionStart.getTime() +
+              (sessionExerciseOrder * (plan.variant === "pump" ? 10 : 12) + setIndex * 3 + 8) * 60_000 +
+              (weekIndex % 3) * 20_000
+          );
+
+          latestCompletedAt = Math.max(latestCompletedAt, completedAt.getTime());
+          sessionExerciseSets.push({
+            id: nextSessionSetId,
+            sessionId,
+            templateExerciseId: exercise.id,
+            sessionExerciseKey: `template-${exercise.id}`,
+            exerciseName: exercise.name,
+            exerciseNotes: exercise.notes,
+            exerciseAiInfo: exercise.aiInfo,
+            exerciseOrder: sessionExerciseOrder,
+            isTemplateExercise: true,
+            x2Enabled: exercise.x2Enabled ?? false,
+            negativeWeightEnabled: exercise.negativeWeightEnabled ?? false,
+            templateSetOrder: setIndex,
+            targetReps,
+            targetWeight,
+            actualReps,
+            actualWeight,
+            completed: true,
+            completedAt: completedAt.toISOString()
+          });
+          nextSessionSetId += 1;
+        }
+
+        sessionExerciseOrder += 1;
+      });
+
+      const finishedAt = new Date(
+        latestCompletedAt + (plan.variant === "pump" ? 4 : 6 + (weekIndex % 4)) * 60_000
+      ).toISOString();
+      sessionRecord.finishedAt = finishedAt;
+      sessions.push(sessionRecord);
+    }
+  }
+
+  const settingsCreatedAt = currentSettings.createdAt || earliestWeekStart.toISOString();
+  const settings: Settings = {
+    ...currentSettings,
+    id: 1,
+    weightUnit: currentSettings.weightUnit,
+    language: currentSettings.language,
+    restTimerEnabled: currentSettings.restTimerEnabled ?? true,
+    restTimerSeconds: currentSettings.restTimerSeconds ?? 120,
+    bodyWeight: convertWeightForUnit(81.4, currentSettings.weightUnit),
+    weeklyWorkoutCountGoal: 2,
+    weeklyDurationGoal: 150,
+    weeklyCaloriesGoal: 1400,
+    weeklyWeightGoal: convertWeightForUnit(14_000, currentSettings.weightUnit),
+    lockerNoteEnabled: true,
+    lockerNumber: "207",
+    lockerNumberUpdatedAt: addDays(now, -1).toISOString(),
+    colorScheme: currentSettings.colorScheme ?? "system",
+    weekStartsOn: currentSettings.weekStartsOn ?? "mon",
+    createdAt: settingsCreatedAt,
+    updatedAt: now.toISOString()
+  };
+
+  await importAllDataSnapshot({
+    settings: [settings],
+    workouts,
+    exercises,
+    exerciseTemplateSets,
+    sessions,
+    sessionExerciseSets
+  });
+
+  return true;
 }
 
 export function formatWeightLabel(weight: number | undefined, unit: WeightUnit) {

@@ -151,6 +151,7 @@ export async function clearAllData() {
   );
 
   clearGymtrackerLocalStorage();
+  await ensureDefaultSettings();
 }
 
 export async function exportAllDataSnapshot(): Promise<AppDataSnapshot> {

@@ -5,6 +5,7 @@ import {
   Clock3,
   Download,
   Dumbbell,
+  Eye,
   Flame,
   ListChecks,
   PenSquare,
@@ -34,7 +35,7 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
-import { discardSession, ensureDefaultWorkout, startSession } from "@/db/repository";
+import { discardSession, ensureDefaultWorkout, seedDemoDataIfEmpty, startSession } from "@/db/repository";
 import { useSettings } from "@/app/settings-context";
 import { getSessionDurationMinutes } from "@/lib/calorie-estimation";
 import { getCurrentWorkoutScheduleDay } from "@/lib/workout-schedule";
@@ -183,6 +184,7 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
   }, [currentPeriodStart, statisticsOffset, statisticsPeriod, weekStartsOn]);
   const [discardConfirmSessionId, setDiscardConfirmSessionId] = useState<number | null>(null);
   const [isCreatingStarterWorkout, setIsCreatingStarterWorkout] = useState(false);
+  const [isSeedingDemoData, setIsSeedingDemoData] = useState(false);
   const [homeWeeklyGoalKey, setHomeWeeklyGoalKey] = useState<"workouts" | "duration" | "calories" | "weight" | null>(null);
   const [animatedMusclePoints, setAnimatedMusclePoints] = useState<Array<{ x: number; y: number }>>([]);
   const animatedMusclePointsRef = useRef<Array<{ x: number; y: number }>>([]);
@@ -805,6 +807,22 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
     }
   };
 
+  const handleLoadDemoData = async () => {
+    try {
+      setIsSeedingDemoData(true);
+      const seeded = await seedDemoDataIfEmpty();
+      if (!seeded) {
+        toast.error(t("demoDataAlreadyExists"));
+        return;
+      }
+      toast.success(t("demoDataLoaded"));
+    } catch {
+      toast.error("Action failed");
+    } finally {
+      setIsSeedingDemoData(false);
+    }
+  };
+
   return (
     <section className="space-y-4">
       {showWorkoutsSection && (
@@ -879,6 +897,19 @@ export function DashboardPageContent({ section }: { section: DashboardPageSectio
             <Download className="h-4 w-4" />
             {t("dashboardImportExistingData")}
           </Button>
+          <div className="mt-4">
+            <p className="mb-2 text-xs text-muted-foreground">{t("dashboardTryDemoDataHint")}</p>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full justify-start gap-2"
+              disabled={isSeedingDemoData}
+              onClick={() => void handleLoadDemoData()}
+            >
+              <Eye className="h-4 w-4" />
+              {t("loadDemoData")}
+            </Button>
+          </div>
         </div>
         </>
       )}

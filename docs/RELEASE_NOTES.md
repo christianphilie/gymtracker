@@ -4,6 +4,19 @@
 
 ---
 
+## 1.5.1 - 2026-03-18
+
+### Added
+1. The empty home state now includes a dedicated demo-data action that seeds a realistic long-term training history, weekly goals, body weight, and other filled-out app data for product demos.
+
+### Changed
+1. Demo-data seeding now generates more varied long-term training patterns with progression waves, missed weeks, shifted training days, extra sessions, and less repetitive yearly statistics.
+2. Workout-data progress charts now render the full available history instead of truncating to the previous 12 sessions or weeks.
+
+### Fixed
+1. Clearing all data no longer triggers a Dexie liveQuery read/write transaction error; the app now restores default settings safely and navigates back to the home screen afterward.
+2. Opening workout-data views no longer briefly flashes "Workout not found" while the workout payload is still loading.
+
 ## 1.5.0 - 2026-03-12
 
 ### Added

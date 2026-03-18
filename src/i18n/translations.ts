@@ -269,6 +269,11 @@ export const messages = {
     useStarterWorkoutHint: "Fügt ein Oberkörper- und ein Unterkörper-Workout mit Beispielübungen hinzu",
     dashboardImportExistingData: "Vorhandene Daten importieren",
     dashboardImportExistingDataHint: "Wenn du schon Daten in einem anderen Browser angelegt hast, findest du den Backup-Import in den Einstellungen:",
+    dashboardTryDemoDataHint:
+      "Möchtest du Gymtracker mit Demo-Daten ausprobieren, um alle Funktionen und Statistiken zu erkunden?",
+    loadDemoData: "Demo-Daten laden",
+    demoDataLoaded: "Demo-Daten wurden geladen",
+    demoDataAlreadyExists: "Demo-Daten können nur in eine leere App geladen werden",
     statistics: "Statistiken",
     weeklyData: "Wochendaten",
     monthlyData: "Monatsdaten",
@@ -608,6 +613,11 @@ export const messages = {
     useStarterWorkoutHint: "Adds an upper-body and a lower-body workout with example exercises",
     dashboardImportExistingData: "Import existing data",
     dashboardImportExistingDataHint: "If you already created data in another browser, use the backup import in Settings:",
+    dashboardTryDemoDataHint:
+      "Want to try Gymtracker with demo data so you can explore all features and statistics?",
+    loadDemoData: "Load demo data",
+    demoDataLoaded: "Demo data loaded",
+    demoDataAlreadyExists: "Demo data can only be loaded into an empty app",
     statistics: "Statistics",
     weeklyData: "Weekly Data",
     monthlyData: "Monthly Data",
