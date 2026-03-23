@@ -112,7 +112,7 @@ export function WorkoutListCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between space-y-0">
+      <CardHeader className="flex-row items-start justify-between space-y-0 border-b border-border/70 pb-3">
         <div className="space-y-1">
           <CardTitle>
             <WorkoutNameLabel name={workout.name} icon={workout.icon} />
@@ -155,7 +155,7 @@ export function WorkoutListCard({
         </div>
       </CardHeader>
 
-      <CardFooter className="justify-between">
+      <CardFooter className="justify-between pt-3">
         <div className="flex items-center gap-1">
           <Button
             variant="outline"
