@@ -122,7 +122,7 @@ export function useDashboardWorkoutsData(params: { restTimerEnabled: boolean; re
     }
 
     const estimatedDurationMinutesByWorkout = new Map<number, number>();
-    const effectiveRestSeconds = restTimerEnabled ? restTimerSeconds : 180;
+    const effectiveRestSeconds = restTimerEnabled ? restTimerSeconds : 150;
     for (const [workoutId, workoutExercises] of templateExercisesByWorkout.entries()) {
       const durationMinutes = estimateWorkoutDurationMinutes({
         restSeconds: effectiveRestSeconds,

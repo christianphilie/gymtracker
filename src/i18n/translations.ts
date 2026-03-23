@@ -155,7 +155,7 @@ export const messages = {
     restTimerShowToggle: "Timer anzeigen",
     restTimerShowToggleHint: "Zeigt den Satzpausen-Timer in aktiven Sessions nach jedem fertigen Satz an",
     restTimerLengthLabel: "Timer-Dauer",
-    restTimerDescription: "Wird auch für die Schätzung der Workout-Dauer verwendet",
+    restTimerDescription: "Wird auch zur Schätzung der Workout-Dauer benutzt",
     sessionHistory: "Session-Verlauf",
     workoutData: "Workout-Daten",
     noSessionHistory: "Noch keine abgeschlossenen Sessions für dieses Workout",
@@ -498,8 +498,7 @@ export const messages = {
     restTimerShowToggle: "Show timer",
     restTimerShowToggleHint: "Shows the rest timer in active sessions after every completed set",
     restTimerLengthLabel: "Timer duration",
-    restTimerDescription:
-      "Duration of the pause after completing a set. Also used for estimated workout duration.",
+    restTimerDescription: "Also used for workout duration estimates",
     sessionHistory: "Session history",
     workoutData: "Workout Data",
     noSessionHistory: "No completed sessions for this workout yet",
